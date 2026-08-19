@@ -10,20 +10,19 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <style>
   :root{
-    /* Refined modern color palette */
-    --bg: #f8fafc;
+    --bg: #f6f5f1;
     --surface: #ffffff;
-    --surface-2: #f1f5f9;
-    --border: #e2e8f0;
-    --text: #0f172a;
-    --text-dim: #64748b;
-    --accent: #10b981;
-    --accent-dark: #059669;
-    --accent-soft: #ecfdf5;
-    --danger: #ef4444;
-    --danger-soft: #fef2f2;
-    --danger-border: #fca5a5;
-    --danger-text: #991b1b;
+    --surface-2: #efece4;
+    --border: #ddd8cc;
+    --text: #262420;
+    --text-dim: #6b665c;
+    --accent: #2f6b4f;
+    --accent-dark: #234f3a;
+    --accent-soft: #e3ede7;
+    --danger: #a3423a;
+    --danger-soft: #fbeceb;
+    --danger-border: #e3b7b2;
+    --danger-text: #7a3a34;
     --radius: 10px;
     --maxw: 1180px;
   }
@@ -48,11 +47,11 @@
   .header-inner{
     max-width: var(--maxw);
     margin: 0 auto;
-    padding: 12px 20px 10px 20px;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 10px; /* Slightly increased gap between title and navigation tabs */
+    padding: 12px 20px;
+    display:flex;
+    align-items:center;
+    gap: 24px;
+    flex-wrap: wrap;
   }
   .brand{
     display:flex; align-items:center; gap:10px;
@@ -68,15 +67,32 @@
   }
   .brand-text{ display:flex; flex-direction:column; line-height:1.15; }
   .brand-name{
-    font-weight:700; font-size:1.25rem; letter-spacing:.01em;
+    font-weight:700; font-size:1.2rem; letter-spacing:.01em;
   }
-  nav.tabs{ display:flex; gap:6px; flex-wrap:nowrap; margin-left: -6px; }
+  .brand-tag{
+    font-size:0.68rem; font-weight:400; color: var(--text-dim);
+    letter-spacing:.02em;
+  }
+  nav.tabs{ display:flex; gap:4px; flex-wrap:wrap; }
   nav.tabs button{
-    font-family:inherit; font-size:1.02rem; /* Slightly larger tab text */
+    font-family:inherit; font-size:0.95rem;
     background:none; border:1px solid transparent;
-    padding:6px 14px; border-radius:8px; cursor:pointer;
+    padding:8px 14px; border-radius:8px; cursor:pointer;
     color: var(--text-dim); font-weight:700;
     display:flex; align-items:center; gap:6px;
+    white-space:nowrap; flex-shrink:0;
+  }
+  @media (max-width: 640px){
+    .header-inner{ flex-wrap:nowrap; gap:12px; padding:10px 12px; }
+    .brand-text{ display:none; }
+    nav.tabs{
+      flex-wrap:nowrap; overflow-x:auto; -webkit-overflow-scrolling:touch;
+      scrollbar-width:none; flex:1; min-width:0;
+      mask-image: linear-gradient(to right, transparent, black 12px, black calc(100% - 12px), transparent);
+      -webkit-mask-image: linear-gradient(to right, transparent, black 12px, black calc(100% - 12px), transparent);
+    }
+    nav.tabs::-webkit-scrollbar{ display:none; }
+    nav.tabs button{ padding:8px 12px; font-size:0.88rem; }
   }
   nav.tabs button:hover{ background: var(--surface-2); color:var(--text); }
   nav.tabs button.active{
@@ -84,8 +100,8 @@
   }
   .pack-count{
     background: var(--accent);
-    color:#fff; font-size:0.75rem; font-weight:700;
-    border-radius:999px; padding:2px 8px; min-width:20px; text-align:center;
+    color:#fff; font-size:0.7rem; font-weight:700;
+    border-radius:999px; padding:1px 7px; min-width:18px; text-align:center;
   }
 
   /* ---------- Layout ---------- */
@@ -111,7 +127,7 @@
     border-radius: var(--radius);
     padding: 16px;
     position: sticky;
-    top: 96px;
+    top: 74px;
   }
   @media (max-width: 860px){
     aside.filters{ position:static; }
@@ -131,13 +147,25 @@
     background: var(--surface);
   }
   input[type=checkbox]{ width:16px; height:16px; accent-color: var(--accent); }
+  .filter-icon{
+    width:15px; height:15px; flex-shrink:0; color: var(--text-dim); vertical-align:-3px;
+  }
+  .cat-toggle{
+    display:flex; align-items:center; justify-content:space-between; width:100%;
+    background:none; border:none; padding:0 0 8px; margin:0; cursor:pointer; font-family:inherit;
+  }
+  .cat-toggle h3{ margin:0; }
+  .cat-toggle .chev{ width:16px; height:16px; color:var(--text-dim); transition: transform .15s; flex-shrink:0; }
+  .cat-toggle[aria-expanded="true"] .chev{ transform: rotate(180deg); }
+  .cat-body{ display:flex; flex-direction:column; }
+  .cat-body[hidden]{ display:none; }
 
   /* ---------- Search / toolbar ---------- */
   .toolbar{
     display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; align-items:center;
   }
   .search-box{
-    flex:1 1 200px;
+    flex:1; min-width:200px;
     display:flex; align-items:center; gap:8px;
     background: var(--surface); border:1px solid var(--border);
     border-radius: 8px; padding: 10px 14px;
@@ -146,12 +174,11 @@
     border:none; outline:none; font-family:inherit; font-size:1rem;
     width:100%; background:transparent; color:var(--text);
   }
-  select#sortSelect{
+  select#sortSelect, select#modpackSortSelect{
     padding:10px 12px; border-radius:8px; border:1px solid var(--border);
     font-family:inherit; font-size:0.92rem; background:var(--surface);
-    flex: 1 1 auto;
   }
-  .view-toggle{ display:flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; flex-shrink: 0; }
+  .view-toggle{ display:flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
   .view-toggle button{
     background:var(--surface); border:none; padding:9px 12px; cursor:pointer; font-size:1rem;
     color: var(--text-dim);
@@ -159,22 +186,14 @@
   .view-toggle button.active{ background: var(--accent-soft); color: var(--accent-dark); }
 
   @media (max-width: 640px){
-    .toolbar{
-      display: grid;
-      grid-template-columns: 1fr auto;
-      gap: 10px;
-    }
-    .search-box{
-      grid-column: 1 / -1;
-      width: 100%;
-    }
-    select#sortSelect{
-      width: 100%;
-    }
+    .toolbar{ flex-wrap:wrap; }
+    .toolbar .search-box{ flex:1 1 100%; min-width:0; }
+    select#sortSelect, select#modpackSortSelect{ flex:1 1 auto; width:auto; }
+    .view-toggle{ flex:0 0 auto; }
   }
 
   /* ---------- Result cards: grid ---------- */
-  #results.grid{
+  #results.grid, #favResults.grid, #modpackResults.grid{
     display:grid;
     grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
     gap: 14px;
@@ -216,20 +235,26 @@
   }
   .card-add.added{ background: var(--surface-2); color: var(--text-dim); }
   .card-add:hover:not(.added){ background: var(--accent-dark); }
+  .card-fav{
+    background:none; border:1px solid var(--border); border-radius:7px;
+    width:32px; height:32px; flex-shrink:0; cursor:pointer; font-size:0.95rem;
+    color: var(--text-dim); display:flex; align-items:center; justify-content:center;
+    margin-left:auto;
+  }
+  .card-fav:hover{ border-color: var(--danger); color: var(--danger); }
+  .card-fav.faved{ background: var(--danger-soft); border-color: var(--danger-border); color: var(--danger); }
+  .card-stats{ position:relative; }
 
   /* ---------- Result list view ---------- */
   #results.list{ display:flex; flex-direction:column; gap:8px; }
   #results.list .card{
-    flex-direction:row; align-items:center; padding:12px 16px; gap:16px;
+    flex-direction:row; align-items:center; padding:10px 14px;
   }
-  #results.list .card-top{ flex:0 0 220px; min-width:0; }
-  #results.list .card-desc{
-    display:-webkit-box; -webkit-line-clamp:1; -webkit-box-orient:vertical;
-    overflow:hidden; flex:1; margin:0; font-size:0.85rem; color:var(--text-dim);
-  }
+  #results.list .card-top{ flex:1; min-width:0; }
+  #results.list .card-desc{ -webkit-line-clamp:1; margin:0; }
   #results.list .card-tags{ display:none; }
   #results.list .card-icon{ width:36px; height:36px; }
-  #results.list .card-stats{ flex-shrink:0; gap:12px; margin-left:auto; }
+  #results.list .card-stats{ flex-shrink:0; }
 
   @media (max-width: 640px){
     #results.list .card{
@@ -237,23 +262,25 @@
       row-gap: 8px;
       padding: 12px;
     }
-    #results.list .card-top{ width:100%; flex:1 0 100%; }
-    #results.list .card-desc{
-      display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;
-      overflow:hidden; width:100%; margin:0;
-    }
+    #results.list .card-top{ width:100%; }
+    #results.list .card-desc{ display:-webkit-box; -webkit-line-clamp:2; margin:0; }
     #results.list .card-stats{
       width:100%;
-      margin-left:0;
-      justify-content:flex-start;
-      gap:12px;
-    }
-    #results.list .card-add{
-      margin-left:auto;
+      justify-content: flex-start;
     }
   }
 
-  /* ---------- Pack tab (My Pack) ---------- */
+  /* ---------- Pack tab (Create) ---------- */
+  .pack-category-group{ margin-bottom:24px; }
+  .pack-category-label{
+    display:inline-flex; align-items:center; gap:6px;
+    font-size:0.7rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+    color: var(--accent-dark); background: var(--accent-soft);
+    padding: 5px 12px; border-radius:999px; margin: 0 0 10px;
+  }
+  .pack-category-label::before{
+    content:""; width:6px; height:6px; border-radius:50%; background: var(--accent);
+  }
   .pack-list{ display:flex; flex-direction:column; gap:8px; }
   .pack-row{
     display:flex; align-items:center; gap:12px;
@@ -299,13 +326,26 @@
 
   /* ---------- Modal (detail view) ---------- */
   .modal-backdrop{
-    position: fixed; inset:0; background: rgba(15,23,42,0.6);
+    position: fixed; inset:0; background: rgba(30,28,24,0.5);
     display:flex; align-items:flex-start; justify-content:center;
     padding: 30px 16px; overflow-y:auto; z-index: 50;
+    animation: modal-fade-in .18s ease-out;
   }
   .modal{
     background: var(--surface); border-radius: 14px; max-width: 700px; width:100%;
     padding: 24px; margin-top: 20px;
+    animation: modal-pop-in .22s cubic-bezier(.2,.9,.3,1.2);
+  }
+  @keyframes modal-fade-in{
+    from{ opacity:0; }
+    to{ opacity:1; }
+  }
+  @keyframes modal-pop-in{
+    from{ opacity:0; transform: translateY(14px) scale(.97); }
+    to{ opacity:1; transform: translateY(0) scale(1); }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .modal-backdrop, .modal{ animation: none; }
   }
   .modal-head{ display:flex; gap:14px; align-items:flex-start; }
   .modal-head img{ width:64px; height:64px; border-radius:10px; }
@@ -314,7 +354,7 @@
     margin-left:auto; background:none; border:none; font-size:1.4rem; cursor:pointer; color: var(--text-dim);
   }
   .modal-gallery{ display:flex; gap:8px; overflow-x:auto; margin: 14px 0; }
-  .modal-gallery img{ height:110px; width:auto; border-radius:8px; flex-shrink:0; cursor: zoom-in; }
+  .modal-gallery img{ height:110px; width:auto; border-radius:8px; flex-shrink:0; }
   .modal-desc{ font-size:0.92rem; color: var(--text); margin: 10px 0 16px; }
   .modal-versions{ max-height:180px; overflow-y:auto; border:1px solid var(--border); border-radius:8px; }
   .version-row{
@@ -343,9 +383,10 @@
   .page-btn:disabled{ opacity:0.4; cursor:not-allowed; }
   .page-ellipsis{ color: var(--text-dim); padding:0 2px; }
 
-  /* ---------- Lightbox ---------- */
+  .modal-gallery img{ cursor: zoom-in; }
+
   .lightbox-backdrop{
-    position: fixed; inset:0; background: rgba(15,23,42,0.92);
+    position: fixed; inset:0; background: rgba(20,18,14,0.88);
     display:flex; align-items:center; justify-content:center;
     z-index: 80; padding: 40px 16px;
   }
@@ -358,16 +399,14 @@
   }
   .lightbox-nav{
     position:fixed; top:50%; transform:translateY(-50%);
-    background: rgba(0,0,0,.55); border:1px solid rgba(255,255,255,.2); color:#fff;
-    width:44px; height:44px; border-radius:50%;
-    cursor:pointer; padding:0; z-index:90;
+    background: rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.25); color:#fff;
+    width:44px; height:44px; border-radius:50%; font-size:1.5rem; font-family:inherit; font-weight:700;
+    cursor:pointer; padding:0; line-height:1;
     display:flex; align-items:center; justify-content:center;
-    transition: background .15s, transform .15s;
   }
-  .lightbox-nav:hover{ background: rgba(0,0,0,.8); transform: translateY(-50%) scale(1.05); }
-  .lightbox-nav svg{ width:22px; height:22px; display:block; stroke: #ffffff; }
-  .lightbox-nav.prev{ left:20px; }
-  .lightbox-nav.next{ right:20px; }
+  .lightbox-nav:hover{ background: rgba(255,255,255,.26); }
+  .lightbox-nav.prev{ left:16px; }
+  .lightbox-nav.next{ right:16px; }
 </style>
 </head>
 <body>
@@ -382,7 +421,9 @@
     </div>
     <nav class="tabs" role="tablist" aria-label="Sections">
       <button class="active" data-tab="browse" role="tab" aria-selected="true">Browse</button>
-      <button data-tab="pack" role="tab" aria-selected="false">My Pack <span class="pack-count" id="packCount">0</span></button>
+      <button data-tab="pack" role="tab" aria-selected="false">Create <span class="pack-count" id="packCount">0</span></button>
+      <button data-tab="modpacks" role="tab" aria-selected="false">Modpacks</button>
+      <button data-tab="favorites" role="tab" aria-selected="false">My Favorites</button>
       <button data-tab="export" role="tab" aria-selected="false">Export</button>
     </nav>
   </div>
@@ -400,20 +441,25 @@
         </div>
         <div class="filter-group">
           <h3>Modloader</h3>
-          <label><input type="checkbox" value="fabric" class="loaderCheck"> Fabric</label>
-          <label><input type="checkbox" value="forge" class="loaderCheck"> Forge</label>
-          <label><input type="checkbox" value="quilt" class="loaderCheck"> Quilt</label>
-          <label><input type="checkbox" value="neoforge" class="loaderCheck"> NeoForge</label>
+          <label><input type="checkbox" value="fabric" class="loaderCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 8h16M4 16h16M8 4v16M16 4v16"/></svg> Fabric</label>
+          <label><input type="checkbox" value="forge" class="loaderCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17h16M6 17v-3a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v3M10 12V8a2 2 0 1 1 4 0v4"/></svg> Forge</label>
+          <label><input type="checkbox" value="quilt" class="loaderCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg> Quilt</label>
+          <label><input type="checkbox" value="neoforge" class="loaderCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c1.5 3-2 4.5-2 8a4 4 0 0 0 8 0c0-1.5-.7-2.5-1-4 1.7 1.7 3 4 3 6.5A6.5 6.5 0 0 1 5.5 19c0-5.5 4-7.5 6.5-17z"/></svg> NeoForge</label>
         </div>
         <div class="filter-group">
-          <h3>Category</h3>
-          <label><input type="checkbox" value="technology" class="catCheck"> Technology</label>
-          <label><input type="checkbox" value="magic" class="catCheck"> Magic</label>
-          <label><input type="checkbox" value="adventure" class="catCheck"> Adventure</label>
-          <label><input type="checkbox" value="decoration" class="catCheck"> Decoration</label>
-          <label><input type="checkbox" value="optimization" class="catCheck"> Optimization</label>
-          <label><input type="checkbox" value="utility" class="catCheck"> Utility</label>
-          <label><input type="checkbox" value="library" class="catCheck"> Library</label>
+          <button type="button" class="cat-toggle" id="catToggleBrowse" aria-expanded="false">
+            <h3 style="margin:0;">Category</h3>
+            <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="cat-body" id="catBodyBrowse" hidden>
+            <label><input type="checkbox" value="technology" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.6V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.6 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.6 1z"/></svg> Technology</label>
+            <label><input type="checkbox" value="magic" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.9L19 9l-5.1 1.9L12 16l-1.9-5.1L5 9l5.1-1.1L12 3z"/><path d="M19 17l.9 2.1L22 20l-2.1.9L19 23l-.9-2.1L16 20l2.1-.9L19 17z"/></svg> Magic</label>
+            <label><input type="checkbox" value="adventure" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg> Adventure</label>
+            <label><input type="checkbox" value="decoration" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.06 11.9l8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08"/><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 0 0-3-3.02z"/></svg> Decoration</label>
+            <label><input type="checkbox" value="optimization" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Optimization</label>
+            <label><input type="checkbox" value="utility" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg> Utility</label>
+            <label><input type="checkbox" value="library" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg> Library</label>
+          </div>
         </div>
       </aside>
 
@@ -443,12 +489,83 @@
     </div>
   </section>
 
-  <!-- MY PACK TAB -->
+  <!-- FAVORITES TAB -->
+  <section id="tab-favorites" style="display:none;">
+    <div class="toolbar">
+      <div class="search-box">
+        <span aria-hidden="true">🔍</span>
+        <input type="text" id="favSearchInput" placeholder="Search your favorites…" aria-label="Search favorites">
+      </div>
+    </div>
+    <div id="favResults" class="grid"></div>
+    <div id="favEmpty" class="empty-state" style="display:none;">
+      <div class="big">⭐</div>
+      <p>No favorites yet. Tap the ♥ on any mod in <strong>Browse</strong> or <strong>Modpacks</strong> to save it here.</p>
+    </div>
+  </section>
+
+  <!-- MODPACKS TAB -->
+  <section id="tab-modpacks" style="display:none;">
+    <div class="layout">
+      <aside class="filters">
+        <div class="filter-group">
+          <h3>Minecraft version</h3>
+          <select id="modpackMcVersion"><option value="">Any version</option></select>
+        </div>
+        <div class="filter-group">
+          <h3>Modloader</h3>
+          <label><input type="checkbox" value="fabric" class="modpackLoaderCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 8h16M4 16h16M8 4v16M16 4v16"/></svg> Fabric</label>
+          <label><input type="checkbox" value="forge" class="modpackLoaderCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17h16M6 17v-3a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v3M10 12V8a2 2 0 1 1 4 0v4"/></svg> Forge</label>
+          <label><input type="checkbox" value="quilt" class="modpackLoaderCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg> Quilt</label>
+          <label><input type="checkbox" value="neoforge" class="modpackLoaderCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c1.5 3-2 4.5-2 8a4 4 0 0 0 8 0c0-1.5-.7-2.5-1-4 1.7 1.7 3 4 3 6.5A6.5 6.5 0 0 1 5.5 19c0-5.5 4-7.5 6.5-17z"/></svg> NeoForge</label>
+        </div>
+        <div class="filter-group">
+          <button type="button" class="cat-toggle" id="catToggleModpacks" aria-expanded="false">
+            <h3 style="margin:0;">Category</h3>
+            <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="cat-body" id="catBodyModpacks" hidden>
+            <label><input type="checkbox" value="technology" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.6V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.6 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.6 1z"/></svg> Technology</label>
+            <label><input type="checkbox" value="magic" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.9L19 9l-5.1 1.9L12 16l-1.9-5.1L5 9l5.1-1.1L12 3z"/><path d="M19 17l.9 2.1L22 20l-2.1.9L19 23l-.9-2.1L16 20l2.1-.9L19 17z"/></svg> Magic</label>
+            <label><input type="checkbox" value="adventure" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg> Adventure</label>
+            <label><input type="checkbox" value="decoration" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.06 11.9l8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08"/><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 0 0-3-3.02z"/></svg> Decoration</label>
+            <label><input type="checkbox" value="optimization" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Optimization</label>
+            <label><input type="checkbox" value="utility" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg> Utility</label>
+            <label><input type="checkbox" value="library" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg> Library</label>
+          </div>
+        </div>
+      </aside>
+
+      <div>
+        <div class="toolbar">
+          <div class="search-box">
+            <span aria-hidden="true">🔍</span>
+            <input type="text" id="modpackSearchInput" placeholder="Search modpacks on Modrinth…" aria-label="Search modpacks">
+          </div>
+          <select id="modpackSortSelect">
+            <option value="relevance">Relevance</option>
+            <option value="downloads">Most downloads</option>
+            <option value="follows">Most followed</option>
+            <option value="newest">Newest</option>
+            <option value="updated">Recently updated</option>
+          </select>
+        </div>
+        <div id="modpackResults" class="grid"></div>
+        <div id="modpackStatusMsg" class="status-msg" style="display:none;"></div>
+        <div id="modpackPagination" class="pagination"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- CREATE TAB -->
   <section id="tab-pack" style="display:none;">
-    <div id="packList" class="pack-list"></div>
+    <div class="toolbar" id="createToolbar" style="display:none; justify-content:flex-end;">
+      <button class="page-btn" id="removeAllBtn" style="color:var(--danger); border-color:var(--danger-border);">Remove all mods</button>
+    </div>
+    <div id="packList"></div>
     <div id="packEmpty" class="empty-state" style="display:none;">
       <div class="big">🧰</div>
-      <p>Your pack is empty. Head to <strong>Browse</strong> to add mods.</p>
+      <p>Your pack is empty. Head to <strong>Browse</strong> or <strong>Modpacks</strong> to add mods.</p>
     </div>
   </section>
 
@@ -501,7 +618,17 @@ let state = {
   results: [],
   page: 1,
   totalHits: 0,
-  pack: JSON.parse(localStorage.getItem("packsmith_pack") || "[]") // [{id,title,icon_url,author,selectedVersionId,versions:[...]}]
+  pack: JSON.parse(localStorage.getItem("packsmith_pack") || "[]"), // [{id,title,icon_url,author,selectedVersionId,versions:[...],categories:[...]}]
+  favorites: JSON.parse(localStorage.getItem("packsmith_favorites") || "[]"), // [{id,title,icon_url,author,description,categories,downloads,follows}]
+  modpackQuery: "",
+  modpackSort: "relevance",
+  modpackMcVersion: "",
+  modpackLoaders: [],
+  modpackCategories: [],
+  modpackResults: [],
+  modpackPage: 1,
+  modpackTotalHits: 0,
+  modpackSearched: false
 };
 
 function savePack(){
@@ -511,6 +638,32 @@ function savePack(){
 function updatePackCount(){
   document.getElementById("packCount").textContent = state.pack.length;
 }
+function saveFavorites(){
+  localStorage.setItem("packsmith_favorites", JSON.stringify(state.favorites));
+  updateFavCount();
+}
+function updateFavCount(){
+  const el = document.getElementById("favCount");
+  if(el) el.textContent = state.favorites.length;
+}
+function toggleFavorite(hit){
+  const idx = state.favorites.findIndex(f=>f.id === hit.project_id);
+  if(idx >= 0){
+    state.favorites.splice(idx, 1);
+  }else{
+    state.favorites.push({
+      id: hit.project_id,
+      title: hit.title,
+      icon_url: hit.icon_url,
+      author: hit.author,
+      description: hit.description,
+      categories: hit.categories || [],
+      downloads: hit.downloads,
+      follows: hit.follows
+    });
+  }
+  saveFavorites();
+}
 
 // ---------- Tabs ----------
 document.querySelectorAll("nav.tabs button").forEach(btn=>{
@@ -518,11 +671,13 @@ document.querySelectorAll("nav.tabs button").forEach(btn=>{
     document.querySelectorAll("nav.tabs button").forEach(b=>{b.classList.remove("active"); b.setAttribute("aria-selected","false");});
     btn.classList.add("active"); btn.setAttribute("aria-selected","true");
     state.tab = btn.dataset.tab;
-    ["browse","pack","export"].forEach(t=>{
+    ["browse","favorites","modpacks","pack","export"].forEach(t=>{
       document.getElementById("tab-"+t).style.display = (t===state.tab) ? "" : "none";
     });
     if(state.tab === "pack") renderPack();
     if(state.tab === "export") renderExport();
+    if(state.tab === "favorites") renderFavorites();
+    if(state.tab === "modpacks" && state.modpackResults.length === 0 && !state.modpackSearched) runModpackSearch();
   });
 });
 
@@ -536,9 +691,11 @@ const FALLBACK_MC_VERSIONS = [
 function populateVersionSelects(list){
   const mcSel = document.getElementById("mcVersion");
   const expSel = document.getElementById("expMcVersion");
+  const modpackSel = document.getElementById("modpackMcVersion");
   list.forEach(v=>{
     mcSel.insertAdjacentHTML("beforeend", `<option value="${v}">${v}</option>`);
     expSel.insertAdjacentHTML("beforeend", `<option value="${v}">${v}</option>`);
+    modpackSel.insertAdjacentHTML("beforeend", `<option value="${v}">${v}</option>`);
   });
 }
 
@@ -568,6 +725,15 @@ function buildFacets(){
   if(state.categories.length) facets.push(state.categories.map(c=>`categories:${c}`));
   if(state.mcVersion) facets.push([`versions:${state.mcVersion}`]);
   facets.push(["project_type:mod"]);
+  return facets;
+}
+
+function buildModpackFacets(){
+  const facets = [];
+  if(state.modpackLoaders.length) facets.push(state.modpackLoaders.map(l=>`categories:${l}`));
+  if(state.modpackCategories.length) facets.push(state.modpackCategories.map(c=>`categories:${c}`));
+  if(state.modpackMcVersion) facets.push([`versions:${state.modpackMcVersion}`]);
+  facets.push(["project_type:modpack"]);
   return facets;
 }
 
@@ -639,13 +805,11 @@ function renderPagination(){
   });
 }
 
-function renderResults(){
-  const resultsEl = document.getElementById("results");
-  resultsEl.className = state.view;
-  resultsEl.innerHTML = state.results.map(hit=>{
-    const inPack = state.pack.some(p=>p.id === hit.project_id);
-    const icon = hit.icon_url || "";
-    return `
+function cardHtml(hit){
+  const inPack = state.pack.some(p=>p.id === hit.project_id);
+  const isFav = state.favorites.some(f=>f.id === hit.project_id);
+  const icon = hit.icon_url || "";
+  return `
     <div class="card" data-id="${hit.project_id}" tabindex="0" role="button" aria-label="View ${escapeHtml(hit.title)}">
       <div class="card-top">
         ${icon ? `<img class="card-icon" src="${icon}" alt="" loading="lazy">` : `<div class="card-icon"></div>`}
@@ -659,26 +823,46 @@ function renderResults(){
       <div class="card-stats">
         <span>⬇ ${formatNum(hit.downloads)}</span>
         <span>♥ ${formatNum(hit.follows)}</span>
+        <button class="card-fav ${isFav?'faved':''}" data-fav="${hit.project_id}" title="${isFav?'Remove from favorites':'Add to favorites'}" aria-label="${isFav?'Remove from favorites':'Add to favorites'}">${isFav ? "♥" : "♡"}</button>
         <button class="card-add ${inPack?'added':''}" data-add="${hit.project_id}">${inPack ? "Added ✓" : "+ Add"}</button>
       </div>
     </div>`;
-  }).join("");
+}
 
-  resultsEl.querySelectorAll(".card").forEach(card=>{
+function wireCardEvents(container, hitLookup, onAdd){
+  container.querySelectorAll(".card").forEach(card=>{
     card.addEventListener("click", (e)=>{
-      if(e.target.closest(".card-add")) return;
-      openModal(card.dataset.id);
+      if(e.target.closest(".card-add") || e.target.closest(".card-fav")) return;
+      openModal(card.dataset.id, hitLookup);
     });
     card.addEventListener("keydown", (e)=>{
-      if(e.key === "Enter") openModal(card.dataset.id);
+      if(e.key === "Enter") openModal(card.dataset.id, hitLookup);
     });
   });
-  resultsEl.querySelectorAll("[data-add]").forEach(btn=>{
+  container.querySelectorAll("[data-add]").forEach(btn=>{
     btn.addEventListener("click", (e)=>{
       e.stopPropagation();
-      quickAdd(btn.dataset.add);
+      onAdd(btn.dataset.add);
     });
   });
+  container.querySelectorAll("[data-fav]").forEach(btn=>{
+    btn.addEventListener("click", (e)=>{
+      e.stopPropagation();
+      const hit = hitLookup(btn.dataset.fav);
+      if(hit) toggleFavorite(hit);
+      renderResults();
+      renderModpackResults();
+      renderFavorites();
+    });
+  });
+}
+
+function renderResults(){
+  const resultsEl = document.getElementById("results");
+  if(!resultsEl) return;
+  resultsEl.className = state.view;
+  resultsEl.innerHTML = state.results.map(cardHtml).join("");
+  wireCardEvents(resultsEl, id=>state.results.find(h=>h.project_id===id), quickAdd);
 }
 
 function formatNum(n){
@@ -691,18 +875,27 @@ function escapeHtml(str){
   return String(str).replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
 }
 
-// ---------- Quick add ----------
+// ---------- Quick add (adds project, version picked later or latest compatible) ----------
+function findHitAnywhere(projectId){
+  return state.results.find(h=>h.project_id === projectId)
+    || state.modpackResults.find(h=>h.project_id === projectId)
+    || state.favorites.find(h=>h.id === projectId);
+}
+
 async function quickAdd(projectId){
   if(state.pack.some(p=>p.id === projectId)) return;
-  const hit = state.results.find(h=>h.project_id === projectId);
+  const hit = findHitAnywhere(projectId);
+  if(!hit) return;
+  const hitId = hit.project_id || hit.id;
   try{
-    const versions = await fetchVersions(projectId);
+    const versions = await fetchVersions(hitId);
     const best = pickBestVersion(versions);
     state.pack.push({
-      id: projectId,
+      id: hitId,
       title: hit.title,
       icon_url: hit.icon_url,
       author: hit.author,
+      categories: hit.categories || [],
       selectedVersionId: best ? best.id : null,
       selectedVersionNumber: best ? best.version_number : null,
       selectedFile: best ? (best.files.find(f=>f.primary) || best.files[0]) : null,
@@ -710,6 +903,11 @@ async function quickAdd(projectId){
     });
     savePack();
     renderResults();
+    renderModpackResults();
+    renderFavorites();
+    await autoAddDependencies(best, new Set([hitId]));
+    await ensureFabricApi();
+    refreshAllViews();
   }catch(e){
     console.error(e);
     alert("Couldn't add that mod — Modrinth may be unreachable.");
@@ -722,6 +920,110 @@ async function fetchVersions(projectId){
   return await res.json();
 }
 
+// ---------- Auto dependencies + Fabric API ----------
+const FABRIC_API_ID = "P7dR8mSH";
+
+function refreshAllViews(){
+  savePack();
+  renderPack();
+  renderResults();
+  renderModpackResults();
+  renderFavorites();
+}
+
+// Native confirm()/alert() get blocked in some sandboxed preview contexts,
+// so destructive actions use this in-app dialog instead.
+function showConfirm(message, {confirmLabel = "Confirm", danger = true} = {}){
+  return new Promise(resolve=>{
+    const backdrop = document.createElement("div");
+    backdrop.className = "modal-backdrop";
+    backdrop.style.alignItems = "center";
+    backdrop.innerHTML = `
+      <div class="modal" style="max-width:380px; margin-top:0;">
+        <p style="margin:0 0 20px; font-size:0.95rem;">${escapeHtml(message)}</p>
+        <div style="display:flex; gap:10px; justify-content:flex-end;">
+          <button class="page-btn" data-choice="cancel">Cancel</button>
+          <button class="export-btn" data-choice="confirm" style="width:auto; margin-top:0; padding:9px 16px; ${danger ? 'background:var(--danger);' : ''}">${escapeHtml(confirmLabel)}</button>
+        </div>
+      </div>`;
+    function finish(result){
+      backdrop.remove();
+      resolve(result);
+    }
+    backdrop.addEventListener("click", (e)=>{ if(e.target === backdrop) finish(false); });
+    backdrop.querySelector('[data-choice="cancel"]').addEventListener("click", ()=>finish(false));
+    backdrop.querySelector('[data-choice="confirm"]').addEventListener("click", ()=>finish(true));
+    document.body.appendChild(backdrop);
+  });
+}
+
+// Walks a version's "required" dependency list and pulls each one into the
+// pack too (recursively, so a library that needs another library still
+// gets added), skipping anything already present.
+async function autoAddDependencies(version, visited){
+  if(!version || !Array.isArray(version.dependencies)) return;
+  for(const dep of version.dependencies){
+    if(dep.dependency_type !== "required") continue;
+    let depProjectId = dep.project_id;
+    if(!depProjectId && dep.version_id){
+      try{
+        const vRes = await fetch(`${API}/version/${dep.version_id}`);
+        if(vRes.ok){ depProjectId = (await vRes.json()).project_id; }
+      }catch(e){ /* ignore, skip this dep */ }
+    }
+    if(!depProjectId || visited.has(depProjectId)) continue;
+    visited.add(depProjectId);
+    if(state.pack.some(p=>p.id === depProjectId)) continue;
+    try{
+      const proj = await fetch(`${API}/project/${depProjectId}`).then(r=>r.ok?r.json():null);
+      if(!proj) continue;
+      const versions = await fetchVersions(depProjectId);
+      const best = pickBestVersion(versions);
+      if(!best) continue;
+      state.pack.push({
+        id: depProjectId,
+        title: proj.title,
+        icon_url: proj.icon_url,
+        author: proj.team || "",
+        categories: proj.categories || [],
+        isDependency: true,
+        selectedVersionId: best.id,
+        selectedVersionNumber: best.version_number,
+        selectedFile: best.files.find(f=>f.primary) || best.files[0],
+        versions
+      });
+      await autoAddDependencies(best, visited);
+    }catch(e){ console.error("Failed to add dependency", depProjectId, e); }
+  }
+}
+
+// Fabric API underpins most Fabric mods but usually isn't listed as a formal
+// dependency, so add it whenever a mod is added — unless it's already there,
+// or the active loader filter rules Fabric/Quilt out entirely.
+async function ensureFabricApi(){
+  if(state.pack.some(p=>p.id === FABRIC_API_ID)) return;
+  if(state.loaders.length && !state.loaders.includes("fabric") && !state.loaders.includes("quilt")) return;
+  try{
+    const proj = await fetch(`${API}/project/${FABRIC_API_ID}`).then(r=>r.ok?r.json():null);
+    if(!proj) return;
+    const versions = await fetchVersions(FABRIC_API_ID);
+    const best = pickBestVersion(versions);
+    if(!best) return;
+    state.pack.push({
+      id: FABRIC_API_ID,
+      title: proj.title,
+      icon_url: proj.icon_url,
+      author: proj.team || "",
+      categories: proj.categories || [],
+      isDependency: true,
+      selectedVersionId: best.id,
+      selectedVersionNumber: best.version_number,
+      selectedFile: best.files.find(f=>f.primary) || best.files[0],
+      versions
+    });
+  }catch(e){ console.error("Failed to add Fabric API", e); }
+}
+
 function pickBestVersion(versions){
   if(!versions.length) return null;
   let candidates = versions;
@@ -731,8 +1033,8 @@ function pickBestVersion(versions){
 }
 
 // ---------- Modal ----------
-async function openModal(projectId){
-  const hit = state.results.find(h=>h.project_id === projectId);
+async function openModal(projectId, hitLookup){
+  const hit = hitLookup ? hitLookup(projectId) : findHitAnywhere(projectId);
   let backdrop = document.createElement("div");
   backdrop.className = "modal-backdrop";
   backdrop.innerHTML = `<div class="modal"><div class="status-msg">Loading details…</div></div>`;
@@ -791,7 +1093,7 @@ async function openModal(projectId){
     });
 
     backdrop.querySelector(".modal-close").addEventListener("click", ()=>backdrop.remove());
-    backdrop.querySelector("#modalAddBtn").addEventListener("click", ()=>{
+    backdrop.querySelector("#modalAddBtn").addEventListener("click", async ()=>{
       if(!chosenVersion){ alert("Pick a version first."); return; }
       const existingIdx = state.pack.findIndex(p=>p.id === projectId);
       const entry = {
@@ -799,15 +1101,18 @@ async function openModal(projectId){
         title: projRes.title,
         icon_url: hit.icon_url,
         author: hit.author,
+        categories: hit.categories || projRes.categories || [],
         selectedVersionId: chosenVersion.id,
         selectedVersionNumber: chosenVersion.version_number,
         selectedFile: chosenVersion.files.find(f=>f.primary) || chosenVersion.files[0],
         versions
       };
       if(existingIdx >= 0) state.pack[existingIdx] = entry; else state.pack.push(entry);
-      savePack();
-      renderResults();
+      refreshAllViews();
       backdrop.remove();
+      await autoAddDependencies(chosenVersion, new Set([projectId]));
+      await ensureFabricApi();
+      refreshAllViews();
     });
   }catch(e){
     console.error(e);
@@ -856,33 +1161,55 @@ function openLightbox(images, startIndex){
   document.body.appendChild(lb);
 }
 
-// ---------- My Pack tab ----------
-function renderPack(){
-  const listEl = document.getElementById("packList");
-  const emptyEl = document.getElementById("packEmpty");
-  if(state.pack.length === 0){
-    listEl.innerHTML = ""; emptyEl.style.display = "block";
-    return;
-  }
-  emptyEl.style.display = "none";
-  listEl.innerHTML = state.pack.map(mod=>`
+// ---------- Create tab ----------
+function packRowHtml(mod){
+  return `
     <div class="pack-row" data-id="${mod.id}">
       ${mod.icon_url ? `<img src="${mod.icon_url}" alt="">` : `<img alt="">`}
       <div class="info">
-        <div class="name">${escapeHtml(mod.title)}</div>
+        <div class="name">${escapeHtml(mod.title)}${mod.isDependency ? ' <span class="tag" style="margin-left:4px;">auto-added</span>' : ''}</div>
         <div class="sub">by ${escapeHtml(mod.author||"")} · ${escapeHtml(mod.selectedVersionNumber||"no version")}</div>
       </div>
       <select data-vselect="${mod.id}">
         ${mod.versions.slice(0,25).map(v=>`<option value="${v.id}" ${v.id===mod.selectedVersionId?"selected":""}>${escapeHtml(v.version_number)}</option>`).join("")}
       </select>
       <button class="remove" data-remove="${mod.id}">Remove</button>
+    </div>`;
+}
+
+function renderPack(){
+  const listEl = document.getElementById("packList");
+  const emptyEl = document.getElementById("packEmpty");
+  const toolbarEl = document.getElementById("createToolbar");
+  if(state.pack.length === 0){
+    listEl.innerHTML = ""; emptyEl.style.display = "block";
+    toolbarEl.style.display = "none";
+    return;
+  }
+  emptyEl.style.display = "none";
+  toolbarEl.style.display = "flex";
+
+  // Group mods by their first category, so mods are classified under a
+  // small label (e.g. CUSTOMIZATION, OPTIMIZATION) like a modpack changelog.
+  const groups = {};
+  state.pack.forEach(mod=>{
+    const cat = (mod.categories && mod.categories[0]) ? mod.categories[0] : "uncategorized";
+    if(!groups[cat]) groups[cat] = [];
+    groups[cat].push(mod);
+  });
+  const orderedCats = Object.keys(groups).sort((a,b)=>a.localeCompare(b));
+
+  listEl.innerHTML = orderedCats.map(cat=>`
+    <div class="pack-category-group">
+      <h4 class="pack-category-label">${escapeHtml(cat)}</h4>
+      <div class="pack-list">${groups[cat].map(packRowHtml).join("")}</div>
     </div>
   `).join("");
 
   listEl.querySelectorAll("[data-remove]").forEach(btn=>{
     btn.addEventListener("click", ()=>{
       state.pack = state.pack.filter(m=>m.id !== btn.dataset.remove);
-      savePack(); renderPack(); renderResults();
+      savePack(); renderPack(); renderResults(); renderModpackResults(); renderFavorites();
     });
   });
   listEl.querySelectorAll("[data-vselect]").forEach(sel=>{
@@ -897,12 +1224,216 @@ function renderPack(){
   });
 }
 
+// ---------- Favorites tab ----------
+function renderFavorites(){
+  const resultsEl = document.getElementById("favResults");
+  const emptyEl = document.getElementById("favEmpty");
+  if(!resultsEl) return;
+  const q = (state.favSearch || "").trim().toLowerCase();
+  const filtered = q
+    ? state.favorites.filter(f=>(f.title||"").toLowerCase().includes(q) || (f.author||"").toLowerCase().includes(q))
+    : state.favorites;
+
+  if(state.favorites.length === 0){
+    resultsEl.innerHTML = ""; emptyEl.style.display = "block";
+    emptyEl.querySelector("p").innerHTML = 'No favorites yet. Tap the ♥ on any mod in <strong>Browse</strong> or <strong>Modpacks</strong> to save it here.';
+    return;
+  }
+  if(filtered.length === 0){
+    resultsEl.innerHTML = ""; emptyEl.style.display = "block";
+    emptyEl.querySelector("p").innerHTML = `No favorites match "${escapeHtml(state.favSearch)}".`;
+    return;
+  }
+  emptyEl.style.display = "none";
+  resultsEl.className = "grid";
+  resultsEl.innerHTML = filtered.map(f=>cardHtml({
+    project_id: f.id, title: f.title, icon_url: f.icon_url, author: f.author,
+    description: f.description, categories: f.categories, downloads: f.downloads, follows: f.follows
+  })).join("");
+  wireCardEvents(resultsEl, id=>{
+    const f = state.favorites.find(x=>x.id===id);
+    return f ? {project_id:f.id, title:f.title, icon_url:f.icon_url, author:f.author, description:f.description, categories:f.categories, downloads:f.downloads, follows:f.follows} : null;
+  }, quickAdd);
+}
+
+// ---------- Modpacks tab ----------
+const MODPACK_PAGE_SIZE = 30;
+
+async function runModpackSearch(){
+  state.modpackSearched = true;
+  const resultsEl = document.getElementById("modpackResults");
+  const statusEl = document.getElementById("modpackStatusMsg");
+  const pageEl = document.getElementById("modpackPagination");
+  statusEl.style.display = "block";
+  statusEl.textContent = "Searching…";
+  resultsEl.innerHTML = "";
+  pageEl.innerHTML = "";
+
+  const params = new URLSearchParams({
+    query: state.modpackQuery,
+    limit: String(MODPACK_PAGE_SIZE),
+    offset: String((state.modpackPage - 1) * MODPACK_PAGE_SIZE),
+    index: state.modpackSort,
+    facets: JSON.stringify(buildModpackFacets())
+  });
+
+  try{
+    const res = await fetch(`${API}/search?${params.toString()}`);
+    if(!res.ok) throw new Error("Search failed: " + res.status);
+    const data = await res.json();
+    state.modpackResults = data.hits || [];
+    state.modpackTotalHits = data.total_hits || 0;
+    if(state.modpackResults.length === 0){
+      statusEl.textContent = "No modpacks found. Try a different search.";
+      return;
+    }
+    statusEl.style.display = "none";
+    renderModpackResults();
+    renderModpackPagination();
+  }catch(e){
+    console.error(e);
+    statusEl.textContent = "Couldn't reach Modrinth's API from this page. If you're viewing this inside Claude's chat preview, that sandbox blocks outside network calls — download the file and open it directly in a browser, or host it, and it'll connect normally.";
+  }
+}
+
+function renderModpackResults(){
+  const resultsEl = document.getElementById("modpackResults");
+  if(!resultsEl) return;
+  resultsEl.className = "grid";
+  resultsEl.innerHTML = state.modpackResults.map(hit=>{
+    const html = cardHtml(hit);
+    // Swap the "+ Add" quick-add for an explicit "Add mods to Create" action,
+    // since adding a modpack means importing all of its mods.
+    return html.replace('data-add="'+hit.project_id+'"', 'data-addpack="'+hit.project_id+'"').replace(/\+ Add|Added ✓/, state.pack.some(p=>p.fromModpack===hit.project_id) ? "In Create ✓" : "+ Add mods");
+  }).join("");
+
+  resultsEl.querySelectorAll(".card").forEach(card=>{
+    card.addEventListener("click", (e)=>{
+      if(e.target.closest("[data-addpack]") || e.target.closest(".card-fav")) return;
+      openModal(card.dataset.id, id=>state.modpackResults.find(h=>h.project_id===id));
+    });
+  });
+  resultsEl.querySelectorAll("[data-fav]").forEach(btn=>{
+    btn.addEventListener("click", (e)=>{
+      e.stopPropagation();
+      const hit = state.modpackResults.find(h=>h.project_id===btn.dataset.fav);
+      if(hit) toggleFavorite(hit);
+      renderResults(); renderModpackResults(); renderFavorites();
+    });
+  });
+  resultsEl.querySelectorAll("[data-addpack]").forEach(btn=>{
+    btn.addEventListener("click", (e)=>{
+      e.stopPropagation();
+      addModpackToCreate(btn.dataset.addpack, btn);
+    });
+  });
+}
+
+function renderModpackPagination(){
+  const el = document.getElementById("modpackPagination");
+  const totalPages = Math.max(1, Math.ceil(state.modpackTotalHits / MODPACK_PAGE_SIZE));
+  if(totalPages <= 1){ el.innerHTML = ""; return; }
+  const cur = state.modpackPage;
+  const pagesToShow = [];
+  for(let p = 1; p <= totalPages; p++){
+    if(p === 1 || p === totalPages || Math.abs(p - cur) <= 1) pagesToShow.push(p);
+  }
+  let html = `<button class="page-btn" data-mpage="${cur-1}" ${cur===1?"disabled":""} aria-label="Previous page">‹</button>`;
+  let last = 0;
+  pagesToShow.forEach(p=>{
+    if(last && p - last > 1) html += `<span class="page-ellipsis">…</span>`;
+    html += `<button class="page-btn ${p===cur?'active':''}" data-mpage="${p}">${p}</button>`;
+    last = p;
+  });
+  html += `<button class="page-btn" data-mpage="${cur+1}" ${cur===totalPages?"disabled":""} aria-label="Next page">›</button>`;
+  el.innerHTML = html;
+  el.querySelectorAll(".page-btn:not(:disabled)").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      state.modpackPage = parseInt(btn.dataset.mpage, 10);
+      runModpackSearch();
+      document.getElementById("modpackResults").scrollIntoView({behavior:"smooth", block:"start"});
+    });
+  });
+}
+
+// Pulls the mod list out of a modpack's .mrpack file (via JSZip) and resolves
+// each file's hash back to a Modrinth project/version, so the mods land in
+// Create as normal, editable pack entries.
+async function addModpackToCreate(projectId, btn){
+  const hit = state.modpackResults.find(h=>h.project_id===projectId);
+  if(!hit) return;
+  const originalLabel = btn.textContent;
+  btn.textContent = "Adding…";
+  btn.disabled = true;
+  try{
+    const versions = await fetchVersions(projectId);
+    const best = pickBestVersion(versions);
+    if(!best) throw new Error("No versions available");
+    const file = best.files.find(f=>f.primary) || best.files[0];
+    const zipBuf = await fetch(file.url).then(r=>{
+      if(!r.ok) throw new Error("Couldn't download modpack file");
+      return r.arrayBuffer();
+    });
+    const zip = await JSZip.loadAsync(zipBuf);
+    const indexEntry = zip.file("modrinth.index.json");
+    if(!indexEntry) throw new Error("Not a Modrinth modpack format");
+    const index = JSON.parse(await indexEntry.async("string"));
+    const hashes = (index.files || []).map(f=>f.hashes && f.hashes.sha1).filter(Boolean);
+    if(hashes.length === 0) throw new Error("No mod files found in modpack");
+
+    const versionLookupRes = await fetch(`${API}/version_files`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ hashes, algorithm: "sha1" })
+    });
+    if(!versionLookupRes.ok) throw new Error("Couldn't resolve modpack contents");
+    const versionMap = await versionLookupRes.json(); // hash -> version object
+    const foundVersions = Object.values(versionMap);
+    const projectIds = [...new Set(foundVersions.map(v=>v.project_id))];
+
+    const projectsRes = await fetch(`${API}/projects?ids=${encodeURIComponent(JSON.stringify(projectIds))}`);
+    const projects = projectsRes.ok ? await projectsRes.json() : [];
+    const projectById = Object.fromEntries(projects.map(p=>[p.id, p]));
+
+    let added = 0;
+    foundVersions.forEach(v=>{
+      if(state.pack.some(p=>p.id === v.project_id)) return;
+      const proj = projectById[v.project_id];
+      state.pack.push({
+        id: v.project_id,
+        title: proj ? proj.title : v.name,
+        icon_url: proj ? proj.icon_url : "",
+        author: "",
+        categories: proj ? proj.categories : [],
+        fromModpack: projectId,
+        selectedVersionId: v.id,
+        selectedVersionNumber: v.version_number,
+        selectedFile: v.files.find(f=>f.primary) || v.files[0],
+        versions: [v]
+      });
+      added++;
+    });
+    await ensureFabricApi();
+    refreshAllViews();
+    if(added === 0){
+      btn.textContent = "In Create ✓";
+    }
+  }catch(e){
+    console.error(e);
+    alert("Couldn't import that modpack's mods — Modrinth may be unreachable, or this modpack isn't in the standard .mrpack format.");
+    btn.textContent = originalLabel;
+    btn.disabled = false;
+  }
+}
+
 // ---------- Export tab ----------
 function renderExport(){
   const note = document.getElementById("exportNote");
   const btn = document.getElementById("exportBtn");
   const expMc = document.getElementById("expMcVersion");
   const expLoader = document.getElementById("expLoader");
+  // If you already filtered by version/loader while browsing, carry that over
+  // so you're not asked to pick it twice.
   if(!expMc.value && state.mcVersion) expMc.value = state.mcVersion;
   if(!expLoader.value && state.loaders.length === 1) expLoader.value = state.loaders[0];
   if(state.pack.length === 0){
@@ -934,6 +1465,7 @@ document.getElementById("exportBtn").addEventListener("click", async ()=>{
   if(loader === "quilt") dependencies["quilt-loader"] = "";
   if(loader === "forge") dependencies["forge"] = "";
   if(loader === "neoforge") dependencies["neoforge"] = "";
+  // strip empty-value deps (user can fill exact loader version in launcher on import)
   Object.keys(dependencies).forEach(k=>{ if(dependencies[k]==="") delete dependencies[k]; });
 
   const manifest = {
@@ -959,6 +1491,8 @@ document.getElementById("exportBtn").addEventListener("click", async ()=>{
   zip.file("modrinth.index.json", JSON.stringify(manifest, null, 2));
   zip.folder("overrides");
 
+  // mimeType is set to something other than application/zip — otherwise some
+  // browsers "helpfully" append .zip to the filename we set below.
   const blob = await zip.generateAsync({type:"blob", mimeType:"application/octet-stream"});
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
@@ -994,6 +1528,60 @@ document.querySelectorAll(".catCheck").forEach(cb=>{
     runSearch();
   });
 });
+document.getElementById("favSearchInput").addEventListener("input", (e)=>{
+  state.favSearch = e.target.value;
+  renderFavorites();
+});
+let modpackSearchTimer = null;
+document.getElementById("modpackSearchInput").addEventListener("input", (e)=>{
+  state.modpackQuery = e.target.value;
+  state.modpackPage = 1;
+  clearTimeout(modpackSearchTimer);
+  modpackSearchTimer = setTimeout(runModpackSearch, 350);
+});
+document.getElementById("modpackSortSelect").addEventListener("change", (e)=>{
+  state.modpackSort = e.target.value;
+  state.modpackPage = 1;
+  runModpackSearch();
+});
+document.getElementById("modpackMcVersion").addEventListener("change", (e)=>{
+  state.modpackMcVersion = e.target.value; state.modpackPage = 1; runModpackSearch();
+});
+document.querySelectorAll(".modpackLoaderCheck").forEach(cb=>{
+  cb.addEventListener("change", ()=>{
+    state.modpackLoaders = [...document.querySelectorAll(".modpackLoaderCheck:checked")].map(c=>c.value);
+    state.modpackPage = 1;
+    runModpackSearch();
+  });
+});
+document.querySelectorAll(".modpackCatCheck").forEach(cb=>{
+  cb.addEventListener("change", ()=>{
+    state.modpackCategories = [...document.querySelectorAll(".modpackCatCheck:checked")].map(c=>c.value);
+    state.modpackPage = 1;
+    runModpackSearch();
+  });
+});
+// ---------- Collapsible category filters (collapsed by default) ----------
+function wireCatToggle(toggleId, bodyId){
+  const toggle = document.getElementById(toggleId);
+  const body = document.getElementById(bodyId);
+  toggle.addEventListener("click", ()=>{
+    const expanded = toggle.getAttribute("aria-expanded") === "true";
+    toggle.setAttribute("aria-expanded", String(!expanded));
+    body.hidden = expanded;
+  });
+}
+wireCatToggle("catToggleBrowse", "catBodyBrowse");
+wireCatToggle("catToggleModpacks", "catBodyModpacks");
+
+document.getElementById("removeAllBtn").addEventListener("click", async ()=>{
+  if(state.pack.length === 0) return;
+  const ok = await showConfirm(`Remove all ${state.pack.length} mod${state.pack.length===1?'':'s'} from Create? This can't be undone.`, {confirmLabel:"Remove all"});
+  if(ok){
+    state.pack = [];
+    refreshAllViews();
+  }
+});
 document.getElementById("gridBtn").addEventListener("click", ()=>{
   state.view = "grid";
   document.getElementById("gridBtn").classList.add("active");
@@ -1007,11 +1595,13 @@ document.getElementById("listBtn").addEventListener("click", ()=>{
   renderResults();
 });
 
+
+
 // ---------- Init ----------
 updatePackCount();
+updateFavCount();
 loadGameVersions();
 runSearch();
 </script>
 </body>
 </html>
-
