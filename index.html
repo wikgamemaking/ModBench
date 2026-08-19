@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ModBench: Build Minecraft modpacks</title>
+<title>ModBench</title>
+<link rel="icon" type="image/png" href="icons/logo.png">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
@@ -38,7 +39,6 @@
   a{ color: var(--accent-dark); }
   img{ max-width:100%; display:block; }
 
-  /* ---------- Header ---------- */
   header.site{
     position: sticky; top:0; z-index: 30;
     background: var(--surface);
@@ -59,13 +59,13 @@
   }
   .brand .mark{
     width:32px; height:32px; border-radius:8px;
-    background: linear-gradient(155deg, var(--accent), var(--accent-dark));
-    box-shadow: 0 1px 2px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.15);
+    overflow:hidden;
+    box-shadow: 0 1px 2px rgba(0,0,0,.18);
     display:flex; align-items:center; justify-content:center;
-    color:white; font-size:16px; font-weight:700;
-    font-family: Georgia, 'Times New Roman', serif;
+    background: var(--surface-2);
     transition: transform .3s cubic-bezier(.2,.9,.3,1.2);
   }
+  .brand .mark img{ width:100%; height:100%; object-fit:cover; }
   .brand:hover .mark{ transform: rotate(-8deg) scale(1.08); }
   .brand-text{ display:flex; flex-direction:column; line-height:1.15; }
   .brand-name{
@@ -83,7 +83,7 @@
     color: var(--text-dim); font-weight:700;
     display:flex; align-items:center; gap:6px;
     white-space:nowrap; flex-shrink:0;
-    transition: background .15s, color .15s;
+    transition: background .18s ease, color .18s ease;
   }
   @media (max-width: 640px){
     .header-inner{ flex-wrap:nowrap; gap:12px; padding:10px 12px; }
@@ -105,9 +105,15 @@
     background: var(--accent);
     color:#fff; font-size:0.7rem; font-weight:700;
     border-radius:999px; padding:1px 7px; min-width:18px; text-align:center;
+    transition: transform .18s cubic-bezier(.3,1.6,.5,1);
+  }
+  .pack-count.bump{ animation: count-bump .3s cubic-bezier(.3,1.6,.5,1); }
+  @keyframes count-bump{
+    0%{ transform: scale(1); }
+    45%{ transform: scale(1.35); }
+    100%{ transform: scale(1); }
   }
 
-  /* ---------- Layout ---------- */
   main{
     max-width: var(--maxw);
     margin: 0 auto;
@@ -123,7 +129,6 @@
     .layout{ grid-template-columns: 1fr; }
   }
 
-  /* ---------- Filters ---------- */
   aside.filters{
     background: var(--surface);
     border:1px solid var(--border);
@@ -177,7 +182,6 @@
   .cat-body{ display:flex; flex-direction:column; }
   .cat-body[hidden]{ display:none; }
 
-  /* ---------- Search / toolbar ---------- */
   .toolbar{
     display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; align-items:center;
   }
@@ -214,7 +218,6 @@
     .view-toggle{ flex:0 0 auto; }
   }
 
-  /* ---------- Result cards: grid ---------- */
   #results.grid, #favResults.grid, #modpackResults.grid{
     display:grid;
     grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
@@ -245,7 +248,7 @@
     padding: 14px;
     display:flex; flex-direction:column; gap:8px;
     cursor:pointer;
-    transition: border-color .15s, transform .15s, box-shadow .15s;
+    transition: border-color .18s ease, transform .18s ease, box-shadow .18s ease;
   }
   .card:hover{ border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 6px 18px rgba(38,36,32,.08); }
   .card:active{ transform: scale(0.99); }
@@ -278,7 +281,7 @@
     padding: 7px 14px; border-radius:7px; font-family:inherit; font-weight:700;
     font-size:0.85rem; cursor:pointer; white-space:nowrap;
     min-width: 100px; text-align:center;
-    transition: background .15s, transform .1s;
+    transition: background .18s ease, transform .12s ease;
   }
   .card-add.added{ background: var(--surface-2); color: var(--text-dim); }
   .card-add:hover:not(.added){ background: var(--accent-dark); transform: translateY(-1px); }
@@ -288,7 +291,7 @@
     width:32px; height:32px; flex-shrink:0; cursor:pointer;
     color: var(--text-dim); display:flex; align-items:center; justify-content:center;
     margin-left:auto;
-    transition: border-color .15s, color .15s, background .15s, transform .1s;
+    transition: border-color .18s ease, color .18s ease, background .18s ease, transform .12s ease;
   }
   .card-fav svg{ width:16px; height:16px; transition: transform .15s; }
   .card-fav:hover{ border-color: var(--danger); color: var(--danger); }
@@ -302,7 +305,6 @@
   }
   .card-stats{ position:relative; }
 
-  /* ---------- Result list view ---------- */
   #results.list{ display:flex; flex-direction:column; gap:8px; }
   #results.list .card{
     flex-direction:row; align-items:center; padding:10px 14px;
@@ -327,7 +329,6 @@
     }
   }
 
-  /* ---------- Pack tab (Create) ---------- */
   .pack-category-group{ margin-bottom:24px; }
   .pack-category-label{
     display:inline-flex; align-items:center; gap:6px;
@@ -343,7 +344,7 @@
     display:flex; align-items:center; gap:12px;
     background: var(--surface); border:1px solid var(--border);
     border-radius: var(--radius); padding: 10px 14px;
-    transition: border-color .15s, box-shadow .15s;
+    transition: border-color .18s ease, box-shadow .18s ease;
     cursor:pointer;
   }
   .pack-row:hover{ border-color: var(--accent); box-shadow: 0 4px 12px rgba(38,36,32,.06); }
@@ -380,7 +381,6 @@
     .empty-state .big{ animation: none; }
   }
 
-  /* ---------- Export tab ---------- */
   .export-panel{
     background: var(--surface); border:1px solid var(--border);
     border-radius: var(--radius); padding: 22px; max-width: 520px;
@@ -395,14 +395,13 @@
   .export-btn{
     margin-top:20px; width:100%; background:var(--accent); color:#fff; border:none;
     padding:12px; border-radius:8px; font-family:inherit; font-weight:700; font-size:1rem; cursor:pointer;
-    transition: background .15s, transform .1s;
+    transition: background .18s ease, transform .12s ease;
   }
   .export-btn:hover{ background: var(--accent-dark); transform: translateY(-1px); }
   .export-btn:active{ transform: translateY(0) scale(.98); }
   .export-btn:disabled{ background:var(--surface-2); color:var(--text-dim); cursor:not-allowed; }
   .export-note{ font-size:0.8rem; color:var(--text-dim); margin-top:10px; }
 
-  /* ---------- Modal (detail view) ---------- */
   .modal-backdrop{
     position: fixed; inset:0; background: rgba(30,28,24,0.5);
     display:flex; align-items:flex-start; justify-content:center;
@@ -461,7 +460,7 @@
   .version-row{
     display:flex; align-items:center; gap:10px; padding:9px 12px; font-size:0.85rem;
     border-bottom:1px solid var(--border); cursor:pointer;
-    transition: background .12s;
+    transition: background .15s ease;
   }
   .version-row:last-child{ border-bottom:none; }
   .version-row:hover{ background: var(--surface-2); }
@@ -525,6 +524,39 @@
   .lightbox-nav:hover{ background: rgba(255,255,255,.26); transform: translateY(-50%) scale(1.08); }
   .lightbox-nav.prev{ left:16px; }
   .lightbox-nav.next{ right:16px; }
+
+  .compat-summary{
+    display:flex; align-items:center; gap:12px;
+    padding:14px; border-radius:10px; margin-bottom:16px;
+  }
+  .compat-summary.ok{ background: var(--accent-soft); }
+  .compat-summary.bad{ background: var(--danger-soft); }
+  .compat-summary .icon{
+    width:38px; height:38px; border-radius:50%; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    color:#fff;
+  }
+  .compat-summary.ok .icon{ background: var(--accent); }
+  .compat-summary.bad .icon{ background: var(--danger); }
+  .compat-summary .icon svg{ width:20px; height:20px; }
+  .compat-summary .headline{ font-weight:700; font-size:0.98rem; }
+  .compat-summary .subline{ font-size:0.82rem; color: var(--text-dim); }
+  .compat-issue{
+    border:1px solid var(--danger-border); background: var(--danger-soft);
+    border-radius:10px; padding:12px 14px; margin-bottom:10px;
+  }
+  .compat-issue:last-child{ margin-bottom:0; }
+  .compat-issue .issue-title{ font-weight:700; font-size:0.88rem; color: var(--danger-text); display:flex; align-items:center; gap:7px; margin-bottom:4px; }
+  .compat-issue .issue-title svg{ width:15px; height:15px; flex-shrink:0; }
+  .compat-issue .issue-detail{ font-size:0.85rem; color: var(--text); line-height:1.5; }
+  .compat-issue .issue-mods{ display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+  .compat-mod-chip{
+    display:inline-flex; align-items:center; gap:5px;
+    background: var(--surface); border:1px solid var(--danger-border);
+    padding:3px 9px 3px 3px; border-radius:999px; font-size:0.78rem; font-weight:700;
+  }
+  .compat-mod-chip img{ width:18px; height:18px; border-radius:50%; object-fit:cover; }
+  .compat-skipped{ font-size:0.8rem; color: var(--text-dim); margin-top:14px; padding-top:12px; border-top:1px solid var(--border); }
 </style>
 </head>
 <body>
@@ -532,7 +564,7 @@
 <header class="site">
   <div class="header-inner">
     <div class="brand">
-      <span class="mark">M</span>
+      <span class="mark"><img src="icons/logo.png" alt="ModBench logo"></span>
       <span class="brand-text">
         <span class="brand-name">ModBench</span>
       </span>
@@ -549,7 +581,6 @@
 
 <main>
 
-  <!-- BROWSE TAB -->
   <section id="tab-browse">
     <div class="layout">
       <aside class="filters">
@@ -611,7 +642,6 @@
     </div>
   </section>
 
-  <!-- FAVORITES TAB -->
   <section id="tab-favorites" style="display:none;">
     <div class="toolbar">
       <div class="search-box">
@@ -626,7 +656,6 @@
     </div>
   </section>
 
-  <!-- MODPACKS TAB -->
   <section id="tab-modpacks" style="display:none;">
     <div class="layout">
       <aside class="filters">
@@ -679,7 +708,6 @@
     </div>
   </section>
 
-  <!-- CREATE TAB -->
   <section id="tab-pack" style="display:none;">
     <div class="toolbar" id="createToolbar" style="display:none; justify-content:flex-end;">
       <button class="page-btn" id="sortAlphaBtn">Sort A→Z</button>
@@ -693,7 +721,6 @@
     </div>
   </section>
 
-  <!-- EXPORT TAB -->
   <section id="tab-export" style="display:none;">
     <div class="export-panel">
       <h2 style="margin-top:0;">Export your pack</h2>
@@ -730,7 +757,6 @@
 <script>
 const API = "https://api.modrinth.com/v2";
 
-// ---------- State ----------
 let state = {
   tab: "browse",
   view: "grid",
@@ -742,9 +768,9 @@ let state = {
   results: [],
   page: 1,
   totalHits: 0,
-  pack: JSON.parse(localStorage.getItem("packsmith_pack") || "[]"), // [{id,title,icon_url,author,selectedVersionId,versions:[...],categories:[...]}]
-  packSort: "category", // "category" | "alpha"
-  favorites: JSON.parse(localStorage.getItem("packsmith_favorites") || "[]"), // [{id,title,icon_url,author,description,categories,downloads,follows}]
+  pack: JSON.parse(localStorage.getItem("packsmith_pack") || "[]"),
+  packSort: "category",
+  favorites: JSON.parse(localStorage.getItem("packsmith_favorites") || "[]"),
   modpackQuery: "",
   modpackSort: "relevance",
   modpackMcVersion: "",
@@ -761,7 +787,14 @@ function savePack(){
   updatePackCount();
 }
 function updatePackCount(){
-  document.getElementById("packCount").textContent = state.pack.length;
+  const el = document.getElementById("packCount");
+  const newVal = String(state.pack.length);
+  if(el.textContent !== newVal){
+    el.textContent = newVal;
+    el.classList.remove("bump");
+    void el.offsetWidth;
+    el.classList.add("bump");
+  }
 }
 function saveFavorites(){
   localStorage.setItem("packsmith_favorites", JSON.stringify(state.favorites));
@@ -790,7 +823,6 @@ function toggleFavorite(hit){
   saveFavorites();
 }
 
-// ---------- Tabs ----------
 document.querySelectorAll("nav.tabs button").forEach(btn=>{
   btn.addEventListener("click", ()=>{
     document.querySelectorAll("nav.tabs button").forEach(b=>{b.classList.remove("active"); b.setAttribute("aria-selected","false");});
@@ -806,8 +838,6 @@ document.querySelectorAll("nav.tabs button").forEach(btn=>{
   });
 });
 
-// ---------- Load MC versions for filters ----------
-// Used only if the live API call fails, so the version dropdowns are never empty.
 const FALLBACK_MC_VERSIONS = [
   "1.21.4","1.21.3","1.21.1","1.21","1.20.6","1.20.4","1.20.2","1.20.1","1.20",
   "1.19.4","1.19.3","1.19.2","1.19","1.18.2","1.18.1","1.16.5","1.12.2"
@@ -837,7 +867,6 @@ async function loadGameVersions(){
   }
 }
 
-// ---------- Search ----------
 let searchTimer = null;
 function scheduleSearch(){
   clearTimeout(searchTimer);
@@ -896,7 +925,7 @@ async function runSearch(){
     renderPagination();
   }catch(e){
     console.error(e);
-    statusEl.textContent = "Couldn't reach Modrinth's API from this page. If you're viewing this inside Claude's chat preview, that sandbox blocks outside network calls. Download the file and open it directly in a browser, or host it, and it'll connect normally.";
+    statusEl.textContent = "Couldn't reach Modrinth's API from this page.";
   }
 }
 
@@ -958,6 +987,28 @@ function cardHtml(hit){
     </div>`;
 }
 
+function updateCardButtons(container, projectId){
+  const card = container.querySelector(`.card[data-id="${projectId}"]`);
+  if(!card) return;
+  const inPack = state.pack.some(p=>p.id === projectId);
+  const isFav = state.favorites.some(f=>f.id === projectId);
+  const addBtn = card.querySelector("[data-add], [data-addpack]");
+  if(addBtn && addBtn.hasAttribute("data-add") && !addBtn.disabled){
+    addBtn.classList.toggle("added", inPack);
+    addBtn.textContent = inPack ? "Added ✓" : "+ Add";
+  }
+  const favBtn = card.querySelector("[data-fav]");
+  if(favBtn){
+    favBtn.classList.toggle("faved", isFav);
+    favBtn.innerHTML = isFav ? HEART_ICON_FILLED : HEART_ICON_OUTLINE;
+    favBtn.title = isFav ? "Remove from favorites" : "Add to favorites";
+    favBtn.setAttribute("aria-label", favBtn.title);
+  }
+}
+function updateCardButtonsEverywhere(projectId){
+  document.querySelectorAll("#results, #favResults, #modpackResults").forEach(c=>updateCardButtons(c, projectId));
+}
+
 function wireCardEvents(container, hitLookup, onAdd){
   container.querySelectorAll(".card").forEach(card=>{
     card.addEventListener("click", (e)=>{
@@ -969,9 +1020,10 @@ function wireCardEvents(container, hitLookup, onAdd){
     });
   });
   container.querySelectorAll("[data-add]").forEach(btn=>{
-    btn.addEventListener("click", (e)=>{
+    btn.addEventListener("click", async (e)=>{
       e.stopPropagation();
-      onAdd(btn.dataset.add);
+      await onAdd(btn.dataset.add);
+      updateCardButtonsEverywhere(btn.dataset.add);
     });
   });
   container.querySelectorAll("[data-fav]").forEach(btn=>{
@@ -979,9 +1031,8 @@ function wireCardEvents(container, hitLookup, onAdd){
       e.stopPropagation();
       const hit = hitLookup(btn.dataset.fav);
       if(hit) toggleFavorite(hit);
-      renderResults();
-      renderModpackResults();
-      renderFavorites();
+      updateCardButtonsEverywhere(btn.dataset.fav);
+      if(state.tab === "favorites") renderFavorites();
     });
   });
 }
@@ -1011,16 +1062,12 @@ function loaderIconsHtml(loaders){
 function stripRawHtml(md){
   if(!md) return "";
   let s = md;
-  // Drop embeds/scripts entirely (tag + everything inside).
   s = s.replace(/<(iframe|script|style|video|object|embed)[\s\S]*?<\/\1\s*>/gi, "");
   s = s.replace(/<(iframe|script|style|video|object|embed)[^>]*\/?>/gi, "");
-  // Turn <br> variants into real line breaks.
   s = s.replace(/<br\s*\/?>/gi, "\n");
   s = s.replace(/<\/p>/gi, "\n\n").replace(/<p[^>]*>/gi, "");
   s = s.replace(/<\/(div|section|h[1-6])>/gi, "\n\n").replace(/<(div|section)[^>]*>/gi, "");
-  // Strip every other tag but keep its text content.
   s = s.replace(/<[^>]+>/g, "");
-  // Collapse excess blank lines left behind.
   s = s.replace(/\n{3,}/g, "\n\n");
   return s.trim();
 }
@@ -1035,28 +1082,20 @@ function truncateMarkdown(md, limit){
 
 function renderMarkdownLite(md){
   if(!md) return "";
-  // Escape first so no raw HTML/script from the source can execute.
   let s = escapeHtml(md);
-  // Strip HTML comments left over from escaping (e.g. &lt;!-- ... --&gt;)
   s = s.replace(/&lt;!--[\s\S]*?--&gt;/g, "");
-  // Images: ![alt](url)
   s = s.replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g, (m, alt, url)=>`<img src="${url}" alt="${alt}" loading="lazy">`);
-  // Links: [text](url)
   s = s.replace(/\[([^\]]+)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g, (m, text, url)=>`<a href="${url}" target="_blank" rel="noopener noreferrer">${text}</a>`);
-  // Headings
   s = s.replace(/^###\s+(.*)$/gm, "<h3>$1</h3>");
   s = s.replace(/^##\s+(.*)$/gm, "<h2>$1</h2>");
   s = s.replace(/^#\s+(.*)$/gm, "<h1>$1</h1>");
-  // Bold / italic / inline code
   s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
   s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
   s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
-  // Lists: group consecutive "- " or "* " lines into <ul>
   s = s.replace(/(?:^[-*]\s+.*(?:\n|$))+/gm, block=>{
     const items = block.trim().split(/\n/).map(l=>l.replace(/^[-*]\s+/, "").trim());
     return `<ul>${items.map(i=>`<li>${i}</li>`).join("")}</ul>\n`;
   });
-  // Paragraphs: wrap remaining bare lines/blocks separated by blank lines
   s = s.split(/\n{2,}/).map(block=>{
     block = block.trim();
     if(!block) return "";
@@ -1070,7 +1109,6 @@ function escapeHtml(str){
   return String(str).replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
 }
 
-// ---------- Quick add (adds project, version picked later or latest compatible) ----------
 function findHitAnywhere(projectId){
   return state.results.find(h=>h.project_id === projectId)
     || state.modpackResults.find(h=>h.project_id === projectId)
@@ -1097,12 +1135,11 @@ async function quickAdd(projectId){
       versions
     });
     savePack();
-    renderResults();
-    renderModpackResults();
-    renderFavorites();
+    if(state.tab === "pack") renderPack();
     await autoAddDependencies(best, new Set([hitId]));
     await ensureFabricApi();
-    refreshAllViews();
+    savePack();
+    if(state.tab === "pack") renderPack();
   }catch(e){
     console.error(e);
     alert("Couldn't add that mod. Modrinth may be unreachable.");
@@ -1115,7 +1152,6 @@ async function fetchVersions(projectId){
   return await res.json();
 }
 
-// ---------- Auto dependencies + Fabric API ----------
 const FABRIC_API_ID = "P7dR8mSH";
 
 function refreshAllViews(){
@@ -1159,7 +1195,7 @@ async function autoAddDependencies(version, visited){
       try{
         const vRes = await fetch(`${API}/version/${dep.version_id}`);
         if(vRes.ok){ depProjectId = (await vRes.json()).project_id; }
-      }catch(e){ /* ignore, skip this dep */ }
+      }catch(e){ }
     }
     if(!depProjectId || visited.has(depProjectId)) continue;
     visited.add(depProjectId);
@@ -1219,7 +1255,6 @@ function pickBestVersion(versions){
   return (candidates.length ? candidates : versions)[0];
 }
 
-// ---------- Modal ----------
 async function openModal(projectId, hitLookup){
   const hit = hitLookup ? hitLookup(projectId) : findHitAnywhere(projectId);
   let backdrop = document.createElement("div");
@@ -1320,11 +1355,14 @@ async function openModal(projectId, hitLookup){
         versions
       };
       if(existingIdx >= 0) state.pack[existingIdx] = entry; else state.pack.push(entry);
-      refreshAllViews();
+      savePack();
+      updateCardButtonsEverywhere(projectId);
+      if(state.tab === "pack") renderPack();
       backdrop.remove();
       await autoAddDependencies(chosenVersion, new Set([projectId]));
       await ensureFabricApi();
-      refreshAllViews();
+      savePack();
+      if(state.tab === "pack") renderPack();
     });
   }catch(e){
     console.error(e);
@@ -1333,7 +1371,6 @@ async function openModal(projectId, hitLookup){
   }
 }
 
-// ---------- Lightbox (image zoom) ----------
 function openLightbox(images, startIndex){
   let idx = startIndex;
   const lb = document.createElement("div");
@@ -1373,7 +1410,6 @@ function openLightbox(images, startIndex){
   document.body.appendChild(lb);
 }
 
-// ---------- Create tab ----------
 function packRowHtml(mod){
   return `
     <div class="pack-row" data-id="${mod.id}" tabindex="0" role="button" aria-label="View ${escapeHtml(mod.title)}">
@@ -1405,8 +1441,6 @@ function renderPack(){
     const sorted = [...state.pack].sort((a,b)=>a.title.localeCompare(b.title));
     listEl.innerHTML = `<div class="pack-list">${sorted.map(packRowHtml).join("")}</div>`;
   }else{
-    // Group mods by their first category, so mods are classified under a
-    // small label (e.g. CUSTOMIZATION, OPTIMIZATION) like a modpack changelog.
     const groups = {};
     state.pack.forEach(mod=>{
       const cat = (mod.categories && mod.categories[0]) ? mod.categories[0] : "uncategorized";
@@ -1435,8 +1469,10 @@ function renderPack(){
   listEl.querySelectorAll("[data-remove]").forEach(btn=>{
     btn.addEventListener("click", (e)=>{
       e.stopPropagation();
-      state.pack = state.pack.filter(m=>m.id !== btn.dataset.remove);
-      savePack(); renderPack(); renderResults(); renderModpackResults(); renderFavorites();
+      const removedId = btn.dataset.remove;
+      state.pack = state.pack.filter(m=>m.id !== removedId);
+      savePack(); renderPack();
+      updateCardButtonsEverywhere(removedId);
     });
   });
   listEl.querySelectorAll("[data-vselect]").forEach(sel=>{
@@ -1452,7 +1488,16 @@ function renderPack(){
   });
 }
 
-// ---------- Compatibility checker ----------
+const COMPAT_ICON_WARN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+const COMPAT_ICON_CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+const COMPAT_ICON_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+const COMPAT_ICON_LOADER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>';
+const COMPAT_ICON_BLOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>';
+
+function modChipHtml(mod){
+  return `<span class="compat-mod-chip">${mod.icon_url ? `<img src="${mod.icon_url}" alt="">` : ""}${escapeHtml(mod.title)}</span>`;
+}
+
 function runCompatibilityCheck(){
   const mods = state.pack.filter(m=>m.selectedVersionId && Array.isArray(m.versions));
   const selected = mods.map(m=>({
@@ -1462,34 +1507,49 @@ function runCompatibilityCheck(){
 
   const issues = [];
 
-  // Explicit "incompatible" dependency flags between selected versions.
   selected.forEach(({mod, version})=>{
     (version.dependencies||[]).forEach(dep=>{
       if(dep.dependency_type !== "incompatible") return;
       const other = selected.find(x=>x.mod.id === dep.project_id);
       if(other){
-        issues.push(`<strong>${escapeHtml(mod.title)}</strong> and <strong>${escapeHtml(other.mod.title)}</strong> are marked incompatible with each other.`);
+        issues.push({
+          type: "incompatible",
+          icon: COMPAT_ICON_X,
+          title: "Marked incompatible with each other",
+          detail: `The mod authors have explicitly flagged these two as incompatible when used together. Remove one, or check if either has an alternative version that drops the conflict.`,
+          mods: [mod, other.mod]
+        });
       }
     });
   });
 
-  // Mod loader mismatch: do all selected versions share at least one loader?
   if(selected.length > 1){
     const loaderSets = selected.map(x=>new Set(x.version.loaders||[]));
     const allLoaders = new Set(loaderSets.flatMap(s=>[...s]));
     const commonLoaders = [...allLoaders].filter(l=>loaderSets.every(s=>s.has(l)));
     if(commonLoaders.length === 0){
-      const perMod = selected.map(x=>`${escapeHtml(x.mod.title)} (${(x.version.loaders||[]).join(", ") || "unknown"})`).join(", ");
-      issues.push(`No mod loader is shared by every selected version: ${perMod}.`);
+      issues.push({
+        type: "loader",
+        icon: COMPAT_ICON_LOADER,
+        title: "No shared mod loader",
+        detail: `Every mod in your pack must run on the same loader (Fabric, Forge, Quilt, or NeoForge). These selected versions don't have any loader in common, so at least one won't load. Open each mod below and pick a version built for the same loader as the rest.`,
+        mods: selected.map(x=>x.mod),
+        perModNote: selected.map(x=>`${x.mod.title}: ${(x.version.loaders||[]).join(", ") || "unknown"}`)
+      });
     }
 
-    // Minecraft version mismatch
     const gvSets = selected.map(x=>new Set(x.version.game_versions||[]));
     const allGv = new Set(gvSets.flatMap(s=>[...s]));
     const commonGv = [...allGv].filter(v=>gvSets.every(s=>s.has(v)));
     if(commonGv.length === 0){
-      const perMod = selected.map(x=>`${escapeHtml(x.mod.title)} (${(x.version.game_versions||[]).slice(-2).join(", ") || "unknown"})`).join(", ");
-      issues.push(`No Minecraft version is shared by every selected version: ${perMod}.`);
+      issues.push({
+        type: "version",
+        icon: COMPAT_ICON_BLOCK,
+        title: "No shared Minecraft version",
+        detail: `Every mod needs to support the same Minecraft version. None of the game versions below are supported by every selected file. Pick versions of each mod that target the same Minecraft release.`,
+        mods: selected.map(x=>x.mod),
+        perModNote: selected.map(x=>`${x.mod.title}: ${(x.version.game_versions||[]).slice(-3).join(", ") || "unknown"}`)
+      });
     }
   }
 
@@ -1502,18 +1562,42 @@ function showCompatibilityResults(){
   const backdrop = document.createElement("div");
   backdrop.className = "modal-backdrop";
   backdrop.style.alignItems = "center";
-  const body = issues.length
-    ? `<ul style="margin:0 0 16px; padding-left:20px; display:flex; flex-direction:column; gap:8px;">${issues.map(i=>`<li>${i}</li>`).join("")}</ul>`
-    : `<p style="margin:0 0 16px; color:var(--text-dim);">No conflicts found across the ${checked} mod${checked===1?"":"s"} checked. They share a common Minecraft version and mod loader, with no explicit incompatibilities flagged.</p>`;
+
+  const summaryHtml = issues.length
+    ? `<div class="compat-summary bad">
+         <span class="icon">${COMPAT_ICON_WARN}</span>
+         <div>
+           <div class="headline">${issues.length} compatibility issue${issues.length===1?"":"s"} found</div>
+           <div class="subline">Checked ${checked} mod${checked===1?"":"s"} with a selected version</div>
+         </div>
+       </div>`
+    : `<div class="compat-summary ok">
+         <span class="icon">${COMPAT_ICON_CHECK}</span>
+         <div>
+           <div class="headline">No conflicts found</div>
+           <div class="subline">${checked} mod${checked===1?"":"s"} checked share a Minecraft version and mod loader, with no flagged incompatibilities</div>
+         </div>
+       </div>`;
+
+  const issuesHtml = issues.map(issue=>`
+    <div class="compat-issue">
+      <div class="issue-title">${issue.icon} ${escapeHtml(issue.title)}</div>
+      <div class="issue-detail">${escapeHtml(issue.detail)}</div>
+      <div class="issue-mods">${issue.mods.map(modChipHtml).join("")}</div>
+      ${issue.perModNote ? `<div class="issue-detail" style="margin-top:8px; font-size:0.8rem;">${issue.perModNote.map(escapeHtml).join("<br>")}</div>` : ""}
+    </div>
+  `).join("");
+
   backdrop.innerHTML = `
     <div class="modal" style="max-width:480px; margin-top:0;">
-      <div class="modal-head" style="margin-bottom:6px;">
-        <div class="name" style="font-size:1.1rem;">${issues.length ? "Compatibility issues found" : "Looks compatible"}</div>
+      <div class="modal-head" style="margin-bottom:14px;">
+        <div class="name" style="font-size:1.1rem;">Compatibility check</div>
         <button class="modal-close" aria-label="Close">✕</button>
       </div>
-      ${body}
-      ${skipped > 0 ? `<p style="margin:0 0 16px; font-size:0.8rem; color:var(--text-dim);">${skipped} mod${skipped===1?"":"s"} skipped (no version selected yet).</p>` : ""}
-      <button class="export-btn" data-choice="close">Close</button>
+      ${summaryHtml}
+      <div style="margin-top:16px;">${issuesHtml}</div>
+      ${skipped > 0 ? `<div class="compat-skipped">${skipped} mod${skipped===1?"":"s"} skipped: no version selected yet.</div>` : ""}
+      <button class="export-btn" data-choice="close" style="margin-top:18px;">Close</button>
     </div>`;
   backdrop.addEventListener("click", (e)=>{ if(e.target === backdrop) backdrop.remove(); });
   backdrop.querySelector(".modal-close").addEventListener("click", ()=>backdrop.remove());
@@ -1521,7 +1605,6 @@ function showCompatibilityResults(){
   document.body.appendChild(backdrop);
 }
 
-// ---------- Favorites tab ----------
 function renderFavorites(){
   const resultsEl = document.getElementById("favResults");
   const emptyEl = document.getElementById("favEmpty");
@@ -1553,7 +1636,6 @@ function renderFavorites(){
   }, quickAdd);
 }
 
-// ---------- Modpacks tab ----------
 const MODPACK_PAGE_SIZE = 30;
 
 async function runModpackSearch(){
@@ -1613,7 +1695,8 @@ function renderModpackResults(){
       e.stopPropagation();
       const hit = state.modpackResults.find(h=>h.project_id===btn.dataset.fav);
       if(hit) toggleFavorite(hit);
-      renderResults(); renderModpackResults(); renderFavorites();
+      updateCardButtonsEverywhere(btn.dataset.fav);
+      if(state.tab === "favorites") renderFavorites();
     });
   });
   resultsEl.querySelectorAll("[data-addpack]").forEach(btn=>{
@@ -1651,9 +1734,6 @@ function renderModpackPagination(){
   });
 }
 
-// Pulls the mod list out of a modpack's .mrpack file (via JSZip) and resolves
-// each file's hash back to a Modrinth project/version, so the mods land in
-// Create as normal, editable pack entries.
 async function addModpackToCreate(projectId, btn){
   const hit = state.modpackResults.find(h=>h.project_id===projectId);
   if(!hit) return;
@@ -1682,7 +1762,7 @@ async function addModpackToCreate(projectId, btn){
       body: JSON.stringify({ hashes, algorithm: "sha1" })
     });
     if(!versionLookupRes.ok) throw new Error("Couldn't resolve modpack contents.");
-    const versionMap = await versionLookupRes.json(); // hash -> version object
+    const versionMap = await versionLookupRes.json();
     const foundVersions = Object.values(versionMap);
     const projectIds = [...new Set(foundVersions.map(v=>v.project_id))];
 
@@ -1709,7 +1789,9 @@ async function addModpackToCreate(projectId, btn){
       added++;
     });
     await ensureFabricApi();
-    refreshAllViews();
+    savePack();
+    if(state.tab === "pack") renderPack();
+    renderModpackResults();
     if(added === 0){
       btn.textContent = "In Create ✓";
     }
@@ -1721,14 +1803,11 @@ async function addModpackToCreate(projectId, btn){
   }
 }
 
-// ---------- Export tab ----------
 function renderExport(){
   const note = document.getElementById("exportNote");
   const btn = document.getElementById("exportBtn");
   const expMc = document.getElementById("expMcVersion");
   const expLoader = document.getElementById("expLoader");
-  // If you already filtered by version/loader while browsing, carry that over
-  // so you're not asked to pick it twice.
   if(!expMc.value && state.mcVersion) expMc.value = state.mcVersion;
   if(!expLoader.value && state.loaders.length === 1) expLoader.value = state.loaders[0];
   if(state.pack.length === 0){
@@ -1760,7 +1839,6 @@ document.getElementById("exportBtn").addEventListener("click", async ()=>{
   if(loader === "quilt") dependencies["quilt-loader"] = "";
   if(loader === "forge") dependencies["forge"] = "";
   if(loader === "neoforge") dependencies["neoforge"] = "";
-  // strip empty-value deps (user can fill exact loader version in launcher on import)
   Object.keys(dependencies).forEach(k=>{ if(dependencies[k]==="") delete dependencies[k]; });
 
   const manifest = {
@@ -1797,7 +1875,6 @@ document.getElementById("exportBtn").addEventListener("click", async ()=>{
   URL.revokeObjectURL(url);
 });
 
-// ---------- Filter listeners ----------
 document.getElementById("searchInput").addEventListener("input", (e)=>{
   state.query = e.target.value; state.page = 1; scheduleSearch();
 });
@@ -1854,7 +1931,6 @@ document.querySelectorAll(".modpackCatCheck").forEach(cb=>{
     runModpackSearch();
   });
 });
-// ---------- Collapsible category filters (collapsed by default) ----------
 function wireCatToggle(toggleId, bodyId){
   const toggle = document.getElementById(toggleId);
   const body = document.getElementById(bodyId);
@@ -1897,9 +1973,6 @@ document.getElementById("listBtn").addEventListener("click", ()=>{
   renderResults();
 });
 
-
-
-// ---------- Init ----------
 updatePackCount();
 updateFavCount();
 loadGameVersions();
