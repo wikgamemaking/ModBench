@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>ModBench — Build Minecraft modpacks</title>
+<title>ModBench: Build Minecraft modpacks</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
@@ -64,7 +64,9 @@
     display:flex; align-items:center; justify-content:center;
     color:white; font-size:16px; font-weight:700;
     font-family: Georgia, 'Times New Roman', serif;
+    transition: transform .3s cubic-bezier(.2,.9,.3,1.2);
   }
+  .brand:hover .mark{ transform: rotate(-8deg) scale(1.08); }
   .brand-text{ display:flex; flex-direction:column; line-height:1.15; }
   .brand-name{
     font-weight:700; font-size:1.2rem; letter-spacing:.01em;
@@ -81,6 +83,7 @@
     color: var(--text-dim); font-weight:700;
     display:flex; align-items:center; gap:6px;
     white-space:nowrap; flex-shrink:0;
+    transition: background .15s, color .15s;
   }
   @media (max-width: 640px){
     .header-inner{ flex-wrap:nowrap; gap:12px; padding:10px 12px; }
@@ -137,23 +140,37 @@
     text-transform: uppercase; color: var(--text-dim);
   }
   .filter-group{ margin-bottom:18px; }
+  .filter-group:last-child{ margin-bottom:0; }
   .filter-group label{
     display:flex; align-items:center; gap:8px;
-    font-size:0.92rem; padding:4px 0; cursor:pointer;
+    font-size:0.92rem; padding:4px 8px; margin:0 -8px; border-radius:6px; cursor:pointer;
+    transition: background .12s, color .12s, transform .12s;
   }
+  .filter-group label:hover{ background: var(--surface-2); color: var(--text); transform: translateX(2px); }
+  .filter-group label:has(input:checked){ background: var(--accent-soft); color: var(--accent-dark); }
   .filter-group select{
     width:100%; padding:8px; border-radius:8px;
     border:1px solid var(--border); font-family:inherit; font-size:0.9rem;
     background: var(--surface);
+    transition: border-color .15s, box-shadow .15s;
   }
+  .filter-group select:hover{ border-color: var(--accent); }
+  .filter-group select:focus-visible{ box-shadow: 0 0 0 3px var(--accent-soft); }
   input[type=checkbox]{ width:16px; height:16px; accent-color: var(--accent); }
   .filter-icon{
     width:15px; height:15px; flex-shrink:0; color: var(--text-dim); vertical-align:-3px;
   }
+  .loader-icon{
+    width:18px; height:18px; flex-shrink:0; vertical-align:-4px; transition: transform .2s;
+    object-fit:contain; border-radius:4px;
+  }
+  .filter-group label:hover .loader-icon{ transform: scale(1.18) rotate(-6deg); }
   .cat-toggle{
     display:flex; align-items:center; justify-content:space-between; width:100%;
     background:none; border:none; padding:0 0 8px; margin:0; cursor:pointer; font-family:inherit;
+    border-radius:6px; transition: color .12s;
   }
+  .cat-toggle:hover{ color: var(--accent-dark); }
   .cat-toggle h3{ margin:0; }
   .cat-toggle .chev{ width:16px; height:16px; color:var(--text-dim); transition: transform .15s; flex-shrink:0; }
   .cat-toggle[aria-expanded="true"] .chev{ transform: rotate(180deg); }
@@ -169,7 +186,9 @@
     display:flex; align-items:center; gap:8px;
     background: var(--surface); border:1px solid var(--border);
     border-radius: 8px; padding: 10px 14px;
+    transition: border-color .15s, box-shadow .15s;
   }
+  .search-box:focus-within{ border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
   .search-box input{
     border:none; outline:none; font-family:inherit; font-size:1rem;
     width:100%; background:transparent; color:var(--text);
@@ -180,9 +199,12 @@
   }
   .view-toggle{ display:flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
   .view-toggle button{
-    background:var(--surface); border:none; padding:9px 12px; cursor:pointer; font-size:1rem;
-    color: var(--text-dim);
+    background:var(--surface); border:none; width:40px; height:40px; cursor:pointer;
+    color: var(--text-dim); display:flex; align-items:center; justify-content:center;
+    transition: background .15s, color .15s;
   }
+  .view-toggle button svg{ width:18px; height:18px; }
+  .view-toggle button:hover{ color: var(--text); }
   .view-toggle button.active{ background: var(--accent-soft); color: var(--accent-dark); }
 
   @media (max-width: 640px){
@@ -198,6 +220,24 @@
     grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
     gap: 14px;
   }
+  #results .card, #favResults .card, #modpackResults .card{
+    animation: card-in .25s ease-out backwards;
+  }
+  @keyframes card-in{
+    from{ opacity:0; transform: translateY(6px); }
+    to{ opacity:1; transform: translateY(0); }
+  }
+  @media (prefers-reduced-motion: reduce){
+    #results .card, #favResults .card, #modpackResults .card{ animation: none; }
+  }
+  .grid .card:nth-child(1){ animation-delay: 0s; }
+  .grid .card:nth-child(2){ animation-delay: .02s; }
+  .grid .card:nth-child(3){ animation-delay: .04s; }
+  .grid .card:nth-child(4){ animation-delay: .06s; }
+  .grid .card:nth-child(5){ animation-delay: .08s; }
+  .grid .card:nth-child(6){ animation-delay: .1s; }
+  .grid .card:nth-child(7){ animation-delay: .12s; }
+  .grid .card:nth-child(8){ animation-delay: .14s; }
   .card{
     background: var(--surface);
     border:1px solid var(--border);
@@ -205,14 +245,17 @@
     padding: 14px;
     display:flex; flex-direction:column; gap:8px;
     cursor:pointer;
-    transition: border-color .15s, transform .1s;
+    transition: border-color .15s, transform .15s, box-shadow .15s;
   }
-  .card:hover{ border-color: var(--accent); }
+  .card:hover{ border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 6px 18px rgba(38,36,32,.08); }
   .card:active{ transform: scale(0.99); }
   .card-top{ display:flex; gap:10px; align-items:flex-start; }
   .card-icon{
     width:48px; height:48px; border-radius:8px; object-fit:cover;
     background: var(--surface-2); flex-shrink:0;
+  }
+  @media (min-width: 861px){
+    .card-icon{ width:60px; height:60px; border-radius:10px; }
   }
   .card-title{ font-weight:700; font-size:1rem; line-height:1.25; }
   .card-author{ font-size:0.8rem; color:var(--text-dim); }
@@ -225,24 +268,38 @@
   .tag{
     font-size:0.72rem; background: var(--surface-2); color:var(--text-dim);
     padding: 2px 8px; border-radius:999px;
+    transition: background .12s, color .12s;
   }
+  .tag:hover{ background: var(--accent-soft); color: var(--accent-dark); }
   .card-stats{ display:flex; gap:12px; font-size:0.78rem; color:var(--text-dim); align-items:center; }
   .card-add{
     align-self:flex-start; margin-top:auto;
     background: var(--accent); color:#fff; border:none;
-    padding: 7px 12px; border-radius:7px; font-family:inherit; font-weight:700;
-    font-size:0.85rem; cursor:pointer;
+    padding: 7px 14px; border-radius:7px; font-family:inherit; font-weight:700;
+    font-size:0.85rem; cursor:pointer; white-space:nowrap;
+    min-width: 100px; text-align:center;
+    transition: background .15s, transform .1s;
   }
   .card-add.added{ background: var(--surface-2); color: var(--text-dim); }
-  .card-add:hover:not(.added){ background: var(--accent-dark); }
+  .card-add:hover:not(.added){ background: var(--accent-dark); transform: translateY(-1px); }
+  .card-add:active{ transform: translateY(0) scale(.97); }
   .card-fav{
     background:none; border:1px solid var(--border); border-radius:7px;
-    width:32px; height:32px; flex-shrink:0; cursor:pointer; font-size:0.95rem;
+    width:32px; height:32px; flex-shrink:0; cursor:pointer;
     color: var(--text-dim); display:flex; align-items:center; justify-content:center;
     margin-left:auto;
+    transition: border-color .15s, color .15s, background .15s, transform .1s;
   }
+  .card-fav svg{ width:16px; height:16px; transition: transform .15s; }
   .card-fav:hover{ border-color: var(--danger); color: var(--danger); }
-  .card-fav.faved{ background: var(--danger-soft); border-color: var(--danger-border); color: var(--danger); }
+  .card-fav:hover svg{ transform: scale(1.15); }
+  .card-fav:active svg{ transform: scale(.9); }
+  .card-fav.faved{ background: var(--danger-soft); border-color: var(--danger-border); color: var(--danger); animation: fav-pop .3s cubic-bezier(.3,1.6,.5,1); }
+  @keyframes fav-pop{
+    0%{ transform: scale(1); }
+    40%{ transform: scale(1.3); }
+    100%{ transform: scale(1); }
+  }
   .card-stats{ position:relative; }
 
   /* ---------- Result list view ---------- */
@@ -286,7 +343,9 @@
     display:flex; align-items:center; gap:12px;
     background: var(--surface); border:1px solid var(--border);
     border-radius: var(--radius); padding: 10px 14px;
+    transition: border-color .15s, box-shadow .15s;
   }
+  .pack-row:hover{ border-color: var(--accent); box-shadow: 0 4px 12px rgba(38,36,32,.06); }
   .pack-row img{ width:40px; height:40px; border-radius:7px; flex-shrink:0; background:var(--surface-2); }
   .pack-row .info{ flex:1; min-width:0; }
   .pack-row .info .name{ font-weight:700; font-size:0.95rem; }
@@ -298,19 +357,35 @@
   .pack-row button.remove{
     background:none; border:1px solid var(--border); color: var(--danger);
     border-radius:6px; padding:6px 10px; cursor:pointer; font-family:inherit; font-weight:700;
+    transition: background .15s, transform .12s;
   }
-  .pack-row button.remove:hover{ background: var(--danger-soft); }
+  .pack-row button.remove:hover{ background: var(--danger-soft); transform: translateY(-1px); }
+  .pack-row button.remove:active{ transform: translateY(0) scale(.95); }
+  .pack-row{ animation: row-in .22s ease-out; }
+  @keyframes row-in{
+    from{ opacity:0; transform: translateX(-6px); }
+    to{ opacity:1; transform: translateX(0); }
+  }
 
   .empty-state{
     text-align:center; padding: 60px 20px; color: var(--text-dim);
   }
-  .empty-state .big{ font-size:2.2rem; margin-bottom:6px; }
+  .empty-state .big{ font-size:2.2rem; margin-bottom:6px; display:inline-block; animation: gentle-bob 2.6s ease-in-out infinite; }
+  @keyframes gentle-bob{
+    0%, 100%{ transform: translateY(0); }
+    50%{ transform: translateY(-6px); }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .empty-state .big{ animation: none; }
+  }
 
   /* ---------- Export tab ---------- */
   .export-panel{
     background: var(--surface); border:1px solid var(--border);
     border-radius: var(--radius); padding: 22px; max-width: 520px;
+    margin: 0 auto;
   }
+  #tab-export{ display:flex; justify-content:center; }
   .export-panel label{ display:block; font-weight:700; font-size:0.85rem; margin: 14px 0 6px; }
   .export-panel select, .export-panel input[type=text]{
     width:100%; padding:10px; border-radius:8px; border:1px solid var(--border);
@@ -319,8 +394,10 @@
   .export-btn{
     margin-top:20px; width:100%; background:var(--accent); color:#fff; border:none;
     padding:12px; border-radius:8px; font-family:inherit; font-weight:700; font-size:1rem; cursor:pointer;
+    transition: background .15s, transform .1s;
   }
-  .export-btn:hover{ background: var(--accent-dark); }
+  .export-btn:hover{ background: var(--accent-dark); transform: translateY(-1px); }
+  .export-btn:active{ transform: translateY(0) scale(.98); }
   .export-btn:disabled{ background:var(--surface-2); color:var(--text-dim); cursor:not-allowed; }
   .export-note{ font-size:0.8rem; color:var(--text-dim); margin-top:10px; }
 
@@ -332,7 +409,7 @@
     animation: modal-fade-in .18s ease-out;
   }
   .modal{
-    background: var(--surface); border-radius: 14px; max-width: 700px; width:100%;
+    background: var(--surface); border-radius: 14px; max-width: 760px; width:100%;
     padding: 24px; margin-top: 20px;
     animation: modal-pop-in .22s cubic-bezier(.2,.9,.3,1.2);
   }
@@ -348,25 +425,57 @@
     .modal-backdrop, .modal{ animation: none; }
   }
   .modal-head{ display:flex; gap:14px; align-items:flex-start; }
-  .modal-head img{ width:64px; height:64px; border-radius:10px; }
+  .modal-head img{ width:72px; height:72px; border-radius:12px; object-fit:cover; flex-shrink:0; }
   .modal-head .name{ font-size:1.3rem; font-weight:700; }
   .modal-close{
     margin-left:auto; background:none; border:none; font-size:1.4rem; cursor:pointer; color: var(--text-dim);
+    transition: color .15s, transform .15s; border-radius:6px;
   }
-  .modal-gallery{ display:flex; gap:8px; overflow-x:auto; margin: 14px 0; }
-  .modal-gallery img{ height:110px; width:auto; border-radius:8px; flex-shrink:0; }
+  .modal-close:hover{ color: var(--text); transform: rotate(90deg); }
+  .modal-actions{ display:flex; gap:10px; margin-top:16px; }
+  .modal-actions .export-btn{ margin-top:0; }
+  .modal-link-btn{
+    display:flex; align-items:center; justify-content:center; gap:6px;
+    background: var(--surface-2); color: var(--text); border:1px solid var(--border);
+    padding:12px 16px; border-radius:8px; font-family:inherit; font-weight:700; font-size:0.95rem;
+    text-decoration:none; white-space:nowrap; cursor:pointer;
+    transition: background .15s, border-color .15s, transform .1s;
+  }
+  .modal-link-btn:hover{ background: var(--surface); border-color: var(--accent); transform: translateY(-1px); }
+  .modal-desc-full{ font-size:0.92rem; color: var(--text); line-height:1.6; }
+  .modal-desc-full h1, .modal-desc-full h2, .modal-desc-full h3{ font-size:1rem; margin:16px 0 6px; }
+  .modal-desc-full p{ margin:0 0 10px; }
+  .modal-desc-full ul, .modal-desc-full ol{ margin:0 0 10px; padding-left:22px; }
+  .modal-desc-full img{ max-width:100%; border-radius:8px; margin:8px 0; }
+  .modal-desc-full a{ color: var(--accent-dark); }
+  .modal-desc-full code{ background: var(--surface-2); padding:1px 5px; border-radius:4px; font-size:0.88em; }
+  .modal-gallery{ display:flex; gap:10px; overflow-x:auto; margin: 14px 0; }
+  .modal-gallery img{ height:130px; width:auto; border-radius:8px; flex-shrink:0; transition: transform .15s; }
+  .modal-gallery img:hover{ transform: scale(1.03); }
+  @media (min-width: 861px){
+    .modal-gallery img{ height:190px; }
+  }
   .modal-desc{ font-size:0.92rem; color: var(--text); margin: 10px 0 16px; }
   .modal-versions{ max-height:180px; overflow-y:auto; border:1px solid var(--border); border-radius:8px; }
   .version-row{
     display:flex; align-items:center; gap:10px; padding:9px 12px; font-size:0.85rem;
     border-bottom:1px solid var(--border); cursor:pointer;
+    transition: background .12s;
   }
   .version-row:last-child{ border-bottom:none; }
   .version-row:hover{ background: var(--surface-2); }
   .version-row .vname{ font-weight:700; }
   .version-row .vmeta{ color:var(--text-dim); margin-left:auto; font-size:0.78rem; }
 
-  .status-msg{ text-align:center; padding:40px; color: var(--text-dim); }
+  .status-msg{ text-align:center; padding:40px; color: var(--text-dim); animation: fade-in .25s ease-out; }
+  @keyframes fade-in{
+    from{ opacity:0; }
+    to{ opacity:1; }
+  }
+  main > section{ animation: fade-in .2s ease-out; }
+  @media (prefers-reduced-motion: reduce){
+    .status-msg, main > section{ animation: none; }
+  }
   .visually-hidden{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
 
   :focus-visible{ outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -377,9 +486,14 @@
   .page-btn{
     min-width:34px; height:34px; padding:0 8px; border-radius:7px; border:1px solid var(--border);
     background: var(--surface); color:var(--text); font-family:inherit; font-weight:700; font-size:0.88rem; cursor:pointer;
+    transition: border-color .15s, transform .1s;
   }
-  .page-btn:hover:not(:disabled){ border-color: var(--accent); }
-  .page-btn.active{ background: var(--accent); color:#fff; border-color: var(--accent); }
+  .page-btn:hover:not(:disabled){ border-color: var(--accent); transform: translateY(-1px); }
+  .page-btn.active{ background: var(--accent); color:#fff; border-color: var(--accent); animation: page-pop .2s ease-out; }
+  @keyframes page-pop{
+    from{ transform: scale(.85); }
+    to{ transform: scale(1); }
+  }
   .page-btn:disabled{ opacity:0.4; cursor:not-allowed; }
   .page-ellipsis{ color: var(--text-dim); padding:0 2px; }
 
@@ -404,7 +518,8 @@
     cursor:pointer; padding:0; line-height:1;
     display:flex; align-items:center; justify-content:center;
   }
-  .lightbox-nav:hover{ background: rgba(255,255,255,.26); }
+  .lightbox-nav{ transition: background .15s, transform .15s; }
+  .lightbox-nav:hover{ background: rgba(255,255,255,.26); transform: translateY(-50%) scale(1.08); }
   .lightbox-nav.prev{ left:16px; }
   .lightbox-nav.next{ right:16px; }
 </style>
@@ -441,10 +556,10 @@
         </div>
         <div class="filter-group">
           <h3>Modloader</h3>
-          <label><input type="checkbox" value="fabric" class="loaderCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 8h16M4 16h16M8 4v16M16 4v16"/></svg> Fabric</label>
-          <label><input type="checkbox" value="forge" class="loaderCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17h16M6 17v-3a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v3M10 12V8a2 2 0 1 1 4 0v4"/></svg> Forge</label>
-          <label><input type="checkbox" value="quilt" class="loaderCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg> Quilt</label>
-          <label><input type="checkbox" value="neoforge" class="loaderCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c1.5 3-2 4.5-2 8a4 4 0 0 0 8 0c0-1.5-.7-2.5-1-4 1.7 1.7 3 4 3 6.5A6.5 6.5 0 0 1 5.5 19c0-5.5 4-7.5 6.5-17z"/></svg> NeoForge</label>
+          <label><input type="checkbox" value="fabric" class="loaderCheck"> <img class="loader-icon" src="icons/fabric.png" alt="Fabric" loading="lazy"> Fabric</label>
+          <label><input type="checkbox" value="forge" class="loaderCheck"> <img class="loader-icon" src="icons/forge.png" alt="Forge" loading="lazy"> Forge</label>
+          <label><input type="checkbox" value="quilt" class="loaderCheck"> <img class="loader-icon" src="icons/quilt.png" alt="Quilt" loading="lazy"> Quilt</label>
+          <label><input type="checkbox" value="neoforge" class="loaderCheck"> <img class="loader-icon" src="icons/neoforge.png" alt="NeoForge" loading="lazy"> NeoForge</label>
         </div>
         <div class="filter-group">
           <button type="button" class="cat-toggle" id="catToggleBrowse" aria-expanded="false">
@@ -477,8 +592,12 @@
             <option value="updated">Recently updated</option>
           </select>
           <div class="view-toggle">
-            <button id="gridBtn" class="active" aria-label="Grid view" title="Grid view">▦</button>
-            <button id="listBtn" aria-label="List view" title="List view">☰</button>
+            <button id="gridBtn" class="active" aria-label="Grid view" title="Grid view">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/></svg>
+            </button>
+            <button id="listBtn" aria-label="List view" title="List view">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
+            </button>
           </div>
         </div>
 
@@ -500,7 +619,7 @@
     <div id="favResults" class="grid"></div>
     <div id="favEmpty" class="empty-state" style="display:none;">
       <div class="big">⭐</div>
-      <p>No favorites yet. Tap the ♥ on any mod in <strong>Browse</strong> or <strong>Modpacks</strong> to save it here.</p>
+      <p>No favorites yet. Tap the heart on any mod in <strong>Browse</strong> or <strong>Modpacks</strong> to save it here.</p>
     </div>
   </section>
 
@@ -514,10 +633,10 @@
         </div>
         <div class="filter-group">
           <h3>Modloader</h3>
-          <label><input type="checkbox" value="fabric" class="modpackLoaderCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 8h16M4 16h16M8 4v16M16 4v16"/></svg> Fabric</label>
-          <label><input type="checkbox" value="forge" class="modpackLoaderCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 17h16M6 17v-3a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v3M10 12V8a2 2 0 1 1 4 0v4"/></svg> Forge</label>
-          <label><input type="checkbox" value="quilt" class="modpackLoaderCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="8" height="8" rx="1"/><rect x="13" y="3" width="8" height="8" rx="1"/><rect x="3" y="13" width="8" height="8" rx="1"/><rect x="13" y="13" width="8" height="8" rx="1"/></svg> Quilt</label>
-          <label><input type="checkbox" value="neoforge" class="modpackLoaderCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2c1.5 3-2 4.5-2 8a4 4 0 0 0 8 0c0-1.5-.7-2.5-1-4 1.7 1.7 3 4 3 6.5A6.5 6.5 0 0 1 5.5 19c0-5.5 4-7.5 6.5-17z"/></svg> NeoForge</label>
+          <label><input type="checkbox" value="fabric" class="modpackLoaderCheck"> <img class="loader-icon" src="icons/fabric.png" alt="Fabric" loading="lazy"> Fabric</label>
+          <label><input type="checkbox" value="forge" class="modpackLoaderCheck"> <img class="loader-icon" src="icons/forge.png" alt="Forge" loading="lazy"> Forge</label>
+          <label><input type="checkbox" value="quilt" class="modpackLoaderCheck"> <img class="loader-icon" src="icons/quilt.png" alt="Quilt" loading="lazy"> Quilt</label>
+          <label><input type="checkbox" value="neoforge" class="modpackLoaderCheck"> <img class="loader-icon" src="icons/neoforge.png" alt="NeoForge" loading="lazy"> NeoForge</label>
         </div>
         <div class="filter-group">
           <button type="button" class="cat-toggle" id="catToggleModpacks" aria-expanded="false">
@@ -573,7 +692,7 @@
   <section id="tab-export" style="display:none;">
     <div class="export-panel">
       <h2 style="margin-top:0;">Export your pack</h2>
-      <p style="color:var(--text-dim); font-size:0.9rem;">Generates a <code>.mrpack</code> file — importable straight into the Modrinth App, Prism Launcher, or ATLauncher.</p>
+      <p style="color:var(--text-dim); font-size:0.9rem;">Generates a <code>.mrpack</code> file, importable straight into the Modrinth App, Prism Launcher, or ATLauncher.</p>
 
       <label for="packName">Pack name</label>
       <input type="text" id="packName" placeholder="My Modpack" value="My Modpack">
@@ -592,7 +711,7 @@
         <option value="quilt">Quilt</option>
         <option value="neoforge">NeoForge</option>
       </select>
-      <p style="color:var(--text-dim); font-size:0.8rem; margin:8px 0 0;">This is the target your pack declares to launchers — separate from the file you picked per mod in My Pack. If you already filtered by version/loader while browsing, it's pre-filled here.</p>
+      <p style="color:var(--text-dim); font-size:0.8rem; margin:8px 0 0;">This is the target your pack declares to launchers, separate from the file you picked per mod in My Pack. If you already filtered by version/loader while browsing, it's pre-filled here.</p>
 
       <button class="export-btn" id="exportBtn">Download .mrpack</button>
       <p class="export-note" id="exportNote">Add mods to your pack first, then choose a version and loader.</p>
@@ -771,7 +890,7 @@ async function runSearch(){
     renderPagination();
   }catch(e){
     console.error(e);
-    statusEl.textContent = "Couldn't reach Modrinth's API from this page. If you're viewing this inside Claude's chat preview, that sandbox blocks outside network calls — download the file and open it directly in a browser, or host it, and it'll connect normally.";
+    statusEl.textContent = "Couldn't reach Modrinth's API from this page. If you're viewing this inside Claude's chat preview, that sandbox blocks outside network calls. Download the file and open it directly in a browser, or host it, and it'll connect normally.";
   }
 }
 
@@ -805,6 +924,10 @@ function renderPagination(){
   });
 }
 
+const HEART_ICON_OUTLINE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20.5s-7.5-4.6-10-9.3C.5 8 1.8 4.5 5.1 3.6c2.2-.6 4.4.3 5.9 2.3 1.5-2 3.7-2.9 5.9-2.3 3.3.9 4.6 4.4 3.1 7.6-2.5 4.7-10 9.3-10 9.3z"/></svg>';
+const HEART_ICON_FILLED = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 20.5s-7.5-4.6-10-9.3C.5 8 1.8 4.5 5.1 3.6c2.2-.6 4.4.3 5.9 2.3 1.5-2 3.7-2.9 5.9-2.3 3.3.9 4.6 4.4 3.1 7.6-2.5 4.7-10 9.3-10 9.3z"/></svg>';
+const DOWNLOAD_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>';
+
 function cardHtml(hit){
   const inPack = state.pack.some(p=>p.id === hit.project_id);
   const isFav = state.favorites.some(f=>f.id === hit.project_id);
@@ -821,9 +944,9 @@ function cardHtml(hit){
       <div class="card-desc">${escapeHtml(hit.description || "")}</div>
       <div class="card-tags">${(hit.categories||[]).slice(0,3).map(c=>`<span class="tag">${escapeHtml(c)}</span>`).join("")}</div>
       <div class="card-stats">
-        <span>⬇ ${formatNum(hit.downloads)}</span>
-        <span>♥ ${formatNum(hit.follows)}</span>
-        <button class="card-fav ${isFav?'faved':''}" data-fav="${hit.project_id}" title="${isFav?'Remove from favorites':'Add to favorites'}" aria-label="${isFav?'Remove from favorites':'Add to favorites'}">${isFav ? "♥" : "♡"}</button>
+        <span>${DOWNLOAD_ICON} ${formatNum(hit.downloads)}</span>
+        <span>${HEART_ICON_FILLED.replace('<svg ', '<svg style="width:13px;height:13px;vertical-align:-2px;" ')} ${formatNum(hit.follows)}</span>
+        <button class="card-fav ${isFav?'faved':''}" data-fav="${hit.project_id}" title="${isFav?'Remove from favorites':'Add to favorites'}" aria-label="${isFav?'Remove from favorites':'Add to favorites'}">${isFav ? HEART_ICON_FILLED : HEART_ICON_OUTLINE}</button>
         <button class="card-add ${inPack?'added':''}" data-add="${hit.project_id}">${inPack ? "Added ✓" : "+ Add"}</button>
       </div>
     </div>`;
@@ -871,6 +994,39 @@ function formatNum(n){
   if(n >= 1e3) return (n/1e3).toFixed(1)+"k";
   return String(n);
 }
+function renderMarkdownLite(md){
+  if(!md) return "";
+  // Escape first so no raw HTML/script from the source can execute.
+  let s = escapeHtml(md);
+  // Strip HTML comments left over from escaping (e.g. &lt;!-- ... --&gt;)
+  s = s.replace(/&lt;!--[\s\S]*?--&gt;/g, "");
+  // Images: ![alt](url)
+  s = s.replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g, (m, alt, url)=>`<img src="${url}" alt="${alt}" loading="lazy">`);
+  // Links: [text](url)
+  s = s.replace(/\[([^\]]+)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g, (m, text, url)=>`<a href="${url}" target="_blank" rel="noopener noreferrer">${text}</a>`);
+  // Headings
+  s = s.replace(/^###\s+(.*)$/gm, "<h3>$1</h3>");
+  s = s.replace(/^##\s+(.*)$/gm, "<h2>$1</h2>");
+  s = s.replace(/^#\s+(.*)$/gm, "<h1>$1</h1>");
+  // Bold / italic / inline code
+  s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
+  s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
+  // Lists: group consecutive "- " or "* " lines into <ul>
+  s = s.replace(/(?:^[-*]\s+.*(?:\n|$))+/gm, block=>{
+    const items = block.trim().split(/\n/).map(l=>l.replace(/^[-*]\s+/, "").trim());
+    return `<ul>${items.map(i=>`<li>${i}</li>`).join("")}</ul>\n`;
+  });
+  // Paragraphs: wrap remaining bare lines/blocks separated by blank lines
+  s = s.split(/\n{2,}/).map(block=>{
+    block = block.trim();
+    if(!block) return "";
+    if(/^<(h1|h2|h3|ul|img)/.test(block)) return block;
+    return `<p>${block.replace(/\n/g, "<br>")}</p>`;
+  }).join("\n");
+  return s;
+}
+
 function escapeHtml(str){
   return String(str).replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
 }
@@ -910,7 +1066,7 @@ async function quickAdd(projectId){
     refreshAllViews();
   }catch(e){
     console.error(e);
-    alert("Couldn't add that mod — Modrinth may be unreachable.");
+    alert("Couldn't add that mod. Modrinth may be unreachable.");
   }
 }
 
@@ -957,9 +1113,6 @@ function showConfirm(message, {confirmLabel = "Confirm", danger = true} = {}){
   });
 }
 
-// Walks a version's "required" dependency list and pulls each one into the
-// pack too (recursively, so a library that needs another library still
-// gets added), skipping anything already present.
 async function autoAddDependencies(version, visited){
   if(!version || !Array.isArray(version.dependencies)) return;
   for(const dep of version.dependencies){
@@ -998,7 +1151,7 @@ async function autoAddDependencies(version, visited){
 }
 
 // Fabric API underpins most Fabric mods but usually isn't listed as a formal
-// dependency, so add it whenever a mod is added — unless it's already there,
+// dependency, so add it whenever a mod is added, unless it's already there,
 // or the active loader filter rules Fabric/Quilt out entirely.
 async function ensureFabricApi(){
   if(state.pack.some(p=>p.id === FABRIC_API_ID)) return;
@@ -1048,10 +1201,13 @@ async function openModal(projectId, hitLookup){
     ]);
     const gallery = (projRes.gallery || []).slice(0,6);
     const inPack = state.pack.find(p=>p.id === projectId);
+    const projectType = projRes.project_type || "mod";
+    const modrinthUrl = `https://modrinth.com/${projectType}/${projRes.slug || projectId}`;
+    const longDesc = renderMarkdownLite(projRes.body && projRes.body.trim() ? projRes.body : (projRes.description || ""));
 
     backdrop.querySelector(".modal").innerHTML = `
       <div class="modal-head">
-        ${hit.icon_url ? `<img src="${hit.icon_url}" alt="">` : `<div style="width:64px;height:64px;border-radius:10px;background:var(--surface-2)"></div>`}
+        ${hit.icon_url ? `<img src="${hit.icon_url}" alt="">` : `<div style="width:72px;height:72px;border-radius:12px;background:var(--surface-2)"></div>`}
         <div>
           <div class="name">${escapeHtml(projRes.title)}</div>
           <div class="card-author">by ${escapeHtml(hit.author||"")}</div>
@@ -1059,7 +1215,7 @@ async function openModal(projectId, hitLookup){
         <button class="modal-close" aria-label="Close">✕</button>
       </div>
       ${gallery.length ? `<div class="modal-gallery">${gallery.map((g,i)=>`<img src="${g.url}" alt="${escapeHtml(g.title||'')}" loading="lazy" data-index="${i}">`).join("")}</div>` : ""}
-      <div class="modal-desc">${escapeHtml(projRes.description || "")}</div>
+      <div class="modal-desc-full">${longDesc}</div>
       <h3 style="font-size:0.85rem; text-transform:uppercase; letter-spacing:.04em; color:var(--text-dim);">Versions</h3>
       <div class="modal-versions">
         ${versions.slice(0,25).map(v=>`
@@ -1068,9 +1224,15 @@ async function openModal(projectId, hitLookup){
             <span class="vmeta">${v.game_versions.slice(0,3).join(", ")} · ${v.loaders.join(", ")}</span>
           </div>`).join("")}
       </div>
-      <button class="export-btn" id="modalAddBtn" style="margin-top:16px;">
-        ${inPack ? "Update selection in pack" : "+ Add to pack"}
-      </button>
+      <div class="modal-actions">
+        <button class="export-btn" id="modalAddBtn" style="flex:1;">
+          ${inPack ? "Update selection in pack" : "+ Add to pack"}
+        </button>
+        <a class="modal-link-btn" href="${modrinthUrl}" target="_blank" rel="noopener noreferrer">
+          Open in Modrinth
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        </a>
+      </div>
     `;
 
     if(gallery.length){
@@ -1189,8 +1351,6 @@ function renderPack(){
   emptyEl.style.display = "none";
   toolbarEl.style.display = "flex";
 
-  // Group mods by their first category, so mods are classified under a
-  // small label (e.g. CUSTOMIZATION, OPTIMIZATION) like a modpack changelog.
   const groups = {};
   state.pack.forEach(mod=>{
     const cat = (mod.categories && mod.categories[0]) ? mod.categories[0] : "uncategorized";
@@ -1236,7 +1396,7 @@ function renderFavorites(){
 
   if(state.favorites.length === 0){
     resultsEl.innerHTML = ""; emptyEl.style.display = "block";
-    emptyEl.querySelector("p").innerHTML = 'No favorites yet. Tap the ♥ on any mod in <strong>Browse</strong> or <strong>Modpacks</strong> to save it here.';
+    emptyEl.querySelector("p").innerHTML = 'No favorites yet. Tap the heart on any mod in <strong>Browse</strong> or <strong>Modpacks</strong> to save it here.';
     return;
   }
   if(filtered.length === 0){
@@ -1292,7 +1452,7 @@ async function runModpackSearch(){
     renderModpackPagination();
   }catch(e){
     console.error(e);
-    statusEl.textContent = "Couldn't reach Modrinth's API from this page. If you're viewing this inside Claude's chat preview, that sandbox blocks outside network calls — download the file and open it directly in a browser, or host it, and it'll connect normally.";
+    statusEl.textContent = "Couldn't reach Modrinth's API from this page.";
   }
 }
 
@@ -1302,8 +1462,6 @@ function renderModpackResults(){
   resultsEl.className = "grid";
   resultsEl.innerHTML = state.modpackResults.map(hit=>{
     const html = cardHtml(hit);
-    // Swap the "+ Add" quick-add for an explicit "Add mods to Create" action,
-    // since adding a modpack means importing all of its mods.
     return html.replace('data-add="'+hit.project_id+'"', 'data-addpack="'+hit.project_id+'"').replace(/\+ Add|Added ✓/, state.pack.some(p=>p.fromModpack===hit.project_id) ? "In Create ✓" : "+ Add mods");
   }).join("");
 
@@ -1356,9 +1514,6 @@ function renderModpackPagination(){
   });
 }
 
-// Pulls the mod list out of a modpack's .mrpack file (via JSZip) and resolves
-// each file's hash back to a Modrinth project/version, so the mods land in
-// Create as normal, editable pack entries.
 async function addModpackToCreate(projectId, btn){
   const hit = state.modpackResults.find(h=>h.project_id===projectId);
   if(!hit) return;
@@ -1420,7 +1575,7 @@ async function addModpackToCreate(projectId, btn){
     }
   }catch(e){
     console.error(e);
-    alert("Couldn't import that modpack's mods — Modrinth may be unreachable, or this modpack isn't in the standard .mrpack format.");
+    alert("Couldn't import that modpack's mods. Modrinth may be unreachable, or this modpack isn't in the standard .mrpack format.");
     btn.textContent = originalLabel;
     btn.disabled = false;
   }
@@ -1440,7 +1595,7 @@ function renderExport(){
     note.textContent = "Add mods to your pack first, then choose a version and loader.";
     btn.disabled = true;
   }else{
-    note.textContent = `${state.pack.length} mod${state.pack.length===1?'':'s'} ready to export.`;
+    note.innerHTML = `<strong>${state.pack.length}</strong> mod${state.pack.length===1?'':'s'} ready to export.`;
     btn.disabled = false;
   }
 }
@@ -1456,7 +1611,7 @@ document.getElementById("exportBtn").addEventListener("click", async ()=>{
     return;
   }
   if(state.pack.some(m=>!m.selectedFile)){
-    alert("One or more mods is missing a selected file/version — check My Pack.");
+    alert("One or more mods is missing a selected file/version, check My Pack.");
     return;
   }
 
@@ -1491,7 +1646,7 @@ document.getElementById("exportBtn").addEventListener("click", async ()=>{
   zip.file("modrinth.index.json", JSON.stringify(manifest, null, 2));
   zip.folder("overrides");
 
-  // mimeType is set to something other than application/zip — otherwise some
+  // mimeType is set to something other than application/zip, otherwise some
   // browsers "helpfully" append .zip to the filename we set below.
   const blob = await zip.generateAsync({type:"blob", mimeType:"application/octet-stream"});
   const url = URL.createObjectURL(blob);
