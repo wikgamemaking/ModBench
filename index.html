@@ -1,0 +1,844 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Packsmith — Build Minecraft modpacks</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<style>
+  :root{
+    --bg: #f6f5f1;
+    --surface: #ffffff;
+    --surface-2: #efece4;
+    --border: #ddd8cc;
+    --text: #262420;
+    --text-dim: #6b665c;
+    --accent: #2f6b4f;
+    --accent-dark: #234f3a;
+    --accent-soft: #e3ede7;
+    --danger: #a3423a;
+    --radius: 10px;
+    --maxw: 1180px;
+  }
+  *{ box-sizing: border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    font-family: 'Atkinson Hyperlegible', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+  }
+  a{ color: var(--accent-dark); }
+  img{ max-width:100%; display:block; }
+
+  /* ---------- Header ---------- */
+  header.site{
+    position: sticky; top:0; z-index: 30;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+  .header-inner{
+    max-width: var(--maxw);
+    margin: 0 auto;
+    padding: 12px 20px;
+    display:flex;
+    align-items:center;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .brand{
+    display:flex; align-items:center; gap:8px;
+    font-weight:700; font-size:1.25rem;
+    white-space:nowrap;
+  }
+  .brand .mark{
+    width:28px; height:28px; border-radius:6px;
+    background: var(--accent);
+    display:flex; align-items:center; justify-content:center;
+    color:white; font-size:15px; font-weight:700;
+  }
+  nav.tabs{ display:flex; gap:4px; flex-wrap:wrap; }
+  nav.tabs button{
+    font-family:inherit; font-size:0.95rem;
+    background:none; border:1px solid transparent;
+    padding:8px 14px; border-radius:8px; cursor:pointer;
+    color: var(--text-dim); font-weight:700;
+    display:flex; align-items:center; gap:6px;
+  }
+  nav.tabs button:hover{ background: var(--surface-2); color:var(--text); }
+  nav.tabs button.active{
+    background: var(--accent-soft); color: var(--accent-dark); border-color: var(--accent-soft);
+  }
+  .pack-count{
+    background: var(--accent);
+    color:#fff; font-size:0.7rem; font-weight:700;
+    border-radius:999px; padding:1px 7px; min-width:18px; text-align:center;
+  }
+
+  /* ---------- Layout ---------- */
+  main{
+    max-width: var(--maxw);
+    margin: 0 auto;
+    padding: 20px;
+  }
+  .layout{
+    display:grid;
+    grid-template-columns: 240px 1fr;
+    gap: 24px;
+    align-items:start;
+  }
+  @media (max-width: 860px){
+    .layout{ grid-template-columns: 1fr; }
+  }
+
+  /* ---------- Filters ---------- */
+  aside.filters{
+    background: var(--surface);
+    border:1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    position: sticky;
+    top: 74px;
+  }
+  @media (max-width: 860px){
+    aside.filters{ position:static; }
+  }
+  aside.filters h3{
+    margin: 0 0 8px; font-size:0.78rem; letter-spacing:.04em;
+    text-transform: uppercase; color: var(--text-dim);
+  }
+  .filter-group{ margin-bottom:18px; }
+  .filter-group label{
+    display:flex; align-items:center; gap:8px;
+    font-size:0.92rem; padding:4px 0; cursor:pointer;
+  }
+  .filter-group select{
+    width:100%; padding:8px; border-radius:8px;
+    border:1px solid var(--border); font-family:inherit; font-size:0.9rem;
+    background: var(--surface);
+  }
+  input[type=checkbox]{ width:16px; height:16px; accent-color: var(--accent); }
+
+  /* ---------- Search / toolbar ---------- */
+  .toolbar{
+    display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; align-items:center;
+  }
+  .search-box{
+    flex:1; min-width:200px;
+    display:flex; align-items:center; gap:8px;
+    background: var(--surface); border:1px solid var(--border);
+    border-radius: 8px; padding: 10px 14px;
+  }
+  .search-box input{
+    border:none; outline:none; font-family:inherit; font-size:1rem;
+    width:100%; background:transparent; color:var(--text);
+  }
+  select#sortSelect{
+    padding:10px 12px; border-radius:8px; border:1px solid var(--border);
+    font-family:inherit; font-size:0.92rem; background:var(--surface);
+  }
+  .view-toggle{ display:flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+  .view-toggle button{
+    background:var(--surface); border:none; padding:9px 12px; cursor:pointer; font-size:1rem;
+    color: var(--text-dim);
+  }
+  .view-toggle button.active{ background: var(--accent-soft); color: var(--accent-dark); }
+
+  /* ---------- Result cards: grid ---------- */
+  #results.grid{
+    display:grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 14px;
+  }
+  .card{
+    background: var(--surface);
+    border:1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    display:flex; flex-direction:column; gap:8px;
+    cursor:pointer;
+    transition: border-color .15s, transform .1s;
+  }
+  .card:hover{ border-color: var(--accent); }
+  .card:active{ transform: scale(0.99); }
+  .card-top{ display:flex; gap:10px; align-items:flex-start; }
+  .card-icon{
+    width:48px; height:48px; border-radius:8px; object-fit:cover;
+    background: var(--surface-2); flex-shrink:0;
+  }
+  .card-title{ font-weight:700; font-size:1rem; line-height:1.25; }
+  .card-author{ font-size:0.8rem; color:var(--text-dim); }
+  .card-desc{
+    font-size:0.85rem; color: var(--text-dim);
+    display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;
+    flex:1;
+  }
+  .card-tags{ display:flex; gap:6px; flex-wrap:wrap; }
+  .tag{
+    font-size:0.72rem; background: var(--surface-2); color:var(--text-dim);
+    padding: 2px 8px; border-radius:999px;
+  }
+  .card-stats{ display:flex; gap:12px; font-size:0.78rem; color:var(--text-dim); align-items:center; }
+  .card-add{
+    align-self:flex-start; margin-top:auto;
+    background: var(--accent); color:#fff; border:none;
+    padding: 7px 12px; border-radius:7px; font-family:inherit; font-weight:700;
+    font-size:0.85rem; cursor:pointer;
+  }
+  .card-add.added{ background: var(--surface-2); color: var(--text-dim); }
+  .card-add:hover:not(.added){ background: var(--accent-dark); }
+
+  /* ---------- Result list view ---------- */
+  #results.list{ display:flex; flex-direction:column; gap:8px; }
+  #results.list .card{
+    flex-direction:row; align-items:center; padding:10px 14px;
+  }
+  #results.list .card-top{ flex:1; min-width:0; }
+  #results.list .card-desc{ -webkit-line-clamp:1; margin:0; }
+  #results.list .card-tags{ display:none; }
+  #results.list .card-icon{ width:36px; height:36px; }
+
+  /* ---------- Pack tab (My Pack) ---------- */
+  .pack-list{ display:flex; flex-direction:column; gap:8px; }
+  .pack-row{
+    display:flex; align-items:center; gap:12px;
+    background: var(--surface); border:1px solid var(--border);
+    border-radius: var(--radius); padding: 10px 14px;
+  }
+  .pack-row img{ width:40px; height:40px; border-radius:7px; flex-shrink:0; background:var(--surface-2); }
+  .pack-row .info{ flex:1; min-width:0; }
+  .pack-row .info .name{ font-weight:700; font-size:0.95rem; }
+  .pack-row .info .sub{ font-size:0.8rem; color:var(--text-dim); }
+  .pack-row select{
+    padding:6px 8px; border-radius:6px; border:1px solid var(--border);
+    font-family:inherit; font-size:0.82rem; max-width:150px;
+  }
+  .pack-row button.remove{
+    background:none; border:1px solid var(--border); color: var(--danger);
+    border-radius:6px; padding:6px 10px; cursor:pointer; font-family:inherit; font-weight:700;
+  }
+  .pack-row button.remove:hover{ background: #fbeceb; }
+
+  .empty-state{
+    text-align:center; padding: 60px 20px; color: var(--text-dim);
+  }
+  .empty-state .big{ font-size:2.2rem; margin-bottom:6px; }
+
+  /* ---------- Export tab ---------- */
+  .export-panel{
+    background: var(--surface); border:1px solid var(--border);
+    border-radius: var(--radius); padding: 22px; max-width: 520px;
+  }
+  .export-panel label{ display:block; font-weight:700; font-size:0.85rem; margin: 14px 0 6px; }
+  .export-panel select, .export-panel input[type=text]{
+    width:100%; padding:10px; border-radius:8px; border:1px solid var(--border);
+    font-family:inherit; font-size:0.95rem;
+  }
+  .export-btn{
+    margin-top:20px; width:100%; background:var(--accent); color:#fff; border:none;
+    padding:12px; border-radius:8px; font-family:inherit; font-weight:700; font-size:1rem; cursor:pointer;
+  }
+  .export-btn:hover{ background: var(--accent-dark); }
+  .export-btn:disabled{ background:var(--surface-2); color:var(--text-dim); cursor:not-allowed; }
+  .export-note{ font-size:0.8rem; color:var(--text-dim); margin-top:10px; }
+
+  /* ---------- Modal (detail view) ---------- */
+  .modal-backdrop{
+    position: fixed; inset:0; background: rgba(30,28,24,0.5);
+    display:flex; align-items:flex-start; justify-content:center;
+    padding: 30px 16px; overflow-y:auto; z-index: 50;
+  }
+  .modal{
+    background: var(--surface); border-radius: 14px; max-width: 700px; width:100%;
+    padding: 24px; margin-top: 20px;
+  }
+  .modal-head{ display:flex; gap:14px; align-items:flex-start; }
+  .modal-head img{ width:64px; height:64px; border-radius:10px; }
+  .modal-head .name{ font-size:1.3rem; font-weight:700; }
+  .modal-close{
+    margin-left:auto; background:none; border:none; font-size:1.4rem; cursor:pointer; color: var(--text-dim);
+  }
+  .modal-gallery{ display:flex; gap:8px; overflow-x:auto; margin: 14px 0; }
+  .modal-gallery img{ height:110px; width:auto; border-radius:8px; flex-shrink:0; }
+  .modal-desc{ font-size:0.92rem; color: var(--text); margin: 10px 0 16px; }
+  .modal-versions{ max-height:180px; overflow-y:auto; border:1px solid var(--border); border-radius:8px; }
+  .version-row{
+    display:flex; align-items:center; gap:10px; padding:9px 12px; font-size:0.85rem;
+    border-bottom:1px solid var(--border); cursor:pointer;
+  }
+  .version-row:last-child{ border-bottom:none; }
+  .version-row:hover{ background: var(--surface-2); }
+  .version-row .vname{ font-weight:700; }
+  .version-row .vmeta{ color:var(--text-dim); margin-left:auto; font-size:0.78rem; }
+
+  .status-msg{ text-align:center; padding:40px; color: var(--text-dim); }
+  .visually-hidden{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
+
+  :focus-visible{ outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  footer{ text-align:center; padding: 30px 20px; color: var(--text-dim); font-size:0.82rem; }
+</style>
+</head>
+<body>
+
+<header class="site">
+  <div class="header-inner">
+    <div class="brand"><span class="mark">P</span> Packsmith</div>
+    <nav class="tabs" role="tablist" aria-label="Sections">
+      <button class="active" data-tab="browse" role="tab" aria-selected="true">Browse</button>
+      <button data-tab="pack" role="tab" aria-selected="false">My Pack <span class="pack-count" id="packCount">0</span></button>
+      <button data-tab="export" role="tab" aria-selected="false">Export</button>
+    </nav>
+  </div>
+</header>
+
+<main>
+
+  <!-- BROWSE TAB -->
+  <section id="tab-browse">
+    <div class="layout">
+      <aside class="filters">
+        <div class="filter-group">
+          <h3>Minecraft version</h3>
+          <select id="mcVersion"><option value="">Any version</option></select>
+        </div>
+        <div class="filter-group">
+          <h3>Mod loader</h3>
+          <label><input type="checkbox" value="fabric" class="loaderCheck"> Fabric</label>
+          <label><input type="checkbox" value="forge" class="loaderCheck"> Forge</label>
+          <label><input type="checkbox" value="quilt" class="loaderCheck"> Quilt</label>
+          <label><input type="checkbox" value="neoforge" class="loaderCheck"> NeoForge</label>
+        </div>
+        <div class="filter-group">
+          <h3>Category</h3>
+          <label><input type="checkbox" value="technology" class="catCheck"> Technology</label>
+          <label><input type="checkbox" value="magic" class="catCheck"> Magic</label>
+          <label><input type="checkbox" value="adventure" class="catCheck"> Adventure</label>
+          <label><input type="checkbox" value="decoration" class="catCheck"> Decoration</label>
+          <label><input type="checkbox" value="optimization" class="catCheck"> Optimization</label>
+          <label><input type="checkbox" value="utility" class="catCheck"> Utility</label>
+          <label><input type="checkbox" value="library" class="catCheck"> Library</label>
+        </div>
+      </aside>
+
+      <div>
+        <div class="toolbar">
+          <div class="search-box">
+            <span aria-hidden="true">🔍</span>
+            <input type="text" id="searchInput" placeholder="Search mods on Modrinth…" aria-label="Search mods">
+          </div>
+          <select id="sortSelect">
+            <option value="relevance">Relevance</option>
+            <option value="downloads">Most downloads</option>
+            <option value="follows">Most followed</option>
+            <option value="newest">Newest</option>
+            <option value="updated">Recently updated</option>
+          </select>
+          <div class="view-toggle">
+            <button id="gridBtn" class="active" aria-label="Grid view" title="Grid view">▦</button>
+            <button id="listBtn" aria-label="List view" title="List view">☰</button>
+          </div>
+        </div>
+
+        <div id="results" class="grid"></div>
+        <div id="statusMsg" class="status-msg" style="display:none;"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- MY PACK TAB -->
+  <section id="tab-pack" style="display:none;">
+    <div id="packList" class="pack-list"></div>
+    <div id="packEmpty" class="empty-state" style="display:none;">
+      <div class="big">🧰</div>
+      <p>Your pack is empty. Head to <strong>Browse</strong> to add mods.</p>
+    </div>
+  </section>
+
+  <!-- EXPORT TAB -->
+  <section id="tab-export" style="display:none;">
+    <div class="export-panel">
+      <h2 style="margin-top:0;">Export your pack</h2>
+      <p style="color:var(--text-dim); font-size:0.9rem;">Generates a <code>.mrpack</code> file — importable straight into the Modrinth App, Prism Launcher, or ATLauncher.</p>
+
+      <label for="packName">Pack name</label>
+      <input type="text" id="packName" placeholder="My Modpack" value="My Modpack">
+
+      <label for="packVersion">Pack version</label>
+      <input type="text" id="packVersion" placeholder="1.0.0" value="1.0.0">
+
+      <label for="expMcVersion">Minecraft version</label>
+      <select id="expMcVersion"><option value="">Select a version</option></select>
+
+      <label for="expLoader">Mod loader</label>
+      <select id="expLoader">
+        <option value="">Select a loader</option>
+        <option value="fabric">Fabric</option>
+        <option value="forge">Forge</option>
+        <option value="quilt">Quilt</option>
+        <option value="neoforge">NeoForge</option>
+      </select>
+
+      <button class="export-btn" id="exportBtn">Download .mrpack</button>
+      <p class="export-note" id="exportNote">Add mods to your pack first, then choose a version and loader.</p>
+    </div>
+  </section>
+
+</main>
+
+<footer>Packsmith pulls live data from the <a href="https://modrinth.com" target="_blank" rel="noopener">Modrinth</a> API. Not affiliated with Modrinth or Mojang.</footer>
+
+<script>
+const API = "https://api.modrinth.com/v2";
+
+// ---------- State ----------
+let state = {
+  tab: "browse",
+  view: "grid",
+  query: "",
+  sort: "relevance",
+  mcVersion: "",
+  loaders: [],
+  categories: [],
+  results: [],
+  pack: JSON.parse(localStorage.getItem("packsmith_pack") || "[]") // [{id,title,icon_url,author,selectedVersionId,versions:[...]}]
+};
+
+function savePack(){
+  localStorage.setItem("packsmith_pack", JSON.stringify(state.pack));
+  updatePackCount();
+}
+function updatePackCount(){
+  document.getElementById("packCount").textContent = state.pack.length;
+}
+
+// ---------- Tabs ----------
+document.querySelectorAll("nav.tabs button").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    document.querySelectorAll("nav.tabs button").forEach(b=>{b.classList.remove("active"); b.setAttribute("aria-selected","false");});
+    btn.classList.add("active"); btn.setAttribute("aria-selected","true");
+    state.tab = btn.dataset.tab;
+    ["browse","pack","export"].forEach(t=>{
+      document.getElementById("tab-"+t).style.display = (t===state.tab) ? "" : "none";
+    });
+    if(state.tab === "pack") renderPack();
+    if(state.tab === "export") renderExport();
+  });
+});
+
+// ---------- Load MC versions for filters ----------
+// Used only if the live API call fails, so the version dropdowns are never empty.
+const FALLBACK_MC_VERSIONS = [
+  "1.21.4","1.21.3","1.21.1","1.21","1.20.6","1.20.4","1.20.2","1.20.1","1.20",
+  "1.19.4","1.19.3","1.19.2","1.19","1.18.2","1.18.1","1.16.5","1.12.2"
+];
+
+function populateVersionSelects(list){
+  const mcSel = document.getElementById("mcVersion");
+  const expSel = document.getElementById("expMcVersion");
+  list.forEach(v=>{
+    mcSel.insertAdjacentHTML("beforeend", `<option value="${v}">${v}</option>`);
+    expSel.insertAdjacentHTML("beforeend", `<option value="${v}">${v}</option>`);
+  });
+}
+
+async function loadGameVersions(){
+  try{
+    const res = await fetch(`${API}/tag/game_version`);
+    if(!res.ok) throw new Error("bad status " + res.status);
+    const data = await res.json();
+    const releases = data.filter(v=>v.version_type === "release").map(v=>v.version);
+    populateVersionSelects(releases.slice(0,60));
+  }catch(e){
+    console.error("Failed to load game versions from Modrinth, using fallback list", e);
+    populateVersionSelects(FALLBACK_MC_VERSIONS);
+    showBanner("Couldn't reach Modrinth's version list — showing a built-in fallback. Search results may still work once the connection is available.");
+  }
+}
+
+// ---------- Banner for non-fatal connection issues ----------
+function showBanner(msg){
+  let banner = document.getElementById("connBanner");
+  if(!banner){
+    banner = document.createElement("div");
+    banner.id = "connBanner";
+    banner.style.cssText = "max-width:1180px;margin:12px auto 0;padding:10px 16px;background:#fbeceb;border:1px solid #e3b7b2;color:#7a3a34;border-radius:8px;font-size:0.85rem;";
+    document.querySelector("main").prepend(banner);
+  }
+  banner.textContent = msg;
+}
+
+// ---------- Search ----------
+let searchTimer = null;
+function scheduleSearch(){
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(runSearch, 350);
+}
+
+function buildFacets(){
+  const facets = [];
+  if(state.loaders.length) facets.push(state.loaders.map(l=>`categories:${l}`));
+  if(state.categories.length) facets.push(state.categories.map(c=>`categories:${c}`));
+  if(state.mcVersion) facets.push([`versions:${state.mcVersion}`]);
+  facets.push(["project_type:mod"]);
+  return facets;
+}
+
+async function runSearch(){
+  const resultsEl = document.getElementById("results");
+  const statusEl = document.getElementById("statusMsg");
+  statusEl.style.display = "block";
+  statusEl.textContent = "Searching…";
+  resultsEl.innerHTML = "";
+
+  const params = new URLSearchParams({
+    query: state.query,
+    limit: "30",
+    index: state.sort,
+    facets: JSON.stringify(buildFacets())
+  });
+
+  try{
+    const res = await fetch(`${API}/search?${params.toString()}`);
+    if(!res.ok) throw new Error("Search failed: " + res.status);
+    const data = await res.json();
+    state.results = data.hits || [];
+    if(state.results.length === 0){
+      statusEl.textContent = "No mods found. Try different filters.";
+      return;
+    }
+    statusEl.style.display = "none";
+    renderResults();
+  }catch(e){
+    console.error(e);
+    statusEl.textContent = "Couldn't reach Modrinth's API from this page. If you're viewing this inside Claude's chat preview, that sandbox blocks outside network calls — download the file and open it directly in a browser, or host it, and it'll connect normally.";
+  }
+}
+
+function renderResults(){
+  const resultsEl = document.getElementById("results");
+  resultsEl.className = state.view;
+  resultsEl.innerHTML = state.results.map(hit=>{
+    const inPack = state.pack.some(p=>p.id === hit.project_id);
+    const icon = hit.icon_url || "";
+    return `
+    <div class="card" data-id="${hit.project_id}" tabindex="0" role="button" aria-label="View ${escapeHtml(hit.title)}">
+      <div class="card-top">
+        ${icon ? `<img class="card-icon" src="${icon}" alt="" loading="lazy">` : `<div class="card-icon"></div>`}
+        <div>
+          <div class="card-title">${escapeHtml(hit.title)}</div>
+          <div class="card-author">by ${escapeHtml(hit.author || "unknown")}</div>
+        </div>
+      </div>
+      <div class="card-desc">${escapeHtml(hit.description || "")}</div>
+      <div class="card-tags">${(hit.categories||[]).slice(0,3).map(c=>`<span class="tag">${escapeHtml(c)}</span>`).join("")}</div>
+      <div class="card-stats">
+        <span>⬇ ${formatNum(hit.downloads)}</span>
+        <span>♥ ${formatNum(hit.follows)}</span>
+        <button class="card-add ${inPack?'added':''}" data-add="${hit.project_id}">${inPack ? "Added ✓" : "+ Add"}</button>
+      </div>
+    </div>`;
+  }).join("");
+
+  resultsEl.querySelectorAll(".card").forEach(card=>{
+    card.addEventListener("click", (e)=>{
+      if(e.target.closest(".card-add")) return;
+      openModal(card.dataset.id);
+    });
+    card.addEventListener("keydown", (e)=>{
+      if(e.key === "Enter") openModal(card.dataset.id);
+    });
+  });
+  resultsEl.querySelectorAll("[data-add]").forEach(btn=>{
+    btn.addEventListener("click", (e)=>{
+      e.stopPropagation();
+      quickAdd(btn.dataset.add);
+    });
+  });
+}
+
+function formatNum(n){
+  if(!n) return "0";
+  if(n >= 1e6) return (n/1e6).toFixed(1)+"M";
+  if(n >= 1e3) return (n/1e3).toFixed(1)+"k";
+  return String(n);
+}
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+}
+
+// ---------- Quick add (adds project, version picked later or latest compatible) ----------
+async function quickAdd(projectId){
+  if(state.pack.some(p=>p.id === projectId)) return;
+  const hit = state.results.find(h=>h.project_id === projectId);
+  try{
+    const versions = await fetchVersions(projectId);
+    const best = pickBestVersion(versions);
+    state.pack.push({
+      id: projectId,
+      title: hit.title,
+      icon_url: hit.icon_url,
+      author: hit.author,
+      selectedVersionId: best ? best.id : null,
+      selectedVersionNumber: best ? best.version_number : null,
+      selectedFile: best ? (best.files.find(f=>f.primary) || best.files[0]) : null,
+      versions
+    });
+    savePack();
+    renderResults();
+  }catch(e){
+    console.error(e);
+    alert("Couldn't add that mod — Modrinth may be unreachable.");
+  }
+}
+
+async function fetchVersions(projectId){
+  const res = await fetch(`${API}/project/${projectId}/version`);
+  if(!res.ok) throw new Error("version fetch failed");
+  return await res.json();
+}
+
+function pickBestVersion(versions){
+  if(!versions.length) return null;
+  let candidates = versions;
+  if(state.mcVersion) candidates = candidates.filter(v=>v.game_versions.includes(state.mcVersion)) || candidates;
+  if(state.loaders.length) candidates = candidates.filter(v=>v.loaders.some(l=>state.loaders.includes(l))) || candidates;
+  return (candidates.length ? candidates : versions)[0];
+}
+
+// ---------- Modal ----------
+async function openModal(projectId){
+  const hit = state.results.find(h=>h.project_id === projectId);
+  let backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  backdrop.innerHTML = `<div class="modal"><div class="status-msg">Loading details…</div></div>`;
+  document.body.appendChild(backdrop);
+  backdrop.addEventListener("click", (e)=>{ if(e.target === backdrop) backdrop.remove(); });
+
+  try{
+    const [projRes, versions] = await Promise.all([
+      fetch(`${API}/project/${projectId}`).then(r=>r.json()),
+      fetchVersions(projectId)
+    ]);
+    const gallery = (projRes.gallery || []).slice(0,6);
+    const inPack = state.pack.find(p=>p.id === projectId);
+
+    backdrop.querySelector(".modal").innerHTML = `
+      <div class="modal-head">
+        ${hit.icon_url ? `<img src="${hit.icon_url}" alt="">` : `<div style="width:64px;height:64px;border-radius:10px;background:var(--surface-2)"></div>`}
+        <div>
+          <div class="name">${escapeHtml(projRes.title)}</div>
+          <div class="card-author">by ${escapeHtml(hit.author||"")}</div>
+        </div>
+        <button class="modal-close" aria-label="Close">✕</button>
+      </div>
+      ${gallery.length ? `<div class="modal-gallery">${gallery.map(g=>`<img src="${g.url}" alt="${escapeHtml(g.title||'')}" loading="lazy">`).join("")}</div>` : ""}
+      <div class="modal-desc">${escapeHtml(projRes.description || "")}</div>
+      <h3 style="font-size:0.85rem; text-transform:uppercase; letter-spacing:.04em; color:var(--text-dim);">Versions</h3>
+      <div class="modal-versions">
+        ${versions.slice(0,25).map(v=>`
+          <div class="version-row" data-vid="${v.id}">
+            <span class="vname">${escapeHtml(v.version_number)}</span>
+            <span class="vmeta">${v.game_versions.slice(0,3).join(", ")} · ${v.loaders.join(", ")}</span>
+          </div>`).join("")}
+      </div>
+      <button class="export-btn" id="modalAddBtn" style="margin-top:16px;">
+        ${inPack ? "Update selection in pack" : "+ Add to pack"}
+      </button>
+    `;
+
+    let chosenVersion = inPack ? versions.find(v=>v.id===inPack.selectedVersionId) : pickBestVersion(versions);
+    const rows = backdrop.querySelectorAll(".version-row");
+    function highlight(){
+      rows.forEach(r=>r.style.background = (chosenVersion && r.dataset.vid===chosenVersion.id) ? "var(--accent-soft)" : "");
+    }
+    highlight();
+    rows.forEach(row=>{
+      row.addEventListener("click", ()=>{
+        chosenVersion = versions.find(v=>v.id === row.dataset.vid);
+        highlight();
+      });
+    });
+
+    backdrop.querySelector(".modal-close").addEventListener("click", ()=>backdrop.remove());
+    backdrop.querySelector("#modalAddBtn").addEventListener("click", ()=>{
+      if(!chosenVersion){ alert("Pick a version first."); return; }
+      const existingIdx = state.pack.findIndex(p=>p.id === projectId);
+      const entry = {
+        id: projectId,
+        title: projRes.title,
+        icon_url: hit.icon_url,
+        author: hit.author,
+        selectedVersionId: chosenVersion.id,
+        selectedVersionNumber: chosenVersion.version_number,
+        selectedFile: chosenVersion.files.find(f=>f.primary) || chosenVersion.files[0],
+        versions
+      };
+      if(existingIdx >= 0) state.pack[existingIdx] = entry; else state.pack.push(entry);
+      savePack();
+      renderResults();
+      backdrop.remove();
+    });
+  }catch(e){
+    console.error(e);
+    backdrop.querySelector(".modal").innerHTML = `<div class="status-msg">Couldn't load this mod. <button class="modal-close">Close</button></div>`;
+    backdrop.querySelector(".modal-close").addEventListener("click", ()=>backdrop.remove());
+  }
+}
+
+// ---------- My Pack tab ----------
+function renderPack(){
+  const listEl = document.getElementById("packList");
+  const emptyEl = document.getElementById("packEmpty");
+  if(state.pack.length === 0){
+    listEl.innerHTML = ""; emptyEl.style.display = "block";
+    return;
+  }
+  emptyEl.style.display = "none";
+  listEl.innerHTML = state.pack.map(mod=>`
+    <div class="pack-row" data-id="${mod.id}">
+      ${mod.icon_url ? `<img src="${mod.icon_url}" alt="">` : `<img alt="">`}
+      <div class="info">
+        <div class="name">${escapeHtml(mod.title)}</div>
+        <div class="sub">by ${escapeHtml(mod.author||"")} · ${escapeHtml(mod.selectedVersionNumber||"no version")}</div>
+      </div>
+      <select data-vselect="${mod.id}">
+        ${mod.versions.slice(0,25).map(v=>`<option value="${v.id}" ${v.id===mod.selectedVersionId?"selected":""}>${escapeHtml(v.version_number)}</option>`).join("")}
+      </select>
+      <button class="remove" data-remove="${mod.id}">Remove</button>
+    </div>
+  `).join("");
+
+  listEl.querySelectorAll("[data-remove]").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      state.pack = state.pack.filter(m=>m.id !== btn.dataset.remove);
+      savePack(); renderPack();
+    });
+  });
+  listEl.querySelectorAll("[data-vselect]").forEach(sel=>{
+    sel.addEventListener("change", ()=>{
+      const mod = state.pack.find(m=>m.id === sel.dataset.vselect);
+      const v = mod.versions.find(v=>v.id === sel.value);
+      mod.selectedVersionId = v.id;
+      mod.selectedVersionNumber = v.version_number;
+      mod.selectedFile = v.files.find(f=>f.primary) || v.files[0];
+      savePack(); renderPack();
+    });
+  });
+}
+
+// ---------- Export tab ----------
+function renderExport(){
+  const note = document.getElementById("exportNote");
+  const btn = document.getElementById("exportBtn");
+  if(state.pack.length === 0){
+    note.textContent = "Add mods to your pack first, then choose a version and loader.";
+    btn.disabled = true;
+  }else{
+    note.textContent = `${state.pack.length} mod${state.pack.length===1?'':'s'} ready to export.`;
+    btn.disabled = false;
+  }
+}
+
+document.getElementById("exportBtn").addEventListener("click", async ()=>{
+  const mcVersion = document.getElementById("expMcVersion").value;
+  const loader = document.getElementById("expLoader").value;
+  const packName = document.getElementById("packName").value.trim() || "My Modpack";
+  const packVersion = document.getElementById("packVersion").value.trim() || "1.0.0";
+
+  if(!mcVersion || !loader){
+    alert("Choose a Minecraft version and mod loader before exporting.");
+    return;
+  }
+  if(state.pack.some(m=>!m.selectedFile)){
+    alert("One or more mods is missing a selected file/version — check My Pack.");
+    return;
+  }
+
+  const dependencies = { minecraft: mcVersion };
+  if(loader === "fabric") dependencies["fabric-loader"] = "";
+  if(loader === "quilt") dependencies["quilt-loader"] = "";
+  if(loader === "forge") dependencies["forge"] = "";
+  if(loader === "neoforge") dependencies["neoforge"] = "";
+  // strip empty-value deps (user can fill exact loader version in launcher on import)
+  Object.keys(dependencies).forEach(k=>{ if(dependencies[k]==="") delete dependencies[k]; });
+
+  const manifest = {
+    formatVersion: 1,
+    game: "minecraft",
+    versionId: packVersion,
+    name: packName,
+    files: state.pack.map(mod=>({
+      path: `mods/${mod.selectedFile.filename}`,
+      hashes: {
+        sha1: mod.selectedFile.hashes.sha1,
+        sha512: mod.selectedFile.hashes.sha512
+      },
+      env: { support: "required" },
+      downloads: [mod.selectedFile.url],
+      fileSize: mod.selectedFile.size
+    })),
+    dependencies: { minecraft: mcVersion, ...(loader==="fabric"?{"fabric-loader":""}:{}), ...(loader==="quilt"?{"quilt-loader":""}:{}), ...(loader==="forge"?{"forge":""}:{}), ...(loader==="neoforge"?{"neoforge":""}:{}) }
+  };
+  Object.keys(manifest.dependencies).forEach(k=>{ if(manifest.dependencies[k]==="") delete manifest.dependencies[k]; });
+
+  const zip = new JSZip();
+  zip.file("modrinth.index.json", JSON.stringify(manifest, null, 2));
+  zip.folder("overrides");
+
+  const blob = await zip.generateAsync({type:"blob"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${packName.replace(/[^a-z0-9\-_ ]/gi,"")}.mrpack`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+});
+
+// ---------- Filter listeners ----------
+document.getElementById("searchInput").addEventListener("input", (e)=>{
+  state.query = e.target.value; scheduleSearch();
+});
+document.getElementById("sortSelect").addEventListener("change", (e)=>{
+  state.sort = e.target.value; runSearch();
+});
+document.getElementById("mcVersion").addEventListener("change", (e)=>{
+  state.mcVersion = e.target.value; runSearch();
+});
+document.querySelectorAll(".loaderCheck").forEach(cb=>{
+  cb.addEventListener("change", ()=>{
+    state.loaders = [...document.querySelectorAll(".loaderCheck:checked")].map(c=>c.value);
+    runSearch();
+  });
+});
+document.querySelectorAll(".catCheck").forEach(cb=>{
+  cb.addEventListener("change", ()=>{
+    state.categories = [...document.querySelectorAll(".catCheck:checked")].map(c=>c.value);
+    runSearch();
+  });
+});
+document.getElementById("gridBtn").addEventListener("click", ()=>{
+  state.view = "grid";
+  document.getElementById("gridBtn").classList.add("active");
+  document.getElementById("listBtn").classList.remove("active");
+  renderResults();
+});
+document.getElementById("listBtn").addEventListener("click", ()=>{
+  state.view = "list";
+  document.getElementById("listBtn").classList.add("active");
+  document.getElementById("gridBtn").classList.remove("active");
+  renderResults();
+});
+
+// ---------- Init ----------
+updatePackCount();
+loadGameVersions();
+runSearch();
+</script>
+</body>
+</html>
