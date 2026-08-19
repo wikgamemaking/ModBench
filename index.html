@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Packsmith — Build Minecraft modpacks</title>
+<title>ModBench — Build Minecraft modpacks</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
@@ -20,6 +20,9 @@
     --accent-dark: #234f3a;
     --accent-soft: #e3ede7;
     --danger: #a3423a;
+    --danger-soft: #fbeceb;
+    --danger-border: #e3b7b2;
+    --danger-text: #7a3a34;
     --radius: 10px;
     --maxw: 1180px;
   }
@@ -30,6 +33,7 @@
     background: var(--bg);
     color: var(--text);
     line-height: 1.5;
+    transition: background .15s, color .15s;
   }
   a{ color: var(--accent-dark); }
   img{ max-width:100%; display:block; }
@@ -50,15 +54,24 @@
     flex-wrap: wrap;
   }
   .brand{
-    display:flex; align-items:center; gap:8px;
-    font-weight:700; font-size:1.25rem;
+    display:flex; align-items:center; gap:10px;
     white-space:nowrap;
   }
   .brand .mark{
-    width:28px; height:28px; border-radius:6px;
-    background: var(--accent);
+    width:32px; height:32px; border-radius:8px;
+    background: linear-gradient(155deg, var(--accent), var(--accent-dark));
+    box-shadow: 0 1px 2px rgba(0,0,0,.18), inset 0 1px 0 rgba(255,255,255,.15);
     display:flex; align-items:center; justify-content:center;
-    color:white; font-size:15px; font-weight:700;
+    color:white; font-size:16px; font-weight:700;
+    font-family: Georgia, 'Times New Roman', serif;
+  }
+  .brand-text{ display:flex; flex-direction:column; line-height:1.15; }
+  .brand-name{
+    font-weight:700; font-size:1.2rem; letter-spacing:.01em;
+  }
+  .brand-tag{
+    font-size:0.68rem; font-weight:400; color: var(--text-dim);
+    letter-spacing:.02em;
   }
   nav.tabs{ display:flex; gap:4px; flex-wrap:wrap; }
   nav.tabs button{
@@ -200,6 +213,21 @@
   #results.list .card-desc{ -webkit-line-clamp:1; margin:0; }
   #results.list .card-tags{ display:none; }
   #results.list .card-icon{ width:36px; height:36px; }
+  #results.list .card-stats{ flex-shrink:0; }
+
+  @media (max-width: 640px){
+    #results.list .card{
+      flex-wrap: wrap;
+      row-gap: 8px;
+      padding: 12px;
+    }
+    #results.list .card-top{ width:100%; }
+    #results.list .card-desc{ display:none; }
+    #results.list .card-stats{
+      width:100%;
+      justify-content: space-between;
+    }
+  }
 
   /* ---------- Pack tab (My Pack) ---------- */
   .pack-list{ display:flex; flex-direction:column; gap:8px; }
@@ -220,7 +248,7 @@
     background:none; border:1px solid var(--border); color: var(--danger);
     border-radius:6px; padding:6px 10px; cursor:pointer; font-family:inherit; font-weight:700;
   }
-  .pack-row button.remove:hover{ background: #fbeceb; }
+  .pack-row button.remove:hover{ background: var(--danger-soft); }
 
   .empty-state{
     text-align:center; padding: 60px 20px; color: var(--text-dim);
@@ -280,13 +308,52 @@
   :focus-visible{ outline: 2px solid var(--accent); outline-offset: 2px; }
 
   footer{ text-align:center; padding: 30px 20px; color: var(--text-dim); font-size:0.82rem; }
+
+  .pagination{ display:flex; align-items:center; justify-content:center; gap:6px; margin-top:22px; flex-wrap:wrap; }
+  .page-btn{
+    min-width:34px; height:34px; padding:0 8px; border-radius:7px; border:1px solid var(--border);
+    background: var(--surface); color:var(--text); font-family:inherit; font-weight:700; font-size:0.88rem; cursor:pointer;
+  }
+  .page-btn:hover:not(:disabled){ border-color: var(--accent); }
+  .page-btn.active{ background: var(--accent); color:#fff; border-color: var(--accent); }
+  .page-btn:disabled{ opacity:0.4; cursor:not-allowed; }
+  .page-ellipsis{ color: var(--text-dim); padding:0 2px; }
+
+  .modal-gallery img{ cursor: zoom-in; }
+
+  .lightbox-backdrop{
+    position: fixed; inset:0; background: rgba(20,18,14,0.88);
+    display:flex; align-items:center; justify-content:center;
+    z-index: 80; padding: 40px 16px;
+  }
+  .lightbox-img-wrap{ position:relative; max-width: 90vw; max-height: 85vh; display:flex; flex-direction:column; align-items:center; gap:10px; }
+  .lightbox-img-wrap img{ max-width: 90vw; max-height: 74vh; width:auto; height:auto; border-radius: 8px; box-shadow: 0 8px 30px rgba(0,0,0,.4); }
+  .lightbox-counter{ color:#fff; font-size:0.85rem; opacity:.85; }
+  .lightbox-close{
+    position:absolute; top:-40px; right:0; background:none; border:none; color:#fff;
+    font-size:1.6rem; cursor:pointer; line-height:1;
+  }
+  .lightbox-nav{
+    position:fixed; top:50%; transform:translateY(-50%);
+    background: rgba(255,255,255,.12); border:none; color:#fff;
+    width:44px; height:44px; border-radius:50%; font-size:1.4rem; cursor:pointer;
+    display:flex; align-items:center; justify-content:center;
+  }
+  .lightbox-nav:hover{ background: rgba(255,255,255,.22); }
+  .lightbox-nav.prev{ left:16px; }
+  .lightbox-nav.next{ right:16px; }
 </style>
 </head>
 <body>
 
 <header class="site">
   <div class="header-inner">
-    <div class="brand"><span class="mark">P</span> Packsmith</div>
+    <div class="brand">
+      <span class="mark">M</span>
+      <span class="brand-text">
+        <span class="brand-name">ModBench</span>
+      </span>
+    </div>
     <nav class="tabs" role="tablist" aria-label="Sections">
       <button class="active" data-tab="browse" role="tab" aria-selected="true">Browse</button>
       <button data-tab="pack" role="tab" aria-selected="false">My Pack <span class="pack-count" id="packCount">0</span></button>
@@ -306,7 +373,7 @@
           <select id="mcVersion"><option value="">Any version</option></select>
         </div>
         <div class="filter-group">
-          <h3>Mod loader</h3>
+          <h3>Modloader</h3>
           <label><input type="checkbox" value="fabric" class="loaderCheck"> Fabric</label>
           <label><input type="checkbox" value="forge" class="loaderCheck"> Forge</label>
           <label><input type="checkbox" value="quilt" class="loaderCheck"> Quilt</label>
@@ -345,6 +412,7 @@
 
         <div id="results" class="grid"></div>
         <div id="statusMsg" class="status-msg" style="display:none;"></div>
+        <div id="pagination" class="pagination"></div>
       </div>
     </div>
   </section>
@@ -373,7 +441,7 @@
       <label for="expMcVersion">Minecraft version</label>
       <select id="expMcVersion"><option value="">Select a version</option></select>
 
-      <label for="expLoader">Mod loader</label>
+      <label for="expLoader">Modloader</label>
       <select id="expLoader">
         <option value="">Select a loader</option>
         <option value="fabric">Fabric</option>
@@ -381,6 +449,7 @@
         <option value="quilt">Quilt</option>
         <option value="neoforge">NeoForge</option>
       </select>
+      <p style="color:var(--text-dim); font-size:0.8rem; margin:8px 0 0;">This is the target your pack declares to launchers — separate from the file you picked per mod in My Pack. If you already filtered by version/loader while browsing, it's pre-filled here.</p>
 
       <button class="export-btn" id="exportBtn">Download .mrpack</button>
       <p class="export-note" id="exportNote">Add mods to your pack first, then choose a version and loader.</p>
@@ -389,7 +458,7 @@
 
 </main>
 
-<footer>Packsmith pulls live data from the <a href="https://modrinth.com" target="_blank" rel="noopener">Modrinth</a> API. Not affiliated with Modrinth or Mojang.</footer>
+<footer>ModBench pulls live data from the <a href="https://modrinth.com" target="_blank" rel="noopener">Modrinth</a> API. Not affiliated with Modrinth or Mojang.</footer>
 
 <script>
 const API = "https://api.modrinth.com/v2";
@@ -404,6 +473,8 @@ let state = {
   loaders: [],
   categories: [],
   results: [],
+  page: 1,
+  totalHits: 0,
   pack: JSON.parse(localStorage.getItem("packsmith_pack") || "[]") // [{id,title,icon_url,author,selectedVersionId,versions:[...]}]
 };
 
@@ -455,20 +526,7 @@ async function loadGameVersions(){
   }catch(e){
     console.error("Failed to load game versions from Modrinth, using fallback list", e);
     populateVersionSelects(FALLBACK_MC_VERSIONS);
-    showBanner("Couldn't reach Modrinth's version list — showing a built-in fallback. Search results may still work once the connection is available.");
   }
-}
-
-// ---------- Banner for non-fatal connection issues ----------
-function showBanner(msg){
-  let banner = document.getElementById("connBanner");
-  if(!banner){
-    banner = document.createElement("div");
-    banner.id = "connBanner";
-    banner.style.cssText = "max-width:1180px;margin:12px auto 0;padding:10px 16px;background:#fbeceb;border:1px solid #e3b7b2;color:#7a3a34;border-radius:8px;font-size:0.85rem;";
-    document.querySelector("main").prepend(banner);
-  }
-  banner.textContent = msg;
 }
 
 // ---------- Search ----------
@@ -487,16 +545,21 @@ function buildFacets(){
   return facets;
 }
 
+const PAGE_SIZE = 30;
+
 async function runSearch(){
   const resultsEl = document.getElementById("results");
   const statusEl = document.getElementById("statusMsg");
+  const pageEl = document.getElementById("pagination");
   statusEl.style.display = "block";
   statusEl.textContent = "Searching…";
   resultsEl.innerHTML = "";
+  pageEl.innerHTML = "";
 
   const params = new URLSearchParams({
     query: state.query,
-    limit: "30",
+    limit: String(PAGE_SIZE),
+    offset: String((state.page - 1) * PAGE_SIZE),
     index: state.sort,
     facets: JSON.stringify(buildFacets())
   });
@@ -506,16 +569,48 @@ async function runSearch(){
     if(!res.ok) throw new Error("Search failed: " + res.status);
     const data = await res.json();
     state.results = data.hits || [];
+    state.totalHits = data.total_hits || 0;
     if(state.results.length === 0){
       statusEl.textContent = "No mods found. Try different filters.";
       return;
     }
     statusEl.style.display = "none";
     renderResults();
+    renderPagination();
   }catch(e){
     console.error(e);
     statusEl.textContent = "Couldn't reach Modrinth's API from this page. If you're viewing this inside Claude's chat preview, that sandbox blocks outside network calls — download the file and open it directly in a browser, or host it, and it'll connect normally.";
   }
+}
+
+function renderPagination(){
+  const el = document.getElementById("pagination");
+  const totalPages = Math.max(1, Math.ceil(state.totalHits / PAGE_SIZE));
+  if(totalPages <= 1){ el.innerHTML = ""; return; }
+  const cur = state.page;
+
+  const pagesToShow = [];
+  for(let p = 1; p <= totalPages; p++){
+    if(p === 1 || p === totalPages || Math.abs(p - cur) <= 1) pagesToShow.push(p);
+  }
+
+  let html = `<button class="page-btn" data-page="${cur-1}" ${cur===1?"disabled":""} aria-label="Previous page">‹</button>`;
+  let last = 0;
+  pagesToShow.forEach(p=>{
+    if(last && p - last > 1) html += `<span class="page-ellipsis">…</span>`;
+    html += `<button class="page-btn ${p===cur?'active':''}" data-page="${p}">${p}</button>`;
+    last = p;
+  });
+  html += `<button class="page-btn" data-page="${cur+1}" ${cur===totalPages?"disabled":""} aria-label="Next page">›</button>`;
+  el.innerHTML = html;
+
+  el.querySelectorAll(".page-btn:not(:disabled)").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      state.page = parseInt(btn.dataset.page, 10);
+      runSearch();
+      document.getElementById("results").scrollIntoView({behavior:"smooth", block:"start"});
+    });
+  });
 }
 
 function renderResults(){
@@ -635,7 +730,7 @@ async function openModal(projectId){
         </div>
         <button class="modal-close" aria-label="Close">✕</button>
       </div>
-      ${gallery.length ? `<div class="modal-gallery">${gallery.map(g=>`<img src="${g.url}" alt="${escapeHtml(g.title||'')}" loading="lazy">`).join("")}</div>` : ""}
+      ${gallery.length ? `<div class="modal-gallery">${gallery.map((g,i)=>`<img src="${g.url}" alt="${escapeHtml(g.title||'')}" loading="lazy" data-index="${i}">`).join("")}</div>` : ""}
       <div class="modal-desc">${escapeHtml(projRes.description || "")}</div>
       <h3 style="font-size:0.85rem; text-transform:uppercase; letter-spacing:.04em; color:var(--text-dim);">Versions</h3>
       <div class="modal-versions">
@@ -649,6 +744,12 @@ async function openModal(projectId){
         ${inPack ? "Update selection in pack" : "+ Add to pack"}
       </button>
     `;
+
+    if(gallery.length){
+      backdrop.querySelectorAll(".modal-gallery img").forEach(img=>{
+        img.addEventListener("click", ()=>openLightbox(gallery, Number(img.dataset.index)));
+      });
+    }
 
     let chosenVersion = inPack ? versions.find(v=>v.id===inPack.selectedVersionId) : pickBestVersion(versions);
     const rows = backdrop.querySelectorAll(".version-row");
@@ -689,6 +790,46 @@ async function openModal(projectId){
   }
 }
 
+// ---------- Lightbox (image zoom) ----------
+function openLightbox(images, startIndex){
+  let idx = startIndex;
+  const lb = document.createElement("div");
+  lb.className = "lightbox-backdrop";
+
+  function render(){
+    const img = images[idx];
+    lb.innerHTML = `
+      ${images.length > 1 ? `<button class="lightbox-nav prev" aria-label="Previous image">‹</button>` : ""}
+      <div class="lightbox-img-wrap">
+        <button class="lightbox-close" aria-label="Close">✕</button>
+        <img src="${img.url}" alt="${escapeHtml(img.title||'')}">
+        <div class="lightbox-counter">Image ${idx+1} / ${images.length}</div>
+      </div>
+      ${images.length > 1 ? `<button class="lightbox-nav next" aria-label="Next image">›</button>` : ""}
+    `;
+    lb.querySelector(".lightbox-close").addEventListener("click", closeLightbox);
+    if(images.length > 1){
+      lb.querySelector(".lightbox-nav.prev").addEventListener("click", (e)=>{ e.stopPropagation(); idx = (idx - 1 + images.length) % images.length; render(); });
+      lb.querySelector(".lightbox-nav.next").addEventListener("click", (e)=>{ e.stopPropagation(); idx = (idx + 1) % images.length; render(); });
+    }
+  }
+
+  function closeLightbox(){
+    lb.remove();
+    document.removeEventListener("keydown", onKey);
+  }
+  function onKey(e){
+    if(e.key === "Escape") closeLightbox();
+    else if(e.key === "ArrowLeft" && images.length > 1){ idx = (idx - 1 + images.length) % images.length; render(); }
+    else if(e.key === "ArrowRight" && images.length > 1){ idx = (idx + 1) % images.length; render(); }
+  }
+
+  lb.addEventListener("click", (e)=>{ if(e.target === lb) closeLightbox(); });
+  document.addEventListener("keydown", onKey);
+  render();
+  document.body.appendChild(lb);
+}
+
 // ---------- My Pack tab ----------
 function renderPack(){
   const listEl = document.getElementById("packList");
@@ -715,7 +856,7 @@ function renderPack(){
   listEl.querySelectorAll("[data-remove]").forEach(btn=>{
     btn.addEventListener("click", ()=>{
       state.pack = state.pack.filter(m=>m.id !== btn.dataset.remove);
-      savePack(); renderPack();
+      savePack(); renderPack(); renderResults();
     });
   });
   listEl.querySelectorAll("[data-vselect]").forEach(sel=>{
@@ -734,6 +875,12 @@ function renderPack(){
 function renderExport(){
   const note = document.getElementById("exportNote");
   const btn = document.getElementById("exportBtn");
+  const expMc = document.getElementById("expMcVersion");
+  const expLoader = document.getElementById("expLoader");
+  // If you already filtered by version/loader while browsing, carry that over
+  // so you're not asked to pick it twice.
+  if(!expMc.value && state.mcVersion) expMc.value = state.mcVersion;
+  if(!expLoader.value && state.loaders.length === 1) expLoader.value = state.loaders[0];
   if(state.pack.length === 0){
     note.textContent = "Add mods to your pack first, then choose a version and loader.";
     btn.disabled = true;
@@ -789,7 +936,9 @@ document.getElementById("exportBtn").addEventListener("click", async ()=>{
   zip.file("modrinth.index.json", JSON.stringify(manifest, null, 2));
   zip.folder("overrides");
 
-  const blob = await zip.generateAsync({type:"blob"});
+  // mimeType is set to something other than application/zip — otherwise some
+  // browsers "helpfully" append .zip to the filename we set below.
+  const blob = await zip.generateAsync({type:"blob", mimeType:"application/octet-stream"});
   const url = URL.createObjectURL(blob);
   const a = document.createElement("a");
   a.href = url;
@@ -802,23 +951,25 @@ document.getElementById("exportBtn").addEventListener("click", async ()=>{
 
 // ---------- Filter listeners ----------
 document.getElementById("searchInput").addEventListener("input", (e)=>{
-  state.query = e.target.value; scheduleSearch();
+  state.query = e.target.value; state.page = 1; scheduleSearch();
 });
 document.getElementById("sortSelect").addEventListener("change", (e)=>{
-  state.sort = e.target.value; runSearch();
+  state.sort = e.target.value; state.page = 1; runSearch();
 });
 document.getElementById("mcVersion").addEventListener("change", (e)=>{
-  state.mcVersion = e.target.value; runSearch();
+  state.mcVersion = e.target.value; state.page = 1; runSearch();
 });
 document.querySelectorAll(".loaderCheck").forEach(cb=>{
   cb.addEventListener("change", ()=>{
     state.loaders = [...document.querySelectorAll(".loaderCheck:checked")].map(c=>c.value);
+    state.page = 1;
     runSearch();
   });
 });
 document.querySelectorAll(".catCheck").forEach(cb=>{
   cb.addEventListener("change", ()=>{
     state.categories = [...document.querySelectorAll(".catCheck:checked")].map(c=>c.value);
+    state.page = 1;
     runSearch();
   });
 });
@@ -834,6 +985,8 @@ document.getElementById("listBtn").addEventListener("click", ()=>{
   document.getElementById("gridBtn").classList.remove("active");
   renderResults();
 });
+
+
 
 // ---------- Init ----------
 updatePackCount();
