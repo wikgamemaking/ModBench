@@ -23,7 +23,7 @@ Powered by the Modrinth API, it runs entirely in your browser with no installati
 ## Tech Stack
 
 - HTML5 / CSS / Vanilla JavaScript
-- [Modrinth API v2](https://docs.modrinth.com/api-spec/)
+- [Modrinth API v2](https://docs.modrinth.com/api/)
 - [JSZip](https://stuk.github.io/jszip/) (client-side `.mrpack` zip generation)
 
 ## Disclaimer
