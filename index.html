@@ -1170,6 +1170,8 @@ async function quickAdd(projectId){
       icon_url: hit.icon_url,
       author: hit.author,
       categories: hit.categories || [],
+      clientSide: hit.client_side || "required",
+      serverSide: hit.server_side || "required",
       selectedVersionId: best ? best.id : null,
       selectedVersionNumber: best ? best.version_number : null,
       selectedFile: best ? (best.files.find(f=>f.primary) || best.files[0]) : null,
@@ -1253,6 +1255,8 @@ async function autoAddDependencies(version, visited){
         icon_url: proj.icon_url,
         author: proj.team || "",
         categories: proj.categories || [],
+        clientSide: proj.client_side || "required",
+        serverSide: proj.server_side || "required",
         isDependency: true,
         selectedVersionId: best.id,
         selectedVersionNumber: best.version_number,
@@ -1280,6 +1284,8 @@ async function ensureFabricApi(){
       icon_url: proj.icon_url,
       author: proj.team || "",
       categories: proj.categories || [],
+      clientSide: proj.client_side || "required",
+      serverSide: proj.server_side || "required",
       isDependency: true,
       selectedVersionId: best.id,
       selectedVersionNumber: best.version_number,
@@ -1980,6 +1986,8 @@ async function importModpackVersion(projectId, version, btn){
         icon_url: proj ? proj.icon_url : "",
         author: "",
         categories: proj ? proj.categories : [],
+        clientSide: (proj && proj.client_side) || "required",
+        serverSide: (proj && proj.server_side) || "required",
         fromModpack: projectId,
         fromModpackLoaders: version.loaders || [],
         fromModpackGameVersions: version.game_versions || [],
@@ -2044,6 +2052,11 @@ function guessPackTarget(){
   };
 }
 
+function normalizeEnvSupport(value){
+  const valid = ["required", "optional", "unsupported"];
+  return valid.includes(value) ? value : "required";
+}
+
 function formatBytes(n){
   if(!n || n <= 0) return "0 MB";
   const mb = n / (1024*1024);
@@ -2078,7 +2091,13 @@ function renderExport(){
     btn.classList.remove("success");
     heroIcon.classList.add("ready");
 
-    const totalSize = state.pack.reduce((sum,m)=>sum + (m.selectedFile && m.selectedFile.size ? m.selectedFile.size : 0), 0);
+    const knownSizeMods = state.pack.filter(m=>m.selectedFile && m.selectedFile.size > 0);
+    const unknownSizeMods = state.pack.filter(m=>!(m.selectedFile && m.selectedFile.size > 0));
+    const totalSize = knownSizeMods.reduce((sum,m)=>sum + m.selectedFile.size, 0);
+    const hasUnknown = unknownSizeMods.length > 0;
+    const sizeDisplay = totalSize > 0
+      ? `${hasUnknown ? "≥" : ""}${formatBytes(totalSize)}`
+      : (hasUnknown ? "Unknown" : "0 MB");
     const catCounts = {};
     state.pack.forEach(m=>(m.categories||[]).forEach(c=>{ catCounts[c] = (catCounts[c]||0) + 1; }));
     const topCats = Object.entries(catCounts).sort((a,b)=>b[1]-a[1]).slice(0,4).map(([c])=>c);
@@ -2088,15 +2107,16 @@ function renderExport(){
         <div class="stat-num">${state.pack.length}</div>
         <div class="stat-label">Mod${state.pack.length===1?'':'s'}</div>
       </div>
-      <div class="export-stat" style="animation-delay:40ms;">
-        <div class="stat-num">${formatBytes(totalSize)}</div>
-        <div class="stat-label">Download size</div>
+      <div class="export-stat" style="animation-delay:40ms;" ${hasUnknown ? `title="${unknownSizeMods.length} mod${unknownSizeMods.length===1?'':'s'} missing file size data — actual download will be larger than shown"` : ""}>
+        <div class="stat-num">${sizeDisplay}</div>
+        <div class="stat-label">Download size${hasUnknown ? " (est.)" : ""}</div>
       </div>
       <div class="export-stat" style="animation-delay:80ms;">
         <div class="stat-num">${state.pack.filter(m=>m.fromModpack).length}</div>
         <div class="stat-label">From modpacks</div>
       </div>
       ${topCats.length ? `<div class="export-cats" style="grid-column:1 / -1;">${topCats.map(c=>`<span class="tag">${escapeHtml(formatCategoryName(c))}</span>`).join("")}</div>` : ""}
+      ${hasUnknown ? `<div style="grid-column:1 / -1; font-size:0.82rem; color:var(--text-dim); margin-top:2px;">Size data missing for ${unknownSizeMods.length} mod${unknownSizeMods.length===1?'':'s'} — actual download will be larger.</div>` : ""}
     `;
   }
 }
@@ -2134,7 +2154,10 @@ document.getElementById("exportBtn").addEventListener("click", async ()=>{
         sha1: mod.selectedFile.hashes.sha1,
         sha512: mod.selectedFile.hashes.sha512
       },
-      env: { support: "required" },
+      env: {
+        client: normalizeEnvSupport(mod.clientSide),
+        server: normalizeEnvSupport(mod.serverSide)
+      },
       downloads: [mod.selectedFile.url],
       fileSize: mod.selectedFile.size
     })),
