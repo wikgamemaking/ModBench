@@ -15,7 +15,7 @@ Powered by the Modrinth API, it runs entirely in your browser with no installati
 
 ## How to Use
 
-1. Open [ModBench](https://wikgamemaking.github.io/ModBench/).
+1. Open [ModBench](https://modbench.net/).
 2. Search for mods in the **Browse** tab and click **+ Add**.
 3. Review your pack and select versions in **Create** / **Export**.
 4. Click **Download .mrpack** and import the file directly into your launcher.
