@@ -234,12 +234,12 @@
     #favSortBtn{ flex:1 1 100%; }
   }
 
-  #results.grid, #favResults.grid, #modpackResults.grid{
+  #results.grid, #favResults.grid, #modpackResults.grid, .pack-category-group .grid{
     display:grid;
     grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
     gap: 14px;
   }
-  #results .card, #favResults .card, #modpackResults .card{
+  #results .card, #favResults .card, #modpackResults .card, .pack-category-group .card{
     animation: card-in .25s ease-out backwards;
   }
   @keyframes card-in{
@@ -247,7 +247,7 @@
     to{ opacity:1; transform: translateY(0); }
   }
   @media (prefers-reduced-motion: reduce){
-    #results .card, #favResults .card, #modpackResults .card{ animation: none; }
+    #results .card, #favResults .card, #modpackResults .card, .pack-category-group .card{ animation: none; }
   }
   .grid .card:nth-child(1){ animation-delay: 0s; }
   .grid .card:nth-child(2){ animation-delay: .02s; }
