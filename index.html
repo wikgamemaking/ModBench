@@ -1109,6 +1109,12 @@ function escapeHtml(str){
   return String(str).replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
 }
 
+function formatCategoryName(cat){
+  return String(cat)
+    .replace(/[-_]/g, " ")
+    .replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1));
+}
+
 function findHitAnywhere(projectId){
   return state.results.find(h=>h.project_id === projectId)
     || state.modpackResults.find(h=>h.project_id === projectId)
@@ -1451,7 +1457,7 @@ function renderPack(){
 
     listEl.innerHTML = orderedCats.map(cat=>`
       <div class="pack-category-group">
-        <h4 class="pack-category-label">${escapeHtml(cat)}</h4>
+        <h4 class="pack-category-label">${escapeHtml(formatCategoryName(cat))}</h4>
         <div class="pack-list">${groups[cat].map(packRowHtml).join("")}</div>
       </div>
     `).join("");
@@ -1498,7 +1504,17 @@ function modChipHtml(mod){
   return `<span class="compat-mod-chip">${mod.icon_url ? `<img src="${mod.icon_url}" alt="">` : ""}${escapeHtml(mod.title)}</span>`;
 }
 
-function runCompatibilityCheck(){
+async function resolveDepProjectId(dep){
+  if(dep.project_id) return dep.project_id;
+  if(!dep.version_id) return null;
+  try{
+    const vRes = await fetch(`${API}/version/${dep.version_id}`);
+    if(vRes.ok) return (await vRes.json()).project_id;
+  }catch(e){ }
+  return null;
+}
+
+async function runCompatibilityCheck(){
   const mods = state.pack.filter(m=>m.selectedVersionId && Array.isArray(m.versions));
   const selected = mods.map(m=>({
     mod: m,
@@ -1506,12 +1522,18 @@ function runCompatibilityCheck(){
   })).filter(x=>x.version);
 
   const issues = [];
+  const seenPairs = new Set();
 
-  selected.forEach(({mod, version})=>{
-    (version.dependencies||[]).forEach(dep=>{
-      if(dep.dependency_type !== "incompatible") return;
-      const other = selected.find(x=>x.mod.id === dep.project_id);
+  for(const {mod, version} of selected){
+    for(const dep of (version.dependencies||[])){
+      if(dep.dependency_type !== "incompatible") continue;
+      const depProjectId = await resolveDepProjectId(dep);
+      if(!depProjectId) continue;
+      const other = selected.find(x=>x.mod.id === depProjectId);
       if(other){
+        const pairKey = [mod.id, other.mod.id].sort().join("|");
+        if(seenPairs.has(pairKey)) continue;
+        seenPairs.add(pairKey);
         issues.push({
           type: "incompatible",
           icon: COMPAT_ICON_X,
@@ -1520,8 +1542,8 @@ function runCompatibilityCheck(){
           mods: [mod, other.mod]
         });
       }
-    });
-  });
+    }
+  }
 
   if(selected.length > 1){
     const loaderSets = selected.map(x=>new Set(x.version.loaders||[]));
@@ -1557,8 +1579,8 @@ function runCompatibilityCheck(){
   return { issues, skipped, checked: selected.length };
 }
 
-function showCompatibilityResults(){
-  const { issues, skipped, checked } = runCompatibilityCheck();
+async function showCompatibilityResults(){
+  const { issues, skipped, checked } = await runCompatibilityCheck();
   const backdrop = document.createElement("div");
   backdrop.className = "modal-backdrop";
   backdrop.style.alignItems = "center";
@@ -1957,8 +1979,17 @@ document.getElementById("sortAlphaBtn").addEventListener("click", ()=>{
   document.getElementById("sortAlphaBtn").classList.toggle("active", state.packSort === "alpha");
   renderPack();
 });
-document.getElementById("checkCompatBtn").addEventListener("click", ()=>{
-  showCompatibilityResults();
+document.getElementById("checkCompatBtn").addEventListener("click", async ()=>{
+  const btn = document.getElementById("checkCompatBtn");
+  const originalLabel = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Checking…";
+  try{
+    await showCompatibilityResults();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalLabel;
+  }
 });
 document.getElementById("gridBtn").addEventListener("click", ()=>{
   state.view = "grid";
