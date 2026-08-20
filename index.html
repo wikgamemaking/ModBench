@@ -113,6 +113,19 @@
     45%{ transform: scale(1.35); }
     100%{ transform: scale(1); }
   }
+  .confetti-piece{
+    position: fixed;
+    width: 6px; height: 6px;
+    border-radius: 1px;
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 1;
+    animation: confetti-burst 1.1s ease-out forwards;
+  }
+  @keyframes confetti-burst{
+    0%{ transform: translate(0, 0) rotate(0deg); opacity: 1; }
+    100%{ transform: translate(var(--dx), calc(var(--dy) + 90px)) rotate(var(--rot)); opacity: 0; }
+  }
 
   main{
     max-width: var(--maxw);
@@ -674,6 +687,7 @@
         <span aria-hidden="true">🔍</span>
         <input type="text" id="favSearchInput" placeholder="Search your favorites…" aria-label="Search favorites">
       </div>
+      <button class="page-btn" id="favSortBtn" style="display:none;">Sort A→Z</button>
     </div>
     <div id="favResults" class="grid"></div>
     <div id="favEmpty" class="empty-state" style="display:none;">
@@ -787,7 +801,7 @@
 
 </main>
 
-<footer>ModBench pulls live data from the <a href="https://modrinth.com" target="_blank" rel="noopener">Modrinth</a> API. Not affiliated with Modrinth or Mojang.</footer>
+<footer>ModBench pulls live data from the <a href="https://modrinth.com" target="_blank" rel="noopener">Modrinth</a> API. Not affiliated with Modrinth or Mojang.<div style="margin-top:6px; opacity:0.6;">ModBench — 2026</div></footer>
 
 <script>
 const API = "https://api.modrinth.com/v2";
@@ -806,6 +820,7 @@ let state = {
   pack: JSON.parse(localStorage.getItem("packsmith_pack") || "[]"),
   packSort: "category",
   favorites: JSON.parse(localStorage.getItem("packsmith_favorites") || "[]"),
+  favSort: "alpha",
   modpackQuery: "",
   modpackSort: "relevance",
   modpackMcVersion: "",
@@ -1737,11 +1752,26 @@ async function showCompatibilityResults(){
 function renderFavorites(){
   const resultsEl = document.getElementById("favResults");
   const emptyEl = document.getElementById("favEmpty");
+  const sortBtn = document.getElementById("favSortBtn");
   if(!resultsEl) return;
   const q = (state.favSearch || "").trim().toLowerCase();
-  const filtered = q
+  let filtered = q
     ? state.favorites.filter(f=>(f.title||"").toLowerCase().includes(q) || (f.author||"").toLowerCase().includes(q))
-    : state.favorites;
+    : state.favorites.slice();
+
+  sortBtn.style.display = state.favorites.length ? "inline-flex" : "none";
+  sortBtn.textContent = state.favSort === "alpha" ? "Group by category" : "Sort A→Z";
+  sortBtn.classList.toggle("active", state.favSort === "alpha");
+
+  if(state.favSort === "alpha"){
+    filtered.sort((a,b)=>(a.title||"").localeCompare(b.title||""));
+  }else{
+    filtered.sort((a,b)=>{
+      const catA = (a.categories && a.categories[0]) || "zzz";
+      const catB = (b.categories && b.categories[0]) || "zzz";
+      return catA.localeCompare(catB) || (a.title||"").localeCompare(b.title||"");
+    });
+  }
 
   if(state.favorites.length === 0){
     resultsEl.innerHTML = ""; emptyEl.style.display = "block";
@@ -2057,6 +2087,32 @@ function normalizeEnvSupport(value){
   return valid.includes(value) ? value : "required";
 }
 
+const CONFETTI_COLORS = ["#2f6b4f", "#e3ede7", "#a3423a", "#ddd8cc", "#234f3a"];
+function fireConfetti(anchorEl){
+  const rect = anchorEl.getBoundingClientRect();
+  const originX = rect.left + rect.width/2;
+  const originY = rect.top;
+  const count = 16;
+  for(let i=0;i<count;i++){
+    const piece = document.createElement("div");
+    piece.className = "confetti-piece";
+    const angle = (Math.random() * Math.PI) + Math.PI; // upward-ish spread
+    const distance = 40 + Math.random()*70;
+    const dx = Math.cos(angle) * distance;
+    const dy = Math.sin(angle) * distance - 30;
+    piece.style.left = `${originX}px`;
+    piece.style.top = `${originY}px`;
+    piece.style.background = CONFETTI_COLORS[i % CONFETTI_COLORS.length];
+    piece.style.setProperty("--dx", `${dx}px`);
+    piece.style.setProperty("--dy", `${dy}px`);
+    piece.style.setProperty("--rot", `${(Math.random()*360)|0}deg`);
+    piece.style.animationDelay = `${Math.random()*80}ms`;
+    document.body.appendChild(piece);
+    piece.addEventListener("animationend", ()=>piece.remove());
+    setTimeout(()=>piece.remove(), 1400);
+  }
+}
+
 function formatBytes(n){
   if(!n || n <= 0) return "0 MB";
   const mb = n / (1024*1024);
@@ -2091,8 +2147,9 @@ function renderExport(){
     btn.classList.remove("success");
     heroIcon.classList.add("ready");
 
-    const knownSizeMods = state.pack.filter(m=>m.selectedFile && m.selectedFile.size > 0);
-    const unknownSizeMods = state.pack.filter(m=>!(m.selectedFile && m.selectedFile.size > 0));
+    const clientMods = state.pack.filter(m=>m.clientSide !== "unsupported");
+    const knownSizeMods = clientMods.filter(m=>m.selectedFile && m.selectedFile.size > 0);
+    const unknownSizeMods = clientMods.filter(m=>!(m.selectedFile && m.selectedFile.size > 0));
     const totalSize = knownSizeMods.reduce((sum,m)=>sum + m.selectedFile.size, 0);
     const hasUnknown = unknownSizeMods.length > 0;
     const sizeDisplay = totalSize > 0
@@ -2109,7 +2166,7 @@ function renderExport(){
       </div>
       <div class="export-stat" style="animation-delay:40ms;" ${hasUnknown ? `title="${unknownSizeMods.length} mod${unknownSizeMods.length===1?'':'s'} missing file size data — actual download will be larger than shown"` : ""}>
         <div class="stat-num">${sizeDisplay}</div>
-        <div class="stat-label">Download size${hasUnknown ? " (est.)" : ""}</div>
+        <div class="stat-label">Download size (client)${hasUnknown ? " est." : ""}</div>
       </div>
       <div class="export-stat" style="animation-delay:80ms;">
         <div class="stat-num">${state.pack.filter(m=>m.fromModpack).length}</div>
@@ -2192,6 +2249,7 @@ document.getElementById("exportBtn").addEventListener("click", async ()=>{
   const originalLabel = exportBtn.textContent;
   exportBtn.classList.add("success");
   exportBtn.textContent = "Downloaded ✓";
+  fireConfetti(exportBtn);
   setTimeout(()=>{
     exportBtn.classList.remove("success");
     exportBtn.textContent = originalLabel;
@@ -2223,6 +2281,10 @@ document.querySelectorAll(".catCheck").forEach(cb=>{
 });
 document.getElementById("favSearchInput").addEventListener("input", (e)=>{
   state.favSearch = e.target.value;
+  renderFavorites();
+});
+document.getElementById("favSortBtn").addEventListener("click", ()=>{
+  state.favSort = state.favSort === "alpha" ? "category" : "alpha";
   renderFavorites();
 });
 let modpackSearchTimer = null;
