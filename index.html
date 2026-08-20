@@ -71,14 +71,16 @@
     line-height: 1.5;
     transition: background .15s, color .15s;
   }
+  p{ text-wrap: pretty; }
+  h1, h2, h3, h4{ text-wrap: balance; }
   .theme-toggle{
     display:flex; align-items:center; justify-content:center;
     width:36px; height:36px; flex-shrink:0;
     background: var(--surface-2); border:1px solid var(--border);
     border-radius:8px; cursor:pointer; color: var(--text-dim);
-    margin-left:auto;
     transition: background .18s ease, color .18s ease, border-color .18s ease, transform .15s;
   }
+  .help-toggle svg{ width:18px; height:18px; }
   .theme-toggle:hover{ background: var(--accent-soft); color: var(--accent-dark); border-color: var(--accent-soft); transform: scale(1.05); }
   .theme-toggle svg{ width:18px; height:18px; }
   .theme-toggle .icon-moon{ display:none; }
@@ -582,6 +584,66 @@
   .export-btn:disabled{ background:var(--surface-2); color:var(--text-dim); cursor:not-allowed; }
   .export-btn.success{ background: var(--accent-dark); }
   .export-note{ font-size:0.8rem; color:var(--text-dim); margin-top:10px; }
+  .export-note.error{ color: var(--danger); }
+
+  .file-btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:6px;
+    background: var(--surface-2); color: var(--text); border:1px solid var(--border);
+    padding:9px 14px; border-radius:8px; font-family:inherit; font-weight:700; font-size:0.88rem;
+    cursor:pointer; white-space:nowrap; text-align:center;
+    transition: background .15s, border-color .15s, transform .1s;
+  }
+  .file-btn:hover{ background: var(--surface); border-color: var(--accent); transform: translateY(-1px); }
+
+  .import-card{
+    background: var(--surface-2); border:1px solid var(--border); border-radius:10px;
+    padding:14px; margin: 18px 0;
+    display:flex; flex-direction:column; gap:14px;
+  }
+  .import-card-top{ display:flex; align-items:flex-start; gap:12px; }
+  .import-card-text{ flex:1; min-width:0; }
+  .import-card strong{ font-size:0.92rem; }
+  .import-card-icon{
+    flex:0 0 36px; width:36px; height:36px; border-radius:9px;
+    background: var(--accent-soft); color: var(--accent-dark);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .import-card-icon svg{ width:18px; height:18px; flex-shrink:0; }
+  .import-card .file-btn{ width:100%; }
+
+  .logo-picker{ display:flex; align-items:center; gap:14px; }
+  .logo-preview{
+    width:64px; height:64px; border-radius:12px; overflow:hidden; flex-shrink:0;
+    background: var(--surface-2); border:1px solid var(--border);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .logo-preview img{ width:100%; height:100%; object-fit:cover; }
+  .logo-picker-actions{ display:flex; flex-direction:column; gap:8px; align-items:flex-start; }
+
+  .empty-state .quick-action{ margin:16px auto 0; max-width:210px; }
+
+  .header-actions{ display:flex; align-items:center; gap:8px; margin-left:auto; flex-shrink:0; }
+
+  .intro-modal{ max-width:600px; }
+  .intro-modal .modal-head{ align-items:flex-start; }
+  .intro-head-text{ flex:1; min-width:0; }
+  .intro-head-text p{ text-wrap: pretty; }
+  .intro-modal .modal-close{ flex-shrink:0; }
+  .intro-steps{ display:flex; flex-direction:column; gap:14px; margin:18px 0 4px; }
+  .intro-step{ display:flex; gap:12px; align-items:flex-start; }
+  .intro-step-icon{
+    flex-shrink:0; width:38px; height:38px; border-radius:10px;
+    background: var(--accent-soft); color: var(--accent-dark);
+    display:flex; align-items:center; justify-content:center; font-size:1.05rem;
+  }
+  .intro-step h4{ margin:0 0 3px; font-size:0.95rem; }
+  .intro-step p{ margin:0; font-size:0.85rem; color: var(--text-dim); line-height:1.5; text-wrap: pretty; }
+  .intro-footnote{ font-size:0.78rem; color:var(--text-dim); margin:14px 0 0; text-align:center; text-wrap: pretty; }
+  @media (max-width: 480px){
+    .modal{ padding: 18px; }
+    .intro-modal .modal-head img{ width:40px; height:40px; }
+    .intro-modal .modal-head .name{ font-size:1.1rem; }
+  }
 
   .modal-backdrop{
     position: fixed; inset:0; background: rgba(30,28,24,0.5);
@@ -774,10 +836,15 @@
       <button data-tab="favorites" role="tab" aria-selected="false">Favorites</button>
       <button data-tab="export" role="tab" aria-selected="false">Export</button>
     </nav>
-    <button class="theme-toggle" id="themeToggle" type="button" aria-label="Toggle dark mode" title="Toggle dark mode">
-      <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path></svg>
-      <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
-    </button>
+    <div class="header-actions">
+      <button class="theme-toggle help-toggle" id="helpToggle" type="button" aria-label="Getting started guide" title="Getting started guide">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
+      </button>
+      <button class="theme-toggle" id="themeToggle" type="button" aria-label="Toggle dark mode" title="Toggle dark mode">
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path></svg>
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+      </button>
+    </div>
   </div>
 </header>
 
@@ -950,6 +1017,7 @@
     <div id="packEmpty" class="empty-state" style="display:none;">
       <div class="big">🧰</div>
       <p>Your pack is empty. Head to <strong>Browse</strong> or <strong>Modpacks</strong> to add mods.</p>
+      <button type="button" class="export-btn quick-action" id="packEmptyBrowseBtn">Browse mods</button>
     </div>
   </section>
 
@@ -967,11 +1035,39 @@
 
       <div class="export-stats" id="exportStats"></div>
 
+      <div class="import-card">
+        <div class="import-card-top">
+          <div class="import-card-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          </div>
+          <div class="import-card-text">
+            <strong>Import a .mrpack</strong>
+            <p style="margin:2px 0 0; color:var(--text-dim); font-size:0.82rem;">Load an existing modpack file. Its mods are resolved on Modrinth and added to <strong>Create</strong>.</p>
+          </div>
+        </div>
+        <label class="file-btn" for="mrpackFileInput">Choose file</label>
+        <input type="file" id="mrpackFileInput" accept=".mrpack" style="display:none;">
+      </div>
+      <p class="export-note" id="mrpackImportStatus" style="display:none; margin:-10px 0 18px;"></p>
+
       <label for="packName">Pack name</label>
       <input type="text" id="packName" placeholder="My Modpack" value="My Modpack (via ModBench)">
 
       <label for="packVersion">Pack version</label>
       <input type="text" id="packVersion" placeholder="1.0.0" value="1.0.0">
+
+      <label>Modpack icon</label>
+      <div class="logo-picker">
+        <div class="logo-preview" id="logoPreview">
+          <img id="logoPreviewImg" src="icons/logo.png" alt="Modpack icon preview">
+        </div>
+        <div class="logo-picker-actions">
+          <label class="file-btn" for="logoFileInput">Change logo</label>
+          <input type="file" id="logoFileInput" accept="image/png,image/jpeg,image/webp" style="display:none;">
+          <button type="button" class="modal-link-btn" id="logoResetBtn" style="display:none; padding:6px 12px; font-size:0.8rem;">Reset to default</button>
+        </div>
+      </div>
+      <p style="color:var(--text-dim); font-size:0.8rem; margin:6px 0 0;">Square image recommended. Bundled into the .mrpack as its icon.</p>
 
       <label for="expMcVersion">Minecraft version</label>
       <select id="expMcVersion"><option value="">Select a version</option></select>
@@ -993,7 +1089,7 @@
 
 </main>
 
-<footer>ModBench pulls live data from the <a href="https://modrinth.com" target="_blank" rel="noopener">Modrinth</a> API. Not affiliated with Modrinth or Mojang.<div style="margin-top:6px; opacity:0.6;">ModBench — 2026</div></footer>
+<footer>ModBench pulls live data from the <a href="https://modrinth.com" target="_blank" rel="noopener">Modrinth</a> API. Not affiliated with Modrinth or Mojang.<div style="margin-top:6px; opacity:0.6;">ModBench, 2026</div></footer>
 
 <script>
 const API = "https://api.modrinth.com/v2";
@@ -1023,8 +1119,14 @@ let state = {
   modpackResults: [],
   modpackPage: 1,
   modpackTotalHits: 0,
-  modpackSearched: false
+  modpackSearched: false,
+  packIcon: localStorage.getItem("modbench_pack_icon") || ""
 };
+
+function savePackIcon(){
+  if(state.packIcon) localStorage.setItem("modbench_pack_icon", state.packIcon);
+  else localStorage.removeItem("modbench_pack_icon");
+}
 
 function savePack(){
   localStorage.setItem("packsmith_pack", JSON.stringify(state.pack));
@@ -1156,7 +1258,7 @@ function buildFacets(){
   if(state.browseType === "mod" && state.loaders.length) facets.push(state.loaders.map(l=>`categories:${l}`));
   if(state.categories.length){
     // Different category groups (e.g. shader "style" vs "performance tier")
-    // must be AND'd together, like Modrinth's own filters do — only
+    // must be AND'd together, like Modrinth's own filters do; only
     // categories within the same group should be OR'd.
     const set = CATEGORY_SETS[state.browseType] || CATEGORY_SETS.mod;
     const headerOf = {};
@@ -1174,7 +1276,7 @@ function buildFacets(){
   return facets;
 }
 
-// Category options differ per content type on Modrinth — mods, shaders and
+// Category options differ per content type on Modrinth: mods, shaders and
 // resource packs each have their own taxonomy. Each entry carries the inner
 // SVG markup for its filter icon.
 const ICON = {
@@ -1229,7 +1331,7 @@ const CATEGORY_SETS = {
 function wireCategoryCheckboxes(){
   document.querySelectorAll(".catCheck").forEach(cb=>{
     cb.addEventListener("change", ()=>{
-      // Performance tier is exclusive — picking one tier deselects the others,
+      // Performance tier is exclusive; picking one tier deselects the others,
       // since "medium AND high" isn't a meaningful combination.
       if(cb.checked && cb.dataset.header === "Performance"){
         document.querySelectorAll(`.catCheck[data-header="Performance"]`).forEach(other=>{
@@ -1306,7 +1408,7 @@ async function fetchSortedPage(query, facets, sort, page, pageSize){
     return { hits: data.hits || [], totalHits: data.total_hits || 0 };
   }
 
-  // Modrinth's API only sorts descending — to get true ascending order,
+  // Modrinth's API only sorts descending; to get true ascending order,
   // fetch from the tail of the descending list and reverse it locally.
   const countParams = new URLSearchParams({ query, limit:"1", offset:"0", index:apiIndex, facets:JSON.stringify(facets) });
   const countRes = await fetch(`${API}/search?${countParams.toString()}`);
@@ -1333,7 +1435,7 @@ const PAGE_SIZE = 30;
 // "Low" shouldn't surface a pack whose flagship experience is medium-to-high.
 // This table overrides which performance tiers a given project should
 // actually match against, by slug. Only performance values
-// ("low"/"medium"/"high") are consulted here — other categories (style,
+// ("low"/"medium"/"high") are consulted here; other categories (style,
 // etc.) are left untouched, and non-shader results are never affected.
 const PERFORMANCE_TIER_OVERRIDES = {
   "complementary-reimagined": ["medium", "high"],
@@ -2072,7 +2174,7 @@ function findMajoritySupport(entries, getValues){
 }
 
 // Mods that came bundled in the same modpack import were already tested
-// together by the pack author — use the modpack file's own declared target
+// together by the pack author; use the modpack file's own declared target
 // as ground truth instead of that individual mod file's (often narrower)
 // self-reported support range, which is what caused false "no shared
 // version/loader" flags on already-compatible, pre-made packs.
@@ -2085,12 +2187,12 @@ function effectiveGameVersions(x){
   return x.version.game_versions || [];
 }
 // Datapacks/resourcepacks are tagged with loader "minecraft" on Modrinth,
-// meaning they aren't tied to a specific loader — never flag them as the
+// meaning they aren't tied to a specific loader; never flag them as the
 // outlier in a loader mismatch.
 function isLoaderAgnostic(x){
   // Shaders and resource packs don't run on a Fabric/Forge/Quilt/NeoForge
   // mod loader at all, so they should never be flagged in the "no shared
-  // mod loader" check — that check only makes sense among actual mods.
+  // mod loader" check; that check only makes sense among actual mods.
   if(x.mod.projectType && x.mod.projectType !== "mod") return true;
   const loaders = effectiveLoaders(x);
   return loaders.length === 0 || (loaders.length === 1 && loaders[0] === "minecraft");
@@ -2457,6 +2559,63 @@ async function pickModpackVersion(versions){
   });
 }
 
+// Shared core: given a loaded JSZip of a .mrpack, resolve its files against
+// the Modrinth API and add any not-yet-present mods to Create. Used both for
+// importing a browsed modpack's version and for a user-supplied .mrpack file.
+async function importMrpackZipIntoPack(zip, meta = {}){
+  const indexEntry = zip.file("modrinth.index.json");
+  if(!indexEntry) throw new Error("Not a Modrinth modpack format");
+  const index = JSON.parse(await indexEntry.async("string"));
+  const hashes = (index.files || []).map(f=>f.hashes && f.hashes.sha1).filter(Boolean);
+  if(hashes.length === 0) throw new Error("No mod files found in modpack.");
+
+  const versionLookupRes = await fetch(`${API}/version_files`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ hashes, algorithm: "sha1" })
+  });
+  if(!versionLookupRes.ok) throw new Error("Couldn't resolve modpack contents.");
+  const versionMap = await versionLookupRes.json();
+  const foundVersions = Object.values(versionMap);
+  const projectIds = [...new Set(foundVersions.map(v=>v.project_id))];
+
+  const projectsRes = await fetch(`${API}/projects?ids=${encodeURIComponent(JSON.stringify(projectIds))}`);
+  const projects = projectsRes.ok ? await projectsRes.json() : [];
+  const projectById = Object.fromEntries(projects.map(p=>[p.id, p]));
+
+  const deps = index.dependencies || {};
+  const gameVersions = meta.gameVersions || (deps.minecraft ? [deps.minecraft] : []);
+  const loaders = meta.loaders || Object.keys(deps).filter(k=>k!=="minecraft").map(k=>k.replace("-loader",""));
+
+  let added = 0;
+  foundVersions.forEach(v=>{
+    if(state.pack.some(p=>p.id === v.project_id)) return;
+    const proj = projectById[v.project_id];
+    state.pack.push({
+      id: v.project_id,
+      title: proj ? proj.title : v.name,
+      icon_url: proj ? proj.icon_url : "",
+      author: "",
+      categories: proj ? proj.categories : [],
+      projectType: (proj && proj.project_type) || "mod",
+      clientSide: (proj && proj.client_side) || "required",
+      serverSide: (proj && proj.server_side) || "required",
+      fromModpack: meta.fromModpackId || "imported-mrpack",
+      fromModpackLoaders: loaders,
+      fromModpackGameVersions: gameVersions,
+      selectedVersionId: v.id,
+      selectedVersionNumber: v.version_number,
+      selectedFile: v.files.find(f=>f.primary) || v.files[0],
+      versions: [v]
+    });
+    added++;
+  });
+  await ensureFabricApi(gameVersions);
+  savePack();
+  foundVersions.forEach(v=>updateCardButtonsEverywhere(v.project_id));
+  return { index, total: foundVersions.length, added };
+}
+
 async function importModpackVersion(projectId, version, btn){
   const originalLabel = btn.textContent;
   btn.textContent = "Adding…";
@@ -2469,52 +2628,9 @@ async function importModpackVersion(projectId, version, btn){
       return r.arrayBuffer();
     });
     const zip = await JSZip.loadAsync(zipBuf);
-    const indexEntry = zip.file("modrinth.index.json");
-    if(!indexEntry) throw new Error("Not a Modrinth modpack format");
-    const index = JSON.parse(await indexEntry.async("string"));
-    const hashes = (index.files || []).map(f=>f.hashes && f.hashes.sha1).filter(Boolean);
-    if(hashes.length === 0) throw new Error("No mod files found in modpack.");
-
-    const versionLookupRes = await fetch(`${API}/version_files`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ hashes, algorithm: "sha1" })
-    });
-    if(!versionLookupRes.ok) throw new Error("Couldn't resolve modpack contents.");
-    const versionMap = await versionLookupRes.json();
-    const foundVersions = Object.values(versionMap);
-    const projectIds = [...new Set(foundVersions.map(v=>v.project_id))];
-
-    const projectsRes = await fetch(`${API}/projects?ids=${encodeURIComponent(JSON.stringify(projectIds))}`);
-    const projects = projectsRes.ok ? await projectsRes.json() : [];
-    const projectById = Object.fromEntries(projects.map(p=>[p.id, p]));
-
-    foundVersions.forEach(v=>{
-      if(state.pack.some(p=>p.id === v.project_id)) return;
-      const proj = projectById[v.project_id];
-      state.pack.push({
-        id: v.project_id,
-        title: proj ? proj.title : v.name,
-        icon_url: proj ? proj.icon_url : "",
-        author: "",
-        categories: proj ? proj.categories : [],
-        projectType: (proj && proj.project_type) || "mod",
-        clientSide: (proj && proj.client_side) || "required",
-        serverSide: (proj && proj.server_side) || "required",
-        fromModpack: projectId,
-        fromModpackLoaders: version.loaders || [],
-        fromModpackGameVersions: version.game_versions || [],
-        selectedVersionId: v.id,
-        selectedVersionNumber: v.version_number,
-        selectedFile: v.files.find(f=>f.primary) || v.files[0],
-        versions: [v]
-      });
-    });
-    await ensureFabricApi(version.game_versions);
-    savePack();
+    await importMrpackZipIntoPack(zip, { fromModpackId: projectId, loaders: version.loaders || [], gameVersions: version.game_versions || [] });
     if(state.tab === "pack") renderPack();
     renderModpackResults();
-    foundVersions.forEach(v=>updateCardButtonsEverywhere(v.project_id));
     return true;
   }catch(e){
     console.error(e);
@@ -2523,6 +2639,38 @@ async function importModpackVersion(projectId, version, btn){
     return false;
   }finally{
     btn.disabled = false;
+  }
+}
+
+async function importMrpackFile(file){
+  const statusEl = document.getElementById("mrpackImportStatus");
+  if(!file) return;
+  statusEl.style.display = "block";
+  statusEl.classList.remove("error");
+  if(!file.name.toLowerCase().endsWith(".mrpack")){
+    statusEl.textContent = "Please choose a .mrpack file.";
+    statusEl.classList.add("error");
+    return;
+  }
+  statusEl.textContent = "Reading pack…";
+  try{
+    const buf = await file.arrayBuffer();
+    const zip = await JSZip.loadAsync(buf);
+    const result = await importMrpackZipIntoPack(zip, { fromModpackId: `imported:${file.name}` });
+    if(state.tab === "pack") renderPack();
+    if(state.tab === "export") renderExport();
+    if(result.total === 0){
+      statusEl.textContent = "No mods could be matched on Modrinth for that file.";
+    } else if(result.added === 0){
+      statusEl.textContent = `All ${result.total} mod${result.total===1?'':'s'} in that pack are already in Create.`;
+    } else {
+      const skipped = result.total - result.added;
+      statusEl.textContent = `Added ${result.added} of ${result.total} mod${result.total===1?'':'s'} to Create.` + (skipped ? ` (${skipped} already there.)` : "");
+    }
+  }catch(e){
+    console.error(e);
+    statusEl.textContent = "Couldn't read that file. Make sure it's a valid .mrpack.";
+    statusEl.classList.add("error");
   }
 }
 
@@ -2608,7 +2756,20 @@ function formatBytes(n){
   return `${(mb/1024).toFixed(1)} GB`;
 }
 
+function renderLogoPicker(){
+  const img = document.getElementById("logoPreviewImg");
+  const resetBtn = document.getElementById("logoResetBtn");
+  if(state.packIcon){
+    img.src = state.packIcon;
+    resetBtn.style.display = "inline-flex";
+  } else {
+    img.src = "icons/logo.png";
+    resetBtn.style.display = "none";
+  }
+}
+
 function renderExport(){
+  renderLogoPicker();
   const note = document.getElementById("exportNote");
   const btn = document.getElementById("exportBtn");
   const expMc = document.getElementById("expMcVersion");
@@ -2651,7 +2812,7 @@ function renderExport(){
         <div class="stat-num">${state.pack.length}</div>
         <div class="stat-label">Mod${state.pack.length===1?'':'s'}</div>
       </div>
-      <div class="export-stat" style="animation-delay:40ms;" ${hasUnknown ? `title="${unknownSizeMods.length} mod${unknownSizeMods.length===1?'':'s'} missing file size data on Modrinth — actual unpacked size will be larger than shown"` : `title="Combined size of every mod's .jar file as unpacked from Modrinth"`}>
+      <div class="export-stat" style="animation-delay:40ms;" ${hasUnknown ? `title="${unknownSizeMods.length} mod${unknownSizeMods.length===1?'':'s'} missing file size data on Modrinth. Actual unpacked size will be larger than shown"` : `title="Combined size of every mod's .jar file as unpacked from Modrinth"`}>
         <div class="stat-num">${sizeDisplay}</div>
         <div class="stat-label">Modpack size${hasUnknown ? " est." : ""}</div>
       </div>
@@ -2660,7 +2821,7 @@ function renderExport(){
         <div class="stat-label">From modpacks</div>
       </div>
       ${topCats.length ? `<div class="export-cats" style="grid-column:1 / -1;">${topCats.map(c=>`<span class="tag">${escapeHtml(formatCategoryName(c))}</span>`).join("")}</div>` : ""}
-      ${hasUnknown ? `<div style="grid-column:1 / -1; font-size:0.82rem; color:var(--text-dim); margin-top:2px;">Size data missing for ${unknownSizeMods.length} mod${unknownSizeMods.length===1?'':'s'} — actual download will be larger.</div>` : ""}
+      ${hasUnknown ? `<div style="grid-column:1 / -1; font-size:0.82rem; color:var(--text-dim); margin-top:2px;">Size data missing for ${unknownSizeMods.length} mod${unknownSizeMods.length===1?'':'s'}. Actual download will be larger.</div>` : ""}
     `;
   }
 }
@@ -2716,13 +2877,13 @@ document.getElementById("exportBtn").addEventListener("click", async ()=>{
   zip.file("modrinth.index.json", JSON.stringify(manifest, null, 2));
   const overrides = zip.folder("overrides");
   try{
-    const iconRes = await fetch("icons/logo.png");
+    const iconRes = await fetch(state.packIcon || "icons/logo.png");
     if(iconRes.ok){
       const iconBlob = await iconRes.blob();
       overrides.file("icon.png", iconBlob);
     }
   }catch(e){
-    console.warn("Couldn't bundle ModBench logo as pack icon", e);
+    console.warn("Couldn't bundle modpack icon", e);
   }
 
   const blob = await zip.generateAsync({type:"blob", mimeType:"application/octet-stream"});
@@ -2872,6 +3033,113 @@ document.getElementById("favListBtn").addEventListener("click", ()=>{
   renderFavorites();
 });
 
+document.getElementById("packEmptyBrowseBtn").addEventListener("click", ()=>{
+  document.querySelector('nav.tabs button[data-tab="browse"]').click();
+});
+
+document.getElementById("mrpackFileInput").addEventListener("change", (e)=>{
+  const file = e.target.files[0];
+  importMrpackFile(file);
+  e.target.value = "";
+});
+
+document.getElementById("logoFileInput").addEventListener("change", (e)=>{
+  const file = e.target.files[0];
+  if(!file) return;
+  if(!file.type.startsWith("image/")){
+    alert("Please choose an image file.");
+    e.target.value = "";
+    return;
+  }
+  if(file.size > 2 * 1024 * 1024){
+    alert("Please choose an image under 2 MB.");
+    e.target.value = "";
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = ()=>{
+    state.packIcon = reader.result;
+    savePackIcon();
+    renderLogoPicker();
+  };
+  reader.readAsDataURL(file);
+  e.target.value = "";
+});
+
+document.getElementById("logoResetBtn").addEventListener("click", ()=>{
+  state.packIcon = "";
+  savePackIcon();
+  renderLogoPicker();
+});
+
+function showGettingStarted(force){
+  if(!force && localStorage.getItem("modbench_intro_seen")) return;
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  backdrop.innerHTML = `
+    <div class="modal intro-modal">
+      <div class="modal-head">
+        <span class="mark" style="width:48px; height:48px;"><img src="icons/logo.png" alt=""></span>
+        <div class="intro-head-text">
+          <div class="name">Welcome to ModBench</div>
+          <p style="margin:2px 0 0; color:var(--text-dim); font-size:0.86rem;">A quick tour before you start building a pack.</p>
+        </div>
+        <button class="modal-close" aria-label="Close">✕</button>
+      </div>
+      <div class="intro-steps">
+        <div class="intro-step">
+          <div class="intro-step-icon">🔍</div>
+          <div>
+            <h4>Browse</h4>
+            <p>Search live mods, shaders, and resource packs straight from Modrinth. Filter by Minecraft version, loader, and category, then add anything you like.</p>
+          </div>
+        </div>
+        <div class="intro-step">
+          <div class="intro-step-icon">🧰</div>
+          <div>
+            <h4>Create</h4>
+            <p>Everything you've added lives here. Pick a specific file per mod, check compatibility across your whole pack, and remove anything you change your mind about.</p>
+          </div>
+        </div>
+        <div class="intro-step">
+          <div class="intro-step-icon">📦</div>
+          <div>
+            <h4>Modpacks</h4>
+            <p>Browse existing modpacks on Modrinth and import their entire mod list into Create in one click, a great starting point for your own pack.</p>
+          </div>
+        </div>
+        <div class="intro-step">
+          <div class="intro-step-icon">⭐</div>
+          <div>
+            <h4>Favorites</h4>
+            <p>Star mods while browsing to save them for later, independent of whatever pack you're currently building.</p>
+          </div>
+        </div>
+        <div class="intro-step">
+          <div class="intro-step-icon">⬇️</div>
+          <div>
+            <h4>Export</h4>
+            <p>Name your pack, set its Minecraft version and loader, and download a ready-to-use <code>.mrpack</code>. You can also import an existing <code>.mrpack</code> here to keep editing it, and customize the pack's icon before exporting.</p>
+          </div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="export-btn" id="introCloseBtn" style="flex:1;">Got it, let's go</button>
+      </div>
+      <p class="intro-footnote">You can reopen this guide any time from the <strong>?</strong> button in the header.</p>
+    </div>
+  `;
+  document.body.appendChild(backdrop);
+  function close(){
+    localStorage.setItem("modbench_intro_seen", "1");
+    backdrop.remove();
+  }
+  backdrop.querySelector(".modal-close").addEventListener("click", close);
+  backdrop.querySelector("#introCloseBtn").addEventListener("click", close);
+  backdrop.addEventListener("click", (e)=>{ if(e.target === backdrop) close(); });
+}
+document.getElementById("helpToggle").addEventListener("click", ()=>showGettingStarted(true));
+
 document.getElementById("themeToggle").addEventListener("click", ()=>{
   const isDark = document.documentElement.getAttribute("data-theme") === "dark";
   if(isDark){
@@ -2885,10 +3153,12 @@ document.getElementById("themeToggle").addEventListener("click", ()=>{
 
 updatePackCount();
 updateFavCount();
+renderLogoPicker();
 const gameVersionRankReady = loadGameVersions().then(()=>{
   if(state.tab === "pack") renderPack();
 });
 runSearch();
+showGettingStarted();
 </script>
 </body>
 </html>
