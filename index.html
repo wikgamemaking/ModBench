@@ -1909,7 +1909,7 @@ async function runModpackSearch(){
     state.modpackResults = hits;
     state.modpackTotalHits = totalHits;
 
-    const showPinned = !state.modpackQuery.trim() && state.modpackPage === 1;
+    const showPinned = !state.modpackQuery.trim() && state.modpackPage === 1 && state.modpackSort === "relevance";
     if(showPinned){
       const pinned = await getPinnedModpacks();
       const pinnedIds = new Set(pinned.map(p=>p.project_id));
