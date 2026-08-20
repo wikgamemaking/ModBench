@@ -594,11 +594,12 @@
     transition: background .15s, border-color .15s, transform .1s;
   }
   .file-btn:hover{ background: var(--surface); border-color: var(--accent); transform: translateY(-1px); }
+  .export-panel label.file-btn{ display:inline-flex; align-items:center; justify-content:center; margin:0; }
 
   .import-card{
     background: var(--surface-2); border:1px solid var(--border); border-radius:10px;
     padding:14px; margin: 18px 0;
-    display:flex; flex-direction:column; gap:14px;
+    display:flex; flex-direction:column; gap:8px;
   }
   .import-card-top{ display:flex; align-items:flex-start; gap:12px; }
   .import-card-text{ flex:1; min-width:0; }
@@ -610,6 +611,20 @@
   }
   .import-card-icon svg{ width:18px; height:18px; flex-shrink:0; }
   .import-card .file-btn{ width:100%; }
+  .import-status{
+    display:flex; align-items:center; gap:8px; padding:10px 12px;
+    border-radius:8px; font-size:0.85rem; line-height:1.4;
+    background: var(--surface); border:1px solid var(--border); color: var(--text-dim);
+  }
+  .import-status.success{ color: var(--accent-dark); border-color: var(--accent-soft); background: var(--accent-soft); }
+  .import-status.error{ color: var(--danger-text); border-color: var(--danger-border); background: var(--danger-soft); }
+  .import-status-icon{ display:flex; flex-shrink:0; }
+  .import-status-icon svg{ width:16px; height:16px; }
+  .import-status:not(.success):not(.error) .import-status-icon svg{ animation: import-spin 0.9s linear infinite; }
+  @keyframes import-spin{ from{ transform:rotate(0deg); } to{ transform:rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce){
+    .import-status:not(.success):not(.error) .import-status-icon svg{ animation: none; }
+  }
 
   .logo-picker{ display:flex; align-items:center; gap:14px; }
   .logo-preview{
@@ -618,7 +633,11 @@
     display:flex; align-items:center; justify-content:center;
   }
   .logo-preview img{ width:100%; height:100%; object-fit:cover; }
-  .logo-picker-actions{ display:flex; flex-direction:column; gap:8px; align-items:flex-start; }
+  .logo-picker-actions{ display:flex; flex-direction:row; flex-wrap:wrap; gap:8px; align-items:stretch; }
+  .logo-picker-actions .file-btn, .logo-picker-actions .modal-link-btn{
+    display:inline-flex; align-items:center; justify-content:center;
+    height:36px; padding:0 14px; margin:0; box-sizing:border-box;
+  }
 
   .empty-state .quick-action{ margin:16px auto 0; max-width:210px; }
 
@@ -626,10 +645,17 @@
 
   .intro-modal{ max-width:600px; }
   .intro-modal .modal-head{ align-items:flex-start; }
+  .intro-logo{
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+    width:56px; height:56px; border-radius:12px; overflow:hidden;
+    background:var(--surface-2); box-sizing:border-box; padding:8px;
+  }
+  .intro-logo img{ width:100%; height:100%; object-fit:contain; image-rendering:pixelated; }
+  .modal-head .intro-logo img{ width:100%; height:100%; }
   .intro-head-text{ flex:1; min-width:0; }
   .intro-head-text p{ text-wrap: pretty; }
   .intro-modal .modal-close{ flex-shrink:0; }
-  .intro-steps{ display:flex; flex-direction:column; gap:14px; margin:18px 0 4px; }
+  .intro-steps{ display:flex; flex-direction:column; gap:14px; margin:18px 0 0; }
   .intro-step{ display:flex; gap:12px; align-items:flex-start; }
   .intro-step-icon{
     flex-shrink:0; width:38px; height:38px; border-radius:10px;
@@ -641,19 +667,24 @@
   .intro-footnote{ font-size:0.78rem; color:var(--text-dim); margin:14px 0 0; text-align:center; text-wrap: pretty; }
   @media (max-width: 480px){
     .modal{ padding: 18px; }
-    .intro-modal .modal-head img{ width:40px; height:40px; }
+    .intro-logo{ width:44px; height:44px; padding:6px; }
     .intro-modal .modal-head .name{ font-size:1.1rem; }
+  }
+  @media (min-width: 641px){
+    .intro-modal{ max-width:680px; }
+    .intro-modal.modal{ padding:32px; }
+    .intro-logo{ width:64px; height:64px; padding:10px; }
   }
 
   .modal-backdrop{
-    position: fixed; inset:0; background: rgba(30,28,24,0.5);
-    display:flex; align-items:flex-start; justify-content:center;
+    position: fixed; inset:0; background: rgba(15,13,10,0.72);
+    display:flex; align-items:center; justify-content:center;
     padding: 30px 16px; overflow-y:auto; z-index: 50;
     animation: modal-fade-in .18s ease-out;
   }
   .modal{
     background: var(--surface); border-radius: 14px; max-width: 760px; width:100%;
-    padding: 24px; margin-top: 20px;
+    padding: 24px; margin: auto;
     animation: modal-pop-in .22s cubic-bezier(.2,.9,.3,1.2);
   }
   @keyframes modal-fade-in{
@@ -675,7 +706,7 @@
     transition: color .15s, transform .15s; border-radius:6px;
   }
   .modal-close:hover{ color: var(--text); transform: rotate(90deg); }
-  .modal-actions{ display:flex; gap:10px; margin-top:16px; }
+  .modal-actions{ display:flex; gap:10px; margin-top:14px; }
   .modal-actions .export-btn{ margin-top:0; }
   .modal-link-btn{
     display:flex; align-items:center; justify-content:center; gap:6px;
@@ -1045,10 +1076,13 @@
             <p style="margin:2px 0 0; color:var(--text-dim); font-size:0.82rem;">Load an existing modpack file. Its mods are resolved on Modrinth and added to <strong>Create</strong>.</p>
           </div>
         </div>
+        <div class="import-status" id="mrpackImportStatus" style="display:none;">
+          <span class="import-status-icon" id="mrpackImportStatusIcon"></span>
+          <span id="mrpackImportStatusText"></span>
+        </div>
         <label class="file-btn" for="mrpackFileInput">Choose file</label>
         <input type="file" id="mrpackFileInput" accept=".mrpack" style="display:none;">
       </div>
-      <p class="export-note" id="mrpackImportStatus" style="display:none; margin:-10px 0 18px;"></p>
 
       <label for="packName">Pack name</label>
       <input type="text" id="packName" placeholder="My Modpack" value="My Modpack (via ModBench)">
@@ -1064,10 +1098,10 @@
         <div class="logo-picker-actions">
           <label class="file-btn" for="logoFileInput">Change logo</label>
           <input type="file" id="logoFileInput" accept="image/png,image/jpeg,image/webp" style="display:none;">
-          <button type="button" class="modal-link-btn" id="logoResetBtn" style="display:none; padding:6px 12px; font-size:0.8rem;">Reset to default</button>
+          <button type="button" class="modal-link-btn" id="logoResetBtn" style="display:none;">Reset to default</button>
         </div>
       </div>
-      <p style="color:var(--text-dim); font-size:0.8rem; margin:6px 0 0;">Square image (1:1) recommended. Bundled into the .mrpack as its icon. File must not exceed 2MB.</p>
+      <p style="color:var(--text-dim); font-size:0.8rem; margin:6px 0 0;">Square image recommended, max 2 MB. Bundled into the .mrpack as its icon.</p>
 
       <label for="expMcVersion">Minecraft version</label>
       <select id="expMcVersion"><option value="">Select a version</option></select>
@@ -2642,17 +2676,29 @@ async function importModpackVersion(projectId, version, btn){
   }
 }
 
-async function importMrpackFile(file){
+const IMPORT_STATUS_ICON_CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+const IMPORT_STATUS_ICON_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+const IMPORT_STATUS_ICON_LOADING = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" stroke-dasharray="42" stroke-dashoffset="14"/></svg>';
+
+function setImportStatus(kind, text){
   const statusEl = document.getElementById("mrpackImportStatus");
+  const iconEl = document.getElementById("mrpackImportStatusIcon");
+  const textEl = document.getElementById("mrpackImportStatusText");
+  statusEl.style.display = "flex";
+  statusEl.classList.remove("success", "error");
+  if(kind === "success") statusEl.classList.add("success");
+  if(kind === "error") statusEl.classList.add("error");
+  iconEl.innerHTML = kind === "success" ? IMPORT_STATUS_ICON_CHECK : kind === "error" ? IMPORT_STATUS_ICON_X : IMPORT_STATUS_ICON_LOADING;
+  textEl.textContent = text;
+}
+
+async function importMrpackFile(file){
   if(!file) return;
-  statusEl.style.display = "block";
-  statusEl.classList.remove("error");
   if(!file.name.toLowerCase().endsWith(".mrpack")){
-    statusEl.textContent = "Please choose a .mrpack file.";
-    statusEl.classList.add("error");
+    setImportStatus("error", "Please choose a .mrpack file.");
     return;
   }
-  statusEl.textContent = "Reading pack…";
+  setImportStatus("loading", "Reading pack…");
   try{
     const buf = await file.arrayBuffer();
     const zip = await JSZip.loadAsync(buf);
@@ -2660,17 +2706,16 @@ async function importMrpackFile(file){
     if(state.tab === "pack") renderPack();
     if(state.tab === "export") renderExport();
     if(result.total === 0){
-      statusEl.textContent = "No mods could be matched on Modrinth for that file.";
+      setImportStatus("error", "No mods could be matched on Modrinth for that file.");
     } else if(result.added === 0){
-      statusEl.textContent = `All ${result.total} mod${result.total===1?'':'s'} in that pack are already in Create.`;
+      setImportStatus("success", `All ${result.total} mod${result.total===1?'':'s'} in that pack are already in Create.`);
     } else {
       const skipped = result.total - result.added;
-      statusEl.textContent = `Added ${result.added} of ${result.total} mod${result.total===1?'':'s'} to Create.` + (skipped ? ` (${skipped} already there.)` : "");
+      setImportStatus("success", `Added ${result.added} of ${result.total} mod${result.total===1?'':'s'} to Create.` + (skipped ? ` (${skipped} already there.)` : ""));
     }
   }catch(e){
     console.error(e);
-    statusEl.textContent = "Couldn't read that file. Make sure it's a valid .mrpack.";
-    statusEl.classList.add("error");
+    setImportStatus("error", "Couldn't read that file. Make sure it's a valid .mrpack.");
   }
 }
 
@@ -3079,7 +3124,7 @@ function showGettingStarted(force){
   backdrop.innerHTML = `
     <div class="modal intro-modal">
       <div class="modal-head">
-        <span class="mark" style="width:48px; height:48px;"><img src="icons/logo.png" alt=""></span>
+        <span class="intro-logo"><img src="icons/logo.png" alt=""></span>
         <div class="intro-head-text">
           <div class="name">Welcome to ModBench</div>
           <p style="margin:2px 0 0; color:var(--text-dim); font-size:0.86rem;">A quick tour before you start building a pack.</p>
