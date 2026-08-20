@@ -74,12 +74,12 @@
   html[data-theme="dark"] select,
   html[data-theme="dark"] input[type=text],
   html[data-theme="dark"] input[type=search]{
-    background: #fff !important;
+    background: #eeece6 !important;
     color: #1a1a17 !important;
     color-scheme: light;
   }
   html[data-theme="dark"] .search-box{
-    background: #fff !important;
+    background: #eeece6 !important;
     border-color: #d5d2c7;
   }
   html[data-theme="dark"] .search-box input{
@@ -345,6 +345,7 @@
     font-size:0.72rem; background: var(--surface-2); color:var(--text-dim);
     padding: 2px 8px; border-radius:999px;
     transition: background .12s, color .12s;
+    white-space: nowrap;
   }
   .tag:hover{ background: var(--accent-soft); color: var(--accent-dark); }
   .card-stats{ display:flex; gap:12px; font-size:0.78rem; color:var(--text-dim); align-items:center; }
@@ -437,6 +438,28 @@
   .pack-row button.remove:hover{ background: var(--danger-soft); transform: translateY(-1px); }
   .pack-row button.remove:active{ transform: translateY(0) scale(.95); }
   .pack-row{ animation: row-in .22s ease-out; }
+  @media (max-width: 640px){
+    .pack-row{
+      flex-wrap: wrap;
+      row-gap: 10px;
+    }
+    .pack-row .info{
+      flex: 1 1 100%;
+      width: 100%;
+      order: 1;
+    }
+    .pack-row img{ order: 0; }
+    .pack-row select{
+      order: 2;
+      flex: 1 1 auto;
+      max-width: none;
+      min-width: 0;
+    }
+    .pack-row button.remove{
+      order: 3;
+      flex-shrink: 0;
+    }
+  }
   @keyframes row-in{
     from{ opacity:0; transform: translateX(-6px); }
     to{ opacity:1; transform: translateX(0); }
@@ -2516,3 +2539,4 @@ runSearch();
 </script>
 </body>
 </html>
+
