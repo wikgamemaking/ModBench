@@ -762,7 +762,7 @@
       <div class="export-stats" id="exportStats"></div>
 
       <label for="packName">Pack name</label>
-      <input type="text" id="packName" placeholder="My Modpack" value="My Modpack">
+      <input type="text" id="packName" placeholder="My Modpack" value="My Modpack (via ModBench)">
 
       <label for="packVersion">Pack version</label>
       <input type="text" id="packVersion" placeholder="1.0.0" value="1.0.0">
@@ -2167,7 +2167,16 @@ document.getElementById("exportBtn").addEventListener("click", async ()=>{
 
   const zip = new JSZip();
   zip.file("modrinth.index.json", JSON.stringify(manifest, null, 2));
-  zip.folder("overrides");
+  const overrides = zip.folder("overrides");
+  try{
+    const iconRes = await fetch("icons/logo.png");
+    if(iconRes.ok){
+      const iconBlob = await iconRes.blob();
+      overrides.file("icon.png", iconBlob);
+    }
+  }catch(e){
+    console.warn("Couldn't bundle ModBench logo as pack icon", e);
+  }
 
   const blob = await zip.generateAsync({type:"blob", mimeType:"application/octet-stream"});
   const url = URL.createObjectURL(blob);
