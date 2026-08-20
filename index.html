@@ -1260,6 +1260,7 @@ async function autoAddDependencies(version, visited){
         versions
       });
       await autoAddDependencies(best, visited);
+      updateCardButtonsEverywhere(depProjectId);
     }catch(e){ console.error("Failed to add dependency", depProjectId, e); }
   }
 }
@@ -1285,6 +1286,7 @@ async function ensureFabricApi(){
       selectedFile: best.files.find(f=>f.primary) || best.files[0],
       versions
     });
+    updateCardButtonsEverywhere(FABRIC_API_ID);
   }catch(e){ console.error("Failed to add Fabric API", e); }
 }
 
@@ -1991,6 +1993,7 @@ async function importModpackVersion(projectId, version, btn){
     savePack();
     if(state.tab === "pack") renderPack();
     renderModpackResults();
+    foundVersions.forEach(v=>updateCardButtonsEverywhere(v.project_id));
     return true;
   }catch(e){
     console.error(e);
@@ -2024,6 +2027,23 @@ async function addModpackToCreate(projectId, btn){
   }
 }
 
+// Best guess at the pack's overall Minecraft version/loader, used to
+// pre-fill the export fields when nothing was picked via the Browse filters
+// (e.g. a pack built entirely from a modpack import).
+function guessPackTarget(){
+  const selected = state.pack.filter(m=>m.selectedVersionId && Array.isArray(m.versions)).map(m=>({
+    mod: m,
+    version: m.versions.find(v=>v.id === m.selectedVersionId)
+  })).filter(x=>x.version);
+  if(!selected.length) return { mcVersion: "", loader: "" };
+  const gvBest = findMajoritySupport(selected, effectiveGameVersions);
+  const loaderBest = findMajoritySupport(selected, x=>effectiveLoaders(x).filter(l=>l!=="minecraft"));
+  return {
+    mcVersion: gvBest ? gvBest.value : "",
+    loader: loaderBest ? loaderBest.value : ""
+  };
+}
+
 function formatBytes(n){
   if(!n || n <= 0) return "0 MB";
   const mb = n / (1024*1024);
@@ -2041,6 +2061,11 @@ function renderExport(){
   const heroIcon = document.getElementById("exportHeroIcon");
   if(!expMc.value && state.mcVersion) expMc.value = state.mcVersion;
   if(!expLoader.value && state.loaders.length === 1) expLoader.value = state.loaders[0];
+  if(!expMc.value || !expLoader.value){
+    const guess = guessPackTarget();
+    if(!expMc.value && guess.mcVersion) expMc.value = guess.mcVersion;
+    if(!expLoader.value && guess.loader) expLoader.value = guess.loader;
+  }
   if(state.pack.length === 0){
     note.textContent = "Add mods to your pack first, then choose a version and loader.";
     btn.disabled = true;
