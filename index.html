@@ -229,6 +229,28 @@
     margin: 0 0 8px; font-size:0.78rem; letter-spacing:.04em;
     text-transform: uppercase; color: var(--text-dim);
   }
+  .type-toggle{ display:flex; flex-direction:column; gap:4px; }
+  .cat-subheader{
+    font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em;
+    color: var(--text-dim); margin:10px 0 4px; padding:0 2px;
+  }
+  .cat-subheader:first-child{ margin-top:0; }
+  .type-btn{
+    font-family:inherit; font-size:0.88rem; font-weight:700; text-align:center;
+    background:var(--surface-2); border:1px solid var(--border); color:var(--text-dim);
+    padding:8px 10px; border-radius:8px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    transition: background .15s ease, color .15s ease, border-color .15s ease;
+  }
+  .type-btn-icon{ width:16px; height:16px; flex-shrink:0; }
+  .type-btn:hover{ background: var(--accent-soft); color: var(--accent-dark); }
+  .type-btn.active{ background: var(--accent); color:#fff; border-color: var(--accent); }
+  .pack-type-label{
+    font-size:0.75rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em;
+    color: var(--text-dim); margin:0 0 8px; padding-bottom:6px; border-bottom:1px solid var(--border);
+  }
+  .pack-type-group{ margin-bottom:22px; }
+  .pack-type-group:last-child{ margin-bottom:0; }
   .filter-group{ margin-bottom:18px; }
   .filter-group:last-child{ margin-bottom:0; }
   .filter-group label{
@@ -246,9 +268,11 @@
   }
   .filter-group select:hover{ border-color: var(--accent); }
   .filter-group select:focus-visible{ box-shadow: 0 0 0 3px var(--accent-soft); }
-  input[type=checkbox]{ width:16px; height:16px; accent-color: var(--accent); }
+  input[type=checkbox]{ width:16px; height:16px; accent-color: var(--accent); transition: transform .12s ease; cursor:pointer; }
+  input[type=checkbox]:active{ transform: scale(.85); }
   .filter-icon{
     width:15px; height:15px; flex-shrink:0; color: var(--text-dim); vertical-align:-3px;
+    transition: transform .22s cubic-bezier(.2,.8,.3,1), color .22s ease;
   }
   .loader-icon{
     width:18px; height:18px; flex-shrink:0; vertical-align:-4px; transition: transform .2s;
@@ -265,6 +289,15 @@
   .cat-toggle .chev{ width:16px; height:16px; color:var(--text-dim); transition: transform .15s; flex-shrink:0; }
   .cat-toggle[aria-expanded="true"] .chev{ transform: rotate(180deg); }
   .cat-body{ display:flex; flex-direction:column; }
+  .cat-body label{
+    display:flex; align-items:center; gap:6px;
+    border-radius:6px; padding:4px 6px; cursor:pointer;
+    transition: background .22s cubic-bezier(.2,.8,.3,1), color .22s cubic-bezier(.2,.8,.3,1), transform .18s cubic-bezier(.2,.8,.3,1), box-shadow .22s ease;
+  }
+  .cat-body label:hover{ background: var(--surface-2); transform: translateX(3px); }
+  .cat-body label:hover .filter-icon{ transform: scale(1.15) rotate(-6deg); color: var(--accent-dark); }
+  .cat-body label:has(input:checked){ background: var(--accent-soft); color: var(--accent-dark); font-weight:600; box-shadow: inset 0 0 0 1px var(--accent-soft); }
+  .cat-body label:has(input:checked):hover{ transform: translateX(3px) scale(1.01); }
   .cat-body[hidden]{ display:none; }
 
   .toolbar{
@@ -285,16 +318,21 @@
   select#sortSelect, select#modpackSortSelect{
     padding:10px 12px; border-radius:8px; border:1px solid var(--border);
     font-family:inherit; font-size:0.92rem; background-color: var(--surface);
+    transition: border-color .15s, box-shadow .15s;
   }
+  select#sortSelect:hover, select#modpackSortSelect:hover{ border-color: var(--accent); }
+  select#sortSelect:focus-visible, select#modpackSortSelect:focus-visible{ box-shadow: 0 0 0 3px var(--accent-soft); }
   .view-toggle{ display:flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
   .view-toggle button{
     background:var(--surface); border:none; width:40px; height:40px; cursor:pointer;
     color: var(--text-dim); display:flex; align-items:center; justify-content:center;
-    transition: background .15s, color .15s;
+    transition: background .15s ease, color .15s ease, transform .12s ease;
   }
-  .view-toggle button svg{ width:18px; height:18px; }
+  .view-toggle button svg{ width:18px; height:18px; transition: transform .18s cubic-bezier(.3,1.6,.5,1); }
   .view-toggle button:hover{ color: var(--text); }
+  .view-toggle button:active svg{ transform: scale(.82); }
   .view-toggle button.active{ background: var(--accent-soft); color: var(--accent-dark); }
+  .view-toggle button.active svg{ transform: scale(1.05); }
 
   @media (max-width: 640px){
     .toolbar{ flex-wrap:wrap; }
@@ -392,25 +430,25 @@
   }
   .card-stats{ position:relative; }
 
-  #results.list{ display:flex; flex-direction:column; gap:8px; }
-  #results.list .card{
+  #results.list, #favResults.list, .pack-category-group .list{ display:flex; flex-direction:column; gap:8px; }
+  #results.list .card, #favResults.list .card, .pack-category-group .list .card{
     flex-direction:row; align-items:center; padding:10px 14px;
   }
-  #results.list .card-top{ flex:1; min-width:0; }
-  #results.list .card-desc{ -webkit-line-clamp:1; margin:0; }
-  #results.list .card-tags{ display:none; }
-  #results.list .card-icon{ width:36px; height:36px; }
-  #results.list .card-stats{ flex-shrink:0; }
+  #results.list .card-top, #favResults.list .card-top, .pack-category-group .list .card-top{ flex:1; min-width:0; }
+  #results.list .card-desc, #favResults.list .card-desc, .pack-category-group .list .card-desc{ -webkit-line-clamp:1; margin:0; }
+  #results.list .card-tags, #favResults.list .card-tags, .pack-category-group .list .card-tags{ display:none; }
+  #results.list .card-icon, #favResults.list .card-icon, .pack-category-group .list .card-icon{ width:36px; height:36px; }
+  #results.list .card-stats, #favResults.list .card-stats, .pack-category-group .list .card-stats{ flex-shrink:0; }
 
   @media (max-width: 640px){
-    #results.list .card{
+    #results.list .card, #favResults.list .card, .pack-category-group .list .card{
       flex-wrap: wrap;
       row-gap: 8px;
       padding: 12px;
     }
-    #results.list .card-top{ width:100%; }
-    #results.list .card-desc{ display:-webkit-box; -webkit-line-clamp:2; margin:0; }
-    #results.list .card-stats{
+    #results.list .card-top, #favResults.list .card-top, .pack-category-group .list .card-top{ width:100%; }
+    #results.list .card-desc, #favResults.list .card-desc, .pack-category-group .list .card-desc{ display:-webkit-box; -webkit-line-clamp:2; margin:0; }
+    #results.list .card-stats, #favResults.list .card-stats, .pack-category-group .list .card-stats{
       width:100%;
       justify-content: flex-start;
     }
@@ -520,7 +558,9 @@
   .export-stat{
     background: var(--surface-2); border-radius: 10px; padding:10px 8px;
     text-align:center; animation: card-in .25s ease-out backwards;
+    transition: transform .18s ease, box-shadow .18s ease;
   }
+  .export-stat:hover{ transform: translateY(-2px); box-shadow: 0 6px 14px rgba(38,36,32,.08); }
   .export-stat .stat-num{ font-size:1.15rem; font-weight:700; color:var(--accent-dark); line-height:1.2; }
   .export-stat .stat-label{ font-size:0.68rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:.04em; margin-top:2px; }
   .export-cats{
@@ -735,10 +775,27 @@
     <div class="layout">
       <aside class="filters">
         <div class="filter-group">
+          <h3>Content type</h3>
+          <div class="type-toggle" id="browseTypeToggle" role="tablist" aria-label="Content type">
+            <button type="button" class="type-btn active" data-type="mod" role="tab" aria-selected="true">
+              <svg class="type-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>
+              Mods
+            </button>
+            <button type="button" class="type-btn" data-type="shader" role="tab" aria-selected="false">
+              <svg class="type-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+              Shaders
+            </button>
+            <button type="button" class="type-btn" data-type="resourcepack" role="tab" aria-selected="false">
+              <svg class="type-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+              Resource Packs
+            </button>
+          </div>
+        </div>
+        <div class="filter-group">
           <h3>Minecraft version</h3>
           <select id="mcVersion"><option value="">Any version</option></select>
         </div>
-        <div class="filter-group">
+        <div class="filter-group" id="loaderFilterGroup">
           <h3>Modloader</h3>
           <label><input type="checkbox" value="fabric" class="loaderCheck"> <img class="loader-icon" src="icons/fabric.png" alt="Fabric" loading="lazy"> Fabric</label>
           <label><input type="checkbox" value="forge" class="loaderCheck"> <img class="loader-icon" src="icons/forge.png" alt="Forge" loading="lazy"> Forge</label>
@@ -801,6 +858,14 @@
         <input type="text" id="favSearchInput" placeholder="Search your favorites…" aria-label="Search favorites">
       </div>
       <button class="page-btn" id="favSortBtn" style="display:none;">Sort A→Z</button>
+      <div class="view-toggle">
+        <button id="favGridBtn" class="active" aria-label="Grid view" title="Grid view">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/></svg>
+        </button>
+        <button id="favListBtn" aria-label="List view" title="List view">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
+        </button>
+      </div>
     </div>
     <div id="favResults" class="grid"></div>
     <div id="favEmpty" class="empty-state" style="display:none;">
@@ -867,7 +932,7 @@
     <div class="toolbar" id="createToolbar" style="display:none; justify-content:flex-end;">
       <button class="page-btn" id="sortAlphaBtn">Sort A→Z</button>
       <button class="page-btn" id="checkCompatBtn">Check compatibility</button>
-      <button class="page-btn" id="removeAllBtn" style="color:var(--danger); border-color:var(--danger-border);">Remove all mods</button>
+      <button class="page-btn" id="removeAllBtn" style="color:var(--danger); border-color:var(--danger-border);">Remove all contents</button>
     </div>
     <div id="packList"></div>
     <div id="packEmpty" class="empty-state" style="display:none;">
@@ -924,6 +989,7 @@ const API = "https://api.modrinth.com/v2";
 let state = {
   tab: "browse",
   view: "grid",
+  browseType: "mod",
   query: "",
   sort: "relevance",
   mcVersion: "",
@@ -936,6 +1002,7 @@ let state = {
   packSort: "category",
   favorites: JSON.parse(localStorage.getItem("packsmith_favorites") || "[]"),
   favSort: "alpha",
+  favView: "grid",
   modpackQuery: "",
   modpackSort: "relevance",
   modpackMcVersion: "",
@@ -1074,12 +1141,135 @@ function scheduleSearch(){
 
 function buildFacets(){
   const facets = [];
-  if(state.loaders.length) facets.push(state.loaders.map(l=>`categories:${l}`));
-  if(state.categories.length) facets.push(state.categories.map(c=>`categories:${c}`));
+  if(state.browseType === "mod" && state.loaders.length) facets.push(state.loaders.map(l=>`categories:${l}`));
+  if(state.categories.length){
+    // Different category groups (e.g. shader "style" vs "performance tier")
+    // must be AND'd together, like Modrinth's own filters do — only
+    // categories within the same group should be OR'd.
+    const set = CATEGORY_SETS[state.browseType] || CATEGORY_SETS.mod;
+    const headerOf = {};
+    set.forEach(c=>{ headerOf[c.value] = c.header || "default"; });
+    const byHeader = {};
+    state.categories.forEach(c=>{
+      const h = headerOf[c] || "default";
+      if(!byHeader[h]) byHeader[h] = [];
+      byHeader[h].push(c);
+    });
+    Object.values(byHeader).forEach(vals=>facets.push(vals.map(c=>`categories:${c}`)));
+  }
   if(state.mcVersion) facets.push([`versions:${state.mcVersion}`]);
-  facets.push(["project_type:mod"]);
+  facets.push([`project_type:${state.browseType}`]);
   return facets;
 }
+
+// Category options differ per content type on Modrinth — mods, shaders and
+// resource packs each have their own taxonomy. Each entry carries the inner
+// SVG markup for its filter icon.
+const ICON = {
+  technology: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.6V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.6 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.6 1z"/>',
+  magic: '<path d="M12 3l1.9 4.9L19 9l-5.1 1.9L12 16l-1.9-5.1L5 9l5.1-1.1L12 3z"/><path d="M19 17l.9 2.1L22 20l-2.1.9L19 23l-.9-2.1L16 20l2.1-.9L19 17z"/>',
+  adventure: '<circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>',
+  decoration: '<path d="M9.06 11.9l8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08"/><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 0 0-3-3.02z"/>',
+  optimization: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
+  utility: '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
+  library: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
+  star: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
+  eye: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>',
+  halfcircle: '<circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 0 20z" fill="currentColor" stroke="none"/>',
+  cube: '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>',
+  alertTriangle: '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+  barChart: '<line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/>',
+  image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>',
+  square: '<rect x="4" y="4" width="16" height="16" rx="2"/>',
+  tag: '<path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>'
+};
+const CATEGORY_SETS = {
+  mod: [
+    {value:"technology", label:"Technology", icon:ICON.technology},
+    {value:"magic", label:"Magic", icon:ICON.magic},
+    {value:"adventure", label:"Adventure", icon:ICON.adventure},
+    {value:"decoration", label:"Decoration", icon:ICON.decoration},
+    {value:"optimization", label:"Optimization", icon:ICON.optimization},
+    {value:"utility", label:"Utility", icon:ICON.utility},
+    {value:"library", label:"Library", icon:ICON.library}
+  ],
+  shader: [
+    {value:"fantasy", label:"Fantasy", icon:ICON.star, header:"Style"},
+    {value:"realistic", label:"Realistic", icon:ICON.eye, header:"Style"},
+    {value:"semi-realistic", label:"Semi-realistic", icon:ICON.halfcircle, header:"Style"},
+    {value:"vanilla-like", label:"Vanilla-like", icon:ICON.cube, header:"Style"},
+    {value:"cursed", label:"Cursed", icon:ICON.alertTriangle, header:"Style"},
+    {value:"high", label:"High", icon:'<line x1="6" y1="20" x2="6" y2="16"/><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/>', header:"Performance"},
+    {value:"medium", label:"Medium", icon:'<line x1="6" y1="20" x2="6" y2="16"/><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="14"/>', header:"Performance"},
+    {value:"low", label:"Low", icon:'<line x1="6" y1="20" x2="6" y2="16"/><line x1="12" y1="20" x2="12" y2="17"/><line x1="18" y1="20" x2="18" y2="18"/>', header:"Performance"}
+  ],
+  resourcepack: [
+    {value:"realistic", label:"Realistic", icon:ICON.eye},
+    {value:"simplistic", label:"Simplistic", icon:ICON.square},
+    {value:"themed", label:"Themed", icon:ICON.tag},
+    {value:"vanilla-like", label:"Vanilla-like", icon:ICON.cube},
+    {value:"cursed", label:"Cursed", icon:ICON.alertTriangle},
+    {value:"decoration", label:"Decoration", icon:ICON.decoration},
+    {value:"utility", label:"Utility", icon:ICON.utility}
+  ]
+};
+
+function wireCategoryCheckboxes(){
+  document.querySelectorAll(".catCheck").forEach(cb=>{
+    cb.addEventListener("change", ()=>{
+      // Performance tier is exclusive — picking one tier deselects the others,
+      // since "medium AND high" isn't a meaningful combination.
+      if(cb.checked && cb.dataset.header === "Performance"){
+        document.querySelectorAll(`.catCheck[data-header="Performance"]`).forEach(other=>{
+          if(other !== cb) other.checked = false;
+        });
+      }
+      state.categories = [...document.querySelectorAll(".catCheck:checked")].map(c=>c.value);
+      state.page = 1;
+      runSearch();
+    });
+  });
+}
+
+function renderBrowseCategoryOptions(){
+  const body = document.getElementById("catBodyBrowse");
+  const set = CATEGORY_SETS[state.browseType] || CATEGORY_SETS.mod;
+  const headers = [...new Set(set.map(c=>c.header || "default"))];
+  const showHeaders = headers.length > 1;
+  let lastHeader = null;
+  body.innerHTML = set.map(c=>{
+    const h = c.header || "default";
+    const headerHtml = (showHeaders && h !== lastHeader) ? `<div class="cat-subheader">${escapeHtml(h)}</div>` : "";
+    lastHeader = h;
+    return `${headerHtml}<label><input type="checkbox" value="${c.value}" class="catCheck" data-header="${escapeHtml(h)}"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${c.icon}</svg> ${escapeHtml(c.label)}</label>`;
+  }).join("");
+  wireCategoryCheckboxes();
+}
+
+
+const BROWSE_TYPE_PLACEHOLDER = {
+  mod: "Search mods on Modrinth…",
+  shader: "Search shaders on Modrinth…",
+  resourcepack: "Search resource packs on Modrinth…"
+};
+
+document.querySelectorAll("#browseTypeToggle .type-btn").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    if(btn.dataset.type === state.browseType) return;
+    document.querySelectorAll("#browseTypeToggle .type-btn").forEach(b=>{
+      b.classList.remove("active"); b.setAttribute("aria-selected","false");
+    });
+    btn.classList.add("active"); btn.setAttribute("aria-selected","true");
+    state.browseType = btn.dataset.type;
+    state.categories = [];
+    document.getElementById("loaderFilterGroup").style.display = (state.browseType === "mod") ? "" : "none";
+    const searchInput = document.getElementById("searchInput");
+    searchInput.placeholder = BROWSE_TYPE_PLACEHOLDER[state.browseType] || BROWSE_TYPE_PLACEHOLDER.mod;
+    renderBrowseCategoryOptions();
+    state.page = 1;
+    runSearch();
+  });
+});
 
 function buildModpackFacets(){
   const facets = [];
@@ -1125,6 +1315,28 @@ async function fetchSortedPage(query, facets, sort, page, pageSize){
 
 const PAGE_SIZE = 30;
 
+// Some shader packs (e.g. Complementary) are tagged on Modrinth with every
+// performance tier they offer a preset for, since a single pack can range
+// from Potato to Ultra. That's accurate but not useful for filtering: picking
+// "Low" shouldn't surface a pack whose flagship experience is medium-to-high.
+// This table overrides which performance tiers a given project should
+// actually match against, by slug. Only performance values
+// ("low"/"medium"/"high") are consulted here — other categories (style,
+// etc.) are left untouched, and non-shader results are never affected.
+const PERFORMANCE_TIER_OVERRIDES = {
+  "complementary-reimagined": ["medium", "high"],
+  "complementary-unbound": ["medium", "high"]
+};
+
+function passesPerformanceOverride(hit){
+  if(state.browseType !== "shader") return true;
+  const override = PERFORMANCE_TIER_OVERRIDES[hit.slug];
+  if(!override) return true;
+  const selectedTiers = state.categories.filter(c=>["low","medium","high"].includes(c));
+  if(selectedTiers.length === 0) return true;
+  return selectedTiers.some(t=>override.includes(t));
+}
+
 async function runSearch(){
   const resultsEl = document.getElementById("results");
   const statusEl = document.getElementById("statusMsg");
@@ -1136,10 +1348,11 @@ async function runSearch(){
 
   try{
     const { hits, totalHits } = await fetchSortedPage(state.query, buildFacets(), state.sort, state.page, PAGE_SIZE);
-    state.results = hits;
-    state.totalHits = totalHits;
+    const filteredHits = hits.filter(passesPerformanceOverride);
+    state.results = filteredHits;
+    state.totalHits = Math.max(0, totalHits - (hits.length - filteredHits.length));
     if(state.results.length === 0){
-      statusEl.textContent = "No mods found. Try different filters.";
+      statusEl.textContent = "Nothing found. Try different filters.";
       return;
     }
     statusEl.style.display = "none";
@@ -1357,6 +1570,7 @@ async function quickAdd(projectId){
       icon_url: hit.icon_url,
       author: hit.author,
       categories: hit.categories || [],
+      projectType: hit.project_type || state.browseType || "mod",
       clientSide: hit.client_side || "required",
       serverSide: hit.server_side || "required",
       selectedVersionId: best ? best.id : null,
@@ -1394,14 +1608,14 @@ function refreshAllViews(){
   renderFavorites();
 }
 
-function showConfirm(message, {confirmLabel = "Confirm", danger = true} = {}){
+function showConfirm(messageHtml, {confirmLabel = "Confirm", danger = true} = {}){
   return new Promise(resolve=>{
     const backdrop = document.createElement("div");
     backdrop.className = "modal-backdrop";
     backdrop.style.alignItems = "center";
     backdrop.innerHTML = `
       <div class="modal" style="max-width:380px; margin-top:0;">
-        <p style="margin:0 0 20px; font-size:0.95rem;">${escapeHtml(message)}</p>
+        <p style="margin:0 0 20px; font-size:0.95rem;">${messageHtml}</p>
         <div style="display:flex; gap:10px; justify-content:flex-end;">
           <button class="page-btn" data-choice="cancel">Cancel</button>
           <button class="export-btn" data-choice="confirm" style="width:auto; margin-top:0; padding:9px 16px; ${danger ? 'background:var(--danger);' : ''}">${escapeHtml(confirmLabel)}</button>
@@ -1444,6 +1658,7 @@ async function autoAddDependencies(version, visited){
         icon_url: proj.icon_url,
         author: proj.team || "",
         categories: proj.categories || [],
+        projectType: "mod",
         clientSide: proj.client_side || "required",
         serverSide: proj.server_side || "required",
         isDependency: true,
@@ -1473,6 +1688,7 @@ async function ensureFabricApi(hintGameVersions){
       icon_url: proj.icon_url,
       author: proj.team || "",
       categories: proj.categories || [],
+      projectType: "mod",
       clientSide: proj.client_side || "required",
       serverSide: proj.server_side || "required",
       isDependency: true,
@@ -1629,6 +1845,9 @@ async function openModal(projectId, hitLookup){
         icon_url: hit.icon_url,
         author: hit.author,
         categories: hit.categories || projRes.categories || [],
+        projectType: projectType,
+        clientSide: projRes.client_side || hit.client_side || "required",
+        serverSide: projRes.server_side || hit.server_side || "required",
         selectedVersionId: chosenVersion.id,
         selectedVersionNumber: chosenVersion.version_number,
         selectedFile: chosenVersion.files.find(f=>f.primary) || chosenVersion.files[0],
@@ -1718,25 +1937,44 @@ function renderPack(){
   emptyEl.style.display = "none";
   toolbarEl.style.display = "flex";
 
-  if(state.packSort === "alpha"){
-    const sorted = [...state.pack].sort((a,b)=>a.title.localeCompare(b.title));
-    listEl.innerHTML = `<div class="pack-list">${sorted.map(packRowHtml).join("")}</div>`;
-  }else{
-    const groups = {};
-    state.pack.forEach(mod=>{
-      const cat = (mod.categories && mod.categories[0]) ? mod.categories[0] : "uncategorized";
-      if(!groups[cat]) groups[cat] = [];
-      groups[cat].push(mod);
-    });
-    const orderedCats = Object.keys(groups).sort((a,b)=>a.localeCompare(b));
+  const TYPE_LABELS = { mod: "Mods", shader: "Shaders", resourcepack: "Resource Packs" };
+  const TYPE_ORDER = ["mod", "shader", "resourcepack"];
+  const byType = {};
+  state.pack.forEach(mod=>{
+    const t = mod.projectType || "mod";
+    if(!byType[t]) byType[t] = [];
+    byType[t].push(mod);
+  });
+  const orderedTypes = TYPE_ORDER.filter(t=>byType[t] && byType[t].length);
 
-    listEl.innerHTML = orderedCats.map(cat=>`
-      <div class="pack-category-group">
-        <h4 class="pack-category-label">${escapeHtml(formatCategoryName(cat))}</h4>
-        <div class="pack-list">${groups[cat].map(packRowHtml).join("")}</div>
+  listEl.innerHTML = orderedTypes.map(type=>{
+    const modsOfType = byType[type];
+    let innerHtml;
+    if(state.packSort === "alpha"){
+      const sorted = [...modsOfType].sort((a,b)=>a.title.localeCompare(b.title));
+      innerHtml = `<div class="pack-list">${sorted.map(packRowHtml).join("")}</div>`;
+    }else{
+      const groups = {};
+      modsOfType.forEach(mod=>{
+        const cat = (mod.categories && mod.categories[0]) ? mod.categories[0] : "uncategorized";
+        if(!groups[cat]) groups[cat] = [];
+        groups[cat].push(mod);
+      });
+      const orderedCats = Object.keys(groups).sort((a,b)=>a.localeCompare(b));
+      innerHtml = orderedCats.map(cat=>`
+        <div class="pack-category-group">
+          <h4 class="pack-category-label">${escapeHtml(formatCategoryName(cat))}</h4>
+          <div class="pack-list">${groups[cat].map(packRowHtml).join("")}</div>
+        </div>
+      `).join("");
+    }
+    return `
+      <div class="pack-type-group">
+        <h3 class="pack-type-label">${TYPE_LABELS[type] || formatCategoryName(type)} (${modsOfType.length})</h3>
+        ${innerHtml}
       </div>
-    `).join("");
-  }
+    `;
+  }).join("");
 
   listEl.querySelectorAll(".pack-row").forEach(row=>{
     row.addEventListener("click", (e)=>{
@@ -1822,6 +2060,10 @@ function effectiveGameVersions(x){
 // meaning they aren't tied to a specific loader — never flag them as the
 // outlier in a loader mismatch.
 function isLoaderAgnostic(x){
+  // Shaders and resource packs don't run on a Fabric/Forge/Quilt/NeoForge
+  // mod loader at all, so they should never be flagged in the "no shared
+  // mod loader" check — that check only makes sense among actual mods.
+  if(x.mod.projectType && x.mod.projectType !== "mod") return true;
   const loaders = effectiveLoaders(x);
   return loaders.length === 0 || (loaders.length === 1 && loaders[0] === "minecraft");
 }
@@ -1972,13 +2214,13 @@ function renderFavorites(){
   sortBtn.classList.toggle("active", state.favSort === "alpha");
 
   if(state.favorites.length === 0){
-    resultsEl.className = "grid";
+    resultsEl.className = state.favView;
     resultsEl.innerHTML = ""; emptyEl.style.display = "block";
     emptyEl.querySelector("p").innerHTML = 'No favorites yet. Tap the heart on any mod in <strong>Browse</strong> or <strong>Modpacks</strong> to save it here.';
     return;
   }
   if(filtered.length === 0){
-    resultsEl.className = "grid";
+    resultsEl.className = state.favView;
     resultsEl.innerHTML = ""; emptyEl.style.display = "block";
     emptyEl.querySelector("p").innerHTML = `No favorites match "${escapeHtml(state.favSearch)}".`;
     return;
@@ -1987,7 +2229,7 @@ function renderFavorites(){
 
   if(state.favSort === "alpha"){
     filtered.sort((a,b)=>(a.title||"").localeCompare(b.title||""));
-    resultsEl.className = "grid";
+    resultsEl.className = state.favView;
     resultsEl.innerHTML = filtered.map(f=>cardHtml({
       project_id: f.id, title: f.title, icon_url: f.icon_url, author: f.author,
       description: f.description, categories: f.categories, downloads: f.downloads, follows: f.follows
@@ -2004,7 +2246,7 @@ function renderFavorites(){
     resultsEl.innerHTML = orderedCats.map(cat=>`
       <div class="pack-category-group">
         <h4 class="pack-category-label">${escapeHtml(formatCategoryName(cat))}</h4>
-        <div class="grid">${groups[cat].map(f=>cardHtml({
+        <div class="${state.favView}">${groups[cat].map(f=>cardHtml({
           project_id: f.id, title: f.title, icon_url: f.icon_url, author: f.author,
           description: f.description, categories: f.categories, downloads: f.downloads, follows: f.follows
         })).join("")}</div>
@@ -2228,6 +2470,7 @@ async function importModpackVersion(projectId, version, btn){
         icon_url: proj ? proj.icon_url : "",
         author: "",
         categories: proj ? proj.categories : [],
+        projectType: (proj && proj.project_type) || "mod",
         clientSide: (proj && proj.client_side) || "required",
         serverSide: (proj && proj.server_side) || "required",
         fromModpack: projectId,
@@ -2380,9 +2623,9 @@ function renderExport(){
         <div class="stat-num">${state.pack.length}</div>
         <div class="stat-label">Mod${state.pack.length===1?'':'s'}</div>
       </div>
-      <div class="export-stat" style="animation-delay:40ms;" ${hasUnknown ? `title="${unknownSizeMods.length} mod${unknownSizeMods.length===1?'':'s'} missing file size data — actual download will be larger than shown"` : ""}>
+      <div class="export-stat" style="animation-delay:40ms;" ${hasUnknown ? `title="${unknownSizeMods.length} mod${unknownSizeMods.length===1?'':'s'} missing file size data on Modrinth — actual unpacked size will be larger than shown"` : `title="Combined size of every mod's .jar file as unpacked from Modrinth"`}>
         <div class="stat-num">${sizeDisplay}</div>
-        <div class="stat-label">Download size${hasUnknown ? " est." : ""}</div>
+        <div class="stat-label">Modpack size${hasUnknown ? " est." : ""}</div>
       </div>
       <div class="export-stat" style="animation-delay:80ms;">
         <div class="stat-num">${state.pack.filter(m=>m.fromModpack).length}</div>
@@ -2416,13 +2659,16 @@ document.getElementById("exportBtn").addEventListener("click", async ()=>{
   if(loader === "neoforge") dependencies["neoforge"] = "";
   Object.keys(dependencies).forEach(k=>{ if(dependencies[k]==="") delete dependencies[k]; });
 
+  const PACK_FOLDER = { mod: "mods", shader: "shaderpacks", resourcepack: "resourcepacks" };
+  const folderForType = t => PACK_FOLDER[t] || "mods";
+
   const manifest = {
     formatVersion: 1,
     game: "minecraft",
     versionId: packVersion,
     name: packName,
     files: state.pack.map(mod=>({
-      path: `mods/${mod.selectedFile.filename}`,
+      path: `${folderForType(mod.projectType)}/${mod.selectedFile.filename}`,
       hashes: {
         sha1: mod.selectedFile.hashes.sha1,
         sha512: mod.selectedFile.hashes.sha512
@@ -2488,13 +2734,7 @@ document.querySelectorAll(".loaderCheck").forEach(cb=>{
     runSearch();
   });
 });
-document.querySelectorAll(".catCheck").forEach(cb=>{
-  cb.addEventListener("change", ()=>{
-    state.categories = [...document.querySelectorAll(".catCheck:checked")].map(c=>c.value);
-    state.page = 1;
-    runSearch();
-  });
-});
+wireCategoryCheckboxes();
 document.getElementById("favSearchInput").addEventListener("input", (e)=>{
   state.favSearch = e.target.value;
   renderFavorites();
@@ -2535,10 +2775,13 @@ document.querySelectorAll(".modpackCatCheck").forEach(cb=>{
 function wireCatToggle(toggleId, bodyId){
   const toggle = document.getElementById(toggleId);
   const body = document.getElementById(bodyId);
+  const expanded = window.matchMedia("(min-width: 861px)").matches;
+  toggle.setAttribute("aria-expanded", String(expanded));
+  body.hidden = !expanded;
   toggle.addEventListener("click", ()=>{
-    const expanded = toggle.getAttribute("aria-expanded") === "true";
-    toggle.setAttribute("aria-expanded", String(!expanded));
-    body.hidden = expanded;
+    const isExpanded = toggle.getAttribute("aria-expanded") === "true";
+    toggle.setAttribute("aria-expanded", String(!isExpanded));
+    body.hidden = isExpanded;
   });
 }
 wireCatToggle("catToggleBrowse", "catBodyBrowse");
@@ -2546,7 +2789,12 @@ wireCatToggle("catToggleModpacks", "catBodyModpacks");
 
 document.getElementById("removeAllBtn").addEventListener("click", async ()=>{
   if(state.pack.length === 0) return;
-  const ok = await showConfirm(`Remove all ${state.pack.length} mod${state.pack.length===1?'':'s'} from Create? This can't be undone.`, {confirmLabel:"Remove all"});
+  const count = state.pack.length;
+  const itemWord = count===1 ? "item" : "items";
+  const ok = await showConfirm(
+    `Remove all <strong>${count}</strong> ${itemWord} (mods, shaders, and resource packs) from Create? <strong>This action is permanent and cannot be undone.</strong>`,
+    {confirmLabel:"Remove all"}
+  );
   if(ok){
     state.pack = [];
     refreshAllViews();
@@ -2581,6 +2829,19 @@ document.getElementById("listBtn").addEventListener("click", ()=>{
   document.getElementById("listBtn").classList.add("active");
   document.getElementById("gridBtn").classList.remove("active");
   renderResults();
+});
+
+document.getElementById("favGridBtn").addEventListener("click", ()=>{
+  state.favView = "grid";
+  document.getElementById("favGridBtn").classList.add("active");
+  document.getElementById("favListBtn").classList.remove("active");
+  renderFavorites();
+});
+document.getElementById("favListBtn").addEventListener("click", ()=>{
+  state.favView = "list";
+  document.getElementById("favListBtn").classList.add("active");
+  document.getElementById("favGridBtn").classList.remove("active");
+  renderFavorites();
 });
 
 document.getElementById("themeToggle").addEventListener("click", ()=>{
