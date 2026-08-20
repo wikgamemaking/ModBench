@@ -972,7 +972,7 @@ function cardHtml(hit){
       <div class="card-top">
         ${icon ? `<img class="card-icon" src="${icon}" alt="" loading="lazy">` : `<div class="card-icon"></div>`}
         <div>
-          <div class="card-title">${escapeHtml(hit.title)}</div>
+          <div class="card-title">${escapeHtml(hit.title)}${hit.pinned ? ` <span class="tag" style="text-transform:uppercase; font-size:0.62rem; vertical-align:1px;">Pinned</span>` : ""}</div>
           <div class="card-author">by ${escapeHtml(hit.author || "unknown")}</div>
         </div>
       </div>
@@ -1275,8 +1275,11 @@ async function openModal(projectId, hitLookup){
       fetchVersions(projectId)
     ]);
     const gallery = (projRes.gallery || []).slice(0,6);
-    const inPack = state.pack.find(p=>p.id === projectId);
     const projectType = projRes.project_type || "mod";
+    const isModpack = projectType === "modpack";
+    const inPack = isModpack
+      ? state.pack.some(p=>p.fromModpack === projectId)
+      : state.pack.find(p=>p.id === projectId);
     const modrinthUrl = `https://modrinth.com/${projectType}/${projRes.slug || projectId}`;
     const cleanBody = stripRawHtml(projRes.body && projRes.body.trim() ? projRes.body : (projRes.description || ""));
     const DESC_LIMIT = 900;
@@ -1307,7 +1310,7 @@ async function openModal(projectId, hitLookup){
       </div>
       <div class="modal-actions">
         <button class="export-btn" id="modalAddBtn" style="flex:1;">
-          ${inPack ? "Update selection in pack" : "+ Add to pack"}
+          ${isModpack ? (inPack ? "Update modpack import" : "Import modpack contents") : (inPack ? "Update selection in pack" : "+ Add to pack")}
         </button>
         <a class="modal-link-btn" href="${modrinthUrl}" target="_blank" rel="noopener noreferrer">
           Open in Modrinth
@@ -1348,6 +1351,12 @@ async function openModal(projectId, hitLookup){
     backdrop.querySelector(".modal-close").addEventListener("click", ()=>backdrop.remove());
     backdrop.querySelector("#modalAddBtn").addEventListener("click", async ()=>{
       if(!chosenVersion){ alert("Pick a version first."); return; }
+      if(isModpack){
+        const addBtn = backdrop.querySelector("#modalAddBtn");
+        const ok = await importModpackVersion(projectId, chosenVersion, addBtn);
+        if(ok) backdrop.remove();
+        return;
+      }
       const existingIdx = state.pack.findIndex(p=>p.id === projectId);
       const entry = {
         id: projectId,
@@ -1514,6 +1523,22 @@ async function resolveDepProjectId(dep){
   return null;
 }
 
+// Finds the single value (loader or game version) supported by the most
+// entries, so we can flag the actual outliers instead of blaming every mod
+// just because a full, exact intersection across the whole pack doesn't exist.
+function findMajoritySupport(entries, getValues){
+  const allValues = new Set();
+  entries.forEach(x=>getValues(x).forEach(v=>allValues.add(v)));
+  let best = null;
+  allValues.forEach(v=>{
+    const supporters = entries.filter(x=>getValues(x).includes(v));
+    if(!best || supporters.length > best.supporters.length){
+      best = { value: v, supporters };
+    }
+  });
+  return best;
+}
+
 async function runCompatibilityCheck(){
   const mods = state.pack.filter(m=>m.selectedVersionId && Array.isArray(m.versions));
   const selected = mods.map(m=>({
@@ -1546,29 +1571,45 @@ async function runCompatibilityCheck(){
   }
 
   if(selected.length > 1){
-    const loaderSets = selected.map(x=>new Set(x.version.loaders||[]));
-    const allLoaders = new Set(loaderSets.flatMap(s=>[...s]));
-    const commonLoaders = [...allLoaders].filter(l=>loaderSets.every(s=>s.has(l)));
-    if(commonLoaders.length === 0){
+    const loaderBest = findMajoritySupport(selected, x=>x.version.loaders||[]);
+    if(loaderBest && loaderBest.supporters.length < selected.length){
+      const missing = selected.filter(x=>!loaderBest.supporters.includes(x));
       issues.push({
         type: "loader",
         icon: COMPAT_ICON_LOADER,
         title: "No shared mod loader",
-        detail: `Every mod in your pack must run on the same loader (Fabric, Forge, Quilt, or NeoForge). These selected versions don't have any loader in common, so at least one won't load. Open each mod below and pick a version built for the same loader as the rest.`,
+        detail: `Every mod in your pack must run on the same loader (Fabric, Forge, Quilt, or NeoForge). Most of your selected mods support ${loaderBest.value}, but these don't have a version built for it. Open each one below and pick a version for that loader instead.`,
+        mods: missing.map(x=>x.mod),
+        perModNote: missing.map(x=>`${x.mod.title}: ${(x.version.loaders||[]).join(", ") || "unknown"}`)
+      });
+    }else if(!loaderBest){
+      issues.push({
+        type: "loader",
+        icon: COMPAT_ICON_LOADER,
+        title: "No shared mod loader",
+        detail: `None of your selected mod versions report a loader, so compatibility can't be confirmed. Open each mod below and check it has a proper loader-specific version selected.`,
         mods: selected.map(x=>x.mod),
         perModNote: selected.map(x=>`${x.mod.title}: ${(x.version.loaders||[]).join(", ") || "unknown"}`)
       });
     }
 
-    const gvSets = selected.map(x=>new Set(x.version.game_versions||[]));
-    const allGv = new Set(gvSets.flatMap(s=>[...s]));
-    const commonGv = [...allGv].filter(v=>gvSets.every(s=>s.has(v)));
-    if(commonGv.length === 0){
+    const gvBest = findMajoritySupport(selected, x=>x.version.game_versions||[]);
+    if(gvBest && gvBest.supporters.length < selected.length){
+      const missing = selected.filter(x=>!gvBest.supporters.includes(x));
       issues.push({
         type: "version",
         icon: COMPAT_ICON_BLOCK,
         title: "No shared Minecraft version",
-        detail: `Every mod needs to support the same Minecraft version. None of the game versions below are supported by every selected file. Pick versions of each mod that target the same Minecraft release.`,
+        detail: `Every mod needs to support the same Minecraft version. Most of your selected mods support ${gvBest.value}, but these don't have a version for it. Pick versions of each mod below that target that release instead.`,
+        mods: missing.map(x=>x.mod),
+        perModNote: missing.map(x=>`${x.mod.title}: ${(x.version.game_versions||[]).slice(-3).join(", ") || "unknown"}`)
+      });
+    }else if(!gvBest){
+      issues.push({
+        type: "version",
+        icon: COMPAT_ICON_BLOCK,
+        title: "No shared Minecraft version",
+        detail: `None of your selected mod versions report a Minecraft version, so compatibility can't be confirmed. Open each mod below and check its selected version.`,
         mods: selected.map(x=>x.mod),
         perModNote: selected.map(x=>`${x.mod.title}: ${(x.version.game_versions||[]).slice(-3).join(", ") || "unknown"}`)
       });
@@ -1659,6 +1700,27 @@ function renderFavorites(){
 }
 
 const MODPACK_PAGE_SIZE = 30;
+const PINNED_MODPACK_SLUGS = ["better-mc-forge-bmc4", "fabulously-optimized"];
+let pinnedModpacksCache = null;
+
+async function getPinnedModpacks(){
+  if(pinnedModpacksCache) return pinnedModpacksCache;
+  const results = await Promise.all(PINNED_MODPACK_SLUGS.map(slug=>
+    fetch(`${API}/project/${slug}`).then(r=>r.ok ? r.json() : null).catch(()=>null)
+  ));
+  pinnedModpacksCache = results.filter(Boolean).map(p=>({
+    project_id: p.id,
+    title: p.title,
+    icon_url: p.icon_url,
+    author: p.team || "",
+    description: p.description,
+    categories: p.categories || [],
+    downloads: p.downloads,
+    follows: p.followers,
+    pinned: true
+  }));
+  return pinnedModpacksCache;
+}
 
 async function runModpackSearch(){
   state.modpackSearched = true;
@@ -1684,6 +1746,14 @@ async function runModpackSearch(){
     const data = await res.json();
     state.modpackResults = data.hits || [];
     state.modpackTotalHits = data.total_hits || 0;
+
+    const showPinned = !state.modpackQuery.trim() && state.modpackPage === 1;
+    if(showPinned){
+      const pinned = await getPinnedModpacks();
+      const pinnedIds = new Set(pinned.map(p=>p.project_id));
+      state.modpackResults = [...pinned, ...state.modpackResults.filter(h=>!pinnedIds.has(h.project_id))];
+    }
+
     if(state.modpackResults.length === 0){
       statusEl.textContent = "No modpacks found. Try a different search.";
       return;
@@ -1756,17 +1826,49 @@ function renderModpackPagination(){
   });
 }
 
-async function addModpackToCreate(projectId, btn){
-  const hit = state.modpackResults.find(h=>h.project_id===projectId);
-  if(!hit) return;
+async function pickModpackVersion(versions){
+  const options = versions.filter(v=>v.files && v.files.length);
+  if(!options.length) return null;
+  const distinctGv = [...new Set(options.map(v=>(v.game_versions||[]).slice(-1)[0] || "unknown"))];
+  if(distinctGv.length <= 1) return pickBestVersion(options);
+
+  return new Promise(resolve=>{
+    const backdrop = document.createElement("div");
+    backdrop.className = "modal-backdrop";
+    backdrop.style.alignItems = "center";
+    backdrop.innerHTML = `
+      <div class="modal" style="max-width:400px; margin-top:0;">
+        <div class="modal-head" style="margin-bottom:14px;">
+          <div class="name" style="font-size:1.05rem;">Pick a Minecraft version</div>
+          <button class="modal-close" aria-label="Close">✕</button>
+        </div>
+        <p style="margin:0 0 14px; font-size:0.85rem; color:var(--text-dim);">This modpack has releases for more than one Minecraft version. Choose which build to import into Create.</p>
+        <div class="modal-versions">
+          ${options.slice(0,25).map((v,i)=>`
+            <div class="version-row" data-idx="${i}">
+              <span class="version-loaders">${loaderIconsHtml(v.loaders)}</span>
+              <span class="vname">${escapeHtml(v.version_number)}</span>
+              <span class="vmeta">${(v.game_versions||[]).slice(-3).join(", ")} · ${(v.loaders||[]).join(", ")}</span>
+            </div>`).join("")}
+        </div>
+      </div>`;
+    function finish(v){ backdrop.remove(); resolve(v); }
+    backdrop.addEventListener("click", (e)=>{ if(e.target === backdrop) finish(null); });
+    backdrop.querySelector(".modal-close").addEventListener("click", ()=>finish(null));
+    backdrop.querySelectorAll(".version-row").forEach(row=>{
+      row.addEventListener("click", ()=>finish(options[Number(row.dataset.idx)]));
+    });
+    document.body.appendChild(backdrop);
+  });
+}
+
+async function importModpackVersion(projectId, version, btn){
   const originalLabel = btn.textContent;
   btn.textContent = "Adding…";
   btn.disabled = true;
   try{
-    const versions = await fetchVersions(projectId);
-    const best = pickBestVersion(versions);
-    if(!best) throw new Error("No versions available");
-    const file = best.files.find(f=>f.primary) || best.files[0];
+    const file = version.files.find(f=>f.primary) || version.files[0];
+    if(!file) throw new Error("No versions available");
     const zipBuf = await fetch(file.url).then(r=>{
       if(!r.ok) throw new Error("Couldn't download modpack file.");
       return r.arrayBuffer();
@@ -1792,7 +1894,6 @@ async function addModpackToCreate(projectId, btn){
     const projects = projectsRes.ok ? await projectsRes.json() : [];
     const projectById = Object.fromEntries(projects.map(p=>[p.id, p]));
 
-    let added = 0;
     foundVersions.forEach(v=>{
       if(state.pack.some(p=>p.id === v.project_id)) return;
       const proj = projectById[v.project_id];
@@ -1808,15 +1909,36 @@ async function addModpackToCreate(projectId, btn){
         selectedFile: v.files.find(f=>f.primary) || v.files[0],
         versions: [v]
       });
-      added++;
     });
     await ensureFabricApi();
     savePack();
     if(state.tab === "pack") renderPack();
     renderModpackResults();
-    if(added === 0){
-      btn.textContent = "In Create ✓";
+    return true;
+  }catch(e){
+    console.error(e);
+    alert("Couldn't import that modpack's mods. Modrinth may be unreachable, or this modpack isn't in the standard .mrpack format.");
+    btn.textContent = originalLabel;
+    return false;
+  }finally{
+    btn.disabled = false;
+  }
+}
+
+async function addModpackToCreate(projectId, btn){
+  const originalLabel = btn.textContent;
+  btn.textContent = "Loading versions…";
+  btn.disabled = true;
+  try{
+    const versions = await fetchVersions(projectId);
+    if(!versions.length) throw new Error("No versions available");
+    const chosen = await pickModpackVersion(versions);
+    if(!chosen){
+      btn.textContent = originalLabel;
+      btn.disabled = false;
+      return;
     }
+    await importModpackVersion(projectId, chosen, btn);
   }catch(e){
     console.error(e);
     alert("Couldn't import that modpack's mods. Modrinth may be unreachable, or this modpack isn't in the standard .mrpack format.");
