@@ -52,17 +52,17 @@
   *{ box-sizing: border-box; }
   html,body{ margin:0; padding:0; }
   select{
-    appearance: none;
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b665c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
-    background-repeat: no-repeat;
-    background-position: right 10px center;
-    background-size: 16px;
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b665c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='7 15 12 20 17 15'%3E%3C/polyline%3E%3Cpolyline points='7 9 12 4 17 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 10px center !important;
+    background-size: 16px !important;
     padding-right: 34px !important;
   }
   html[data-theme="dark"] select{
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231a1a17' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231a1a17' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='7 15 12 20 17 15'%3E%3C/polyline%3E%3Cpolyline points='7 9 12 4 17 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
   }
   body{
     font-family: 'Atkinson Hyperlegible', system-ui, sans-serif;
@@ -437,11 +437,12 @@
   .pack-row:hover{ border-color: var(--accent); box-shadow: 0 4px 12px rgba(38,36,32,.06); }
   .pack-row img{ width:40px; height:40px; border-radius:7px; flex-shrink:0; background:var(--surface-2); }
   .pack-row .info{ flex:1; min-width:0; }
-  .pack-row .info .name{ font-weight:700; font-size:0.95rem; }
-  .pack-row .info .sub{ font-size:0.8rem; color:var(--text-dim); }
+  .pack-row .info .name{ font-weight:700; font-size:0.95rem; overflow-wrap:anywhere; }
+  .pack-row .info .sub{ font-size:0.8rem; color:var(--text-dim); overflow-wrap:anywhere; }
   .pack-row select{
     padding:6px 8px; border-radius:6px; border:1px solid var(--border);
     font-family:inherit; font-size:0.82rem; max-width:150px;
+    text-overflow: ellipsis; overflow: hidden; white-space: nowrap;
   }
   .pack-row button.remove{
     background:none; border:1px solid var(--border); color: var(--danger);
@@ -464,13 +465,18 @@
     .pack-row img{ order: 0; }
     .pack-row select{
       order: 2;
-      flex: 1 1 auto;
+      flex: 0 0 calc(100% - 88px);
+      width: calc(100% - 88px);
       max-width: none;
       min-width: 0;
     }
     .pack-row button.remove{
       order: 3;
-      flex-shrink: 0;
+      flex: 0 0 76px;
+      width: 76px;
+      text-align: center;
+      padding-left: 0;
+      padding-right: 0;
     }
   }
   @keyframes row-in{
@@ -559,7 +565,7 @@
   @media (prefers-reduced-motion: reduce){
     .modal-backdrop, .modal{ animation: none; }
   }
-  .modal-head{ display:flex; gap:14px; align-items:flex-start; }
+  .modal-head{ display:flex; gap:14px; align-items:center; }
   .modal-head img{ width:72px; height:72px; border-radius:12px; object-fit:cover; flex-shrink:0; }
   .modal-head .name{ font-size:1.3rem; font-weight:700; }
   .modal-close{
@@ -591,7 +597,7 @@
     .modal-gallery img{ height:190px; }
   }
   .modal-desc{ font-size:0.92rem; color: var(--text); margin: 10px 0 16px; }
-  .modal-versions{ max-height:180px; overflow-y:auto; border:1px solid var(--border); border-radius:8px; }
+  .modal-versions{ max-height:320px; overflow-y:auto; border:1px solid var(--border); border-radius:8px; }
   .version-row{
     display:flex; align-items:center; gap:10px; padding:9px 12px; font-size:0.85rem;
     border-bottom:1px solid var(--border); cursor:pointer;
@@ -1013,17 +1019,51 @@ function populateVersionSelects(list){
   });
 }
 
+let gameVersionRank = null;
+let releaseGameVersionSet = null;
 async function loadGameVersions(){
   try{
     const res = await fetch(`${API}/tag/game_version`);
     if(!res.ok) throw new Error("bad status " + res.status);
     const data = await res.json();
+    gameVersionRank = new Map(data.map((v,i)=>[v.version, i]));
     const releases = data.filter(v=>v.version_type === "release").map(v=>v.version);
+    releaseGameVersionSet = new Set(releases);
     populateVersionSelects(releases.slice(0,60));
   }catch(e){
     console.error("Failed to load game versions from Modrinth, using fallback list", e);
+    gameVersionRank = new Map(FALLBACK_MC_VERSIONS.map((v,i)=>[v,i]));
+    releaseGameVersionSet = new Set(FALLBACK_MC_VERSIONS);
     populateVersionSelects(FALLBACK_MC_VERSIONS);
   }
+}
+
+// A mod version counts as a "snapshot" version if none of the Minecraft
+// versions it targets are stable releases (i.e. it only supports snapshots).
+function isSnapshotOnlyVersion(v){
+  const gvs = v.game_versions || [];
+  if(!gvs.length) return false;
+  if(!releaseGameVersionSet) return false;
+  return !gvs.some(gv=>releaseGameVersionSet.has(gv));
+}
+
+function versionRecencyRank(gameVersions){
+  if(!gameVersionRank || !gameVersions || !gameVersions.length) return Number.MAX_SAFE_INTEGER;
+  let best = Number.MAX_SAFE_INTEGER;
+  for(const gv of gameVersions){
+    const r = gameVersionRank.get(gv);
+    if(r !== undefined && r < best) best = r;
+  }
+  return best;
+}
+
+function sortByGameVersionRecency(versions){
+  return [...versions].sort((a,b)=>{
+    const ra = versionRecencyRank(a.game_versions);
+    const rb = versionRecencyRank(b.game_versions);
+    if(ra !== rb) return ra - rb;
+    return (b.date_published||"").localeCompare(a.date_published||"");
+  });
 }
 
 let searchTimer = null;
@@ -1327,7 +1367,7 @@ async function quickAdd(projectId){
     savePack();
     if(state.tab === "pack") renderPack();
     await autoAddDependencies(best, new Set([hitId]));
-    await ensureFabricApi();
+    await ensureFabricApi(best ? best.game_versions : null);
     savePack();
     if(state.tab === "pack") renderPack();
   }catch(e){
@@ -1339,7 +1379,9 @@ async function quickAdd(projectId){
 async function fetchVersions(projectId){
   const res = await fetch(`${API}/project/${projectId}/version`);
   if(!res.ok) throw new Error("version fetch failed");
-  return await res.json();
+  const data = await res.json();
+  const filtered = data.filter(v=>!isSnapshotOnlyVersion(v));
+  return filtered.length ? filtered : data;
 }
 
 const FABRIC_API_ID = "P7dR8mSH";
@@ -1394,7 +1436,7 @@ async function autoAddDependencies(version, visited){
       const proj = await fetch(`${API}/project/${depProjectId}`).then(r=>r.ok?r.json():null);
       if(!proj) continue;
       const versions = await fetchVersions(depProjectId);
-      const best = pickBestVersion(versions);
+      const best = pickBestVersion(versions, version.game_versions);
       if(!best) continue;
       state.pack.push({
         id: depProjectId,
@@ -1416,14 +1458,14 @@ async function autoAddDependencies(version, visited){
   }
 }
 
-async function ensureFabricApi(){
+async function ensureFabricApi(hintGameVersions){
   if(state.pack.some(p=>p.id === FABRIC_API_ID)) return;
   if(state.loaders.length && !state.loaders.includes("fabric") && !state.loaders.includes("quilt")) return;
   try{
     const proj = await fetch(`${API}/project/${FABRIC_API_ID}`).then(r=>r.ok?r.json():null);
     if(!proj) return;
     const versions = await fetchVersions(FABRIC_API_ID);
-    const best = pickBestVersion(versions);
+    const best = pickBestVersion(versions, hintGameVersions);
     if(!best) return;
     state.pack.push({
       id: FABRIC_API_ID,
@@ -1443,10 +1485,15 @@ async function ensureFabricApi(){
   }catch(e){ console.error("Failed to add Fabric API", e); }
 }
 
-function pickBestVersion(versions){
+function pickBestVersion(versions, hintGameVersions){
   if(!versions.length) return null;
   let candidates = versions;
-  if(state.mcVersion) candidates = candidates.filter(v=>v.game_versions.includes(state.mcVersion)) || candidates;
+  if(state.mcVersion){
+    candidates = candidates.filter(v=>v.game_versions.includes(state.mcVersion)) || candidates;
+  } else if(hintGameVersions && hintGameVersions.length){
+    const hinted = candidates.filter(v=>v.game_versions.some(gv=>hintGameVersions.includes(gv)));
+    if(hinted.length) candidates = hinted;
+  }
   if(state.loaders.length) candidates = candidates.filter(v=>v.loaders.some(l=>state.loaders.includes(l))) || candidates;
   return (candidates.length ? candidates : versions)[0];
 }
@@ -1460,6 +1507,7 @@ async function openModal(projectId, hitLookup){
   backdrop.addEventListener("click", (e)=>{ if(e.target === backdrop) backdrop.remove(); });
 
   try{
+    await gameVersionRankReady;
     const [projRes, versions] = await Promise.all([
       fetch(`${API}/project/${projectId}`).then(r=>r.json()),
       fetchVersions(projectId)
@@ -1493,9 +1541,9 @@ async function openModal(projectId, hitLookup){
       ${gallery.length ? `<div class="modal-gallery">${gallery.map((g,i)=>`<img src="${g.url}" alt="${escapeHtml(g.title||'')}" loading="lazy" data-index="${i}">`).join("")}</div>` : ""}
       <div class="modal-desc-full" id="modalDescBody">${shortHtml}</div>
       ${truncated ? `<button class="modal-link-btn" id="modalDescToggle" style="margin:0 0 16px;">Show full description</button>` : ""}
-      <h3 style="font-size:0.85rem; text-transform:uppercase; letter-spacing:.04em; color:var(--text-dim);">Versions</h3>
+      <h3 style="font-size:0.85rem; text-transform:uppercase; letter-spacing:.04em; color:var(--text-dim);">Versions (${versions.length})</h3>
       <div class="modal-versions">
-        ${versions.slice(0,25).map(v=>`
+        ${sortByGameVersionRecency(versions).map(v=>`
           <div class="version-row" data-vid="${v.id}">
             <span class="version-loaders">${loaderIconsHtml(v.loaders)}</span>
             <span class="vname">${escapeHtml(v.version_number)}</span>
@@ -1504,7 +1552,7 @@ async function openModal(projectId, hitLookup){
       </div>
       <div class="modal-actions">
         <button class="export-btn" id="modalAddBtn" style="flex:1;">
-          ${isModpack ? (inPack ? "Update modpack import" : "Import modpack contents") : (inPack ? "Update selection in pack" : "+ Add to pack")}
+          ${isModpack ? (inPack ? "Update modpack import" : "Import modpack contents") : (inPack ? "Update selection" : "+ Add to pack")}
         </button>
         <a class="modal-link-btn" href="${modrinthUrl}" target="_blank" rel="noopener noreferrer">
           Open in Modrinth
@@ -1592,7 +1640,7 @@ async function openModal(projectId, hitLookup){
       if(state.tab === "pack") renderPack();
       backdrop.remove();
       await autoAddDependencies(chosenVersion, new Set([projectId]));
-      await ensureFabricApi();
+      await ensureFabricApi(chosenVersion.game_versions);
       savePack();
       if(state.tab === "pack") renderPack();
     });
@@ -1643,6 +1691,7 @@ function openLightbox(images, startIndex){
 }
 
 function packRowHtml(mod){
+  const displayVersions = sortByGameVersionRecency(mod.versions);
   return `
     <div class="pack-row" data-id="${mod.id}" tabindex="0" role="button" aria-label="View ${escapeHtml(mod.title)}">
       ${mod.icon_url ? `<img src="${mod.icon_url}" alt="">` : `<img alt="">`}
@@ -1651,7 +1700,7 @@ function packRowHtml(mod){
         <div class="sub">by ${escapeHtml(mod.author||"")} · ${escapeHtml(mod.selectedVersionNumber||"no version")}</div>
       </div>
       <select data-vselect="${mod.id}">
-        ${mod.versions.slice(0,25).map(v=>`<option value="${v.id}" ${v.id===mod.selectedVersionId?"selected":""}>${escapeHtml(v.version_number)} (${v.loaders.join(", ")})</option>`).join("")}
+        ${displayVersions.map(v=>`<option value="${v.id}" ${v.id===mod.selectedVersionId?"selected":""}>${escapeHtml(v.version_number)} (${v.loaders.join(", ")})</option>`).join("")}
       </select>
       <button class="remove" data-remove="${mod.id}">Remove</button>
     </div>`;
@@ -2190,7 +2239,7 @@ async function importModpackVersion(projectId, version, btn){
         versions: [v]
       });
     });
-    await ensureFabricApi();
+    await ensureFabricApi(version.game_versions);
     savePack();
     if(state.tab === "pack") renderPack();
     renderModpackResults();
@@ -2547,10 +2596,10 @@ document.getElementById("themeToggle").addEventListener("click", ()=>{
 
 updatePackCount();
 updateFavCount();
-loadGameVersions();
+const gameVersionRankReady = loadGameVersions().then(()=>{
+  if(state.tab === "pack") renderPack();
+});
 runSearch();
 </script>
 </body>
 </html>
-
-
