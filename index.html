@@ -668,8 +668,10 @@
           <select id="sortSelect">
             <option value="relevance">Relevance</option>
             <option value="downloads">Most downloads</option>
+            <option value="downloads_asc">Fewest downloads</option>
             <option value="follows">Most followed</option>
             <option value="newest">Newest</option>
+            <option value="oldest">Oldest</option>
             <option value="updated">Recently updated</option>
           </select>
           <div class="view-toggle">
@@ -744,8 +746,10 @@
           <select id="modpackSortSelect">
             <option value="relevance">Relevance</option>
             <option value="downloads">Most downloads</option>
+            <option value="downloads_asc">Fewest downloads</option>
             <option value="follows">Most followed</option>
             <option value="newest">Newest</option>
+            <option value="oldest">Oldest</option>
             <option value="updated">Recently updated</option>
           </select>
         </div>
@@ -949,6 +953,39 @@ function buildModpackFacets(){
   return facets;
 }
 
+const ASCENDING_SORT_MAP = { downloads_asc: "downloads", oldest: "newest" };
+
+async function fetchSortedPage(query, facets, sort, page, pageSize){
+  const isAscending = ASCENDING_SORT_MAP.hasOwnProperty(sort);
+  const apiIndex = isAscending ? ASCENDING_SORT_MAP[sort] : sort;
+
+  if(!isAscending){
+    const params = new URLSearchParams({ query, limit:String(pageSize), offset:String((page-1)*pageSize), index:apiIndex, facets:JSON.stringify(facets) });
+    const res = await fetch(`${API}/search?${params.toString()}`);
+    if(!res.ok) throw new Error("Search failed: " + res.status);
+    const data = await res.json();
+    return { hits: data.hits || [], totalHits: data.total_hits || 0 };
+  }
+
+  // Modrinth's API only sorts descending — to get true ascending order,
+  // fetch from the tail of the descending list and reverse it locally.
+  const countParams = new URLSearchParams({ query, limit:"1", offset:"0", index:apiIndex, facets:JSON.stringify(facets) });
+  const countRes = await fetch(`${API}/search?${countParams.toString()}`);
+  if(!countRes.ok) throw new Error("Search failed: " + countRes.status);
+  const totalHits = (await countRes.json()).total_hits || 0;
+
+  const remainingBefore = totalHits - (page - 1) * pageSize;
+  if(remainingBefore <= 0) return { hits: [], totalHits };
+
+  const limit = Math.min(pageSize, remainingBefore);
+  const offset = Math.max(0, totalHits - page * pageSize);
+  const params = new URLSearchParams({ query, limit:String(limit), offset:String(offset), index:apiIndex, facets:JSON.stringify(facets) });
+  const res = await fetch(`${API}/search?${params.toString()}`);
+  if(!res.ok) throw new Error("Search failed: " + res.status);
+  const data = await res.json();
+  return { hits: (data.hits || []).slice().reverse(), totalHits };
+}
+
 const PAGE_SIZE = 30;
 
 async function runSearch(){
@@ -960,20 +997,10 @@ async function runSearch(){
   resultsEl.innerHTML = "";
   pageEl.innerHTML = "";
 
-  const params = new URLSearchParams({
-    query: state.query,
-    limit: String(PAGE_SIZE),
-    offset: String((state.page - 1) * PAGE_SIZE),
-    index: state.sort,
-    facets: JSON.stringify(buildFacets())
-  });
-
   try{
-    const res = await fetch(`${API}/search?${params.toString()}`);
-    if(!res.ok) throw new Error("Search failed: " + res.status);
-    const data = await res.json();
-    state.results = data.hits || [];
-    state.totalHits = data.total_hits || 0;
+    const { hits, totalHits } = await fetchSortedPage(state.query, buildFacets(), state.sort, state.page, PAGE_SIZE);
+    state.results = hits;
+    state.totalHits = totalHits;
     if(state.results.length === 0){
       statusEl.textContent = "No mods found. Try different filters.";
       return;
@@ -1353,6 +1380,7 @@ async function openModal(projectId, hitLookup){
     const shortHtml = renderMarkdownLite(shortMd);
     const fullHtml = truncated ? renderMarkdownLite(cleanBody) : shortHtml;
 
+    const modalIsFav = state.favorites.some(f=>f.id === projectId);
     backdrop.querySelector(".modal").innerHTML = `
       <div class="modal-head">
         ${hit.icon_url ? `<img src="${hit.icon_url}" alt="">` : `<div style="width:72px;height:72px;border-radius:12px;background:var(--surface-2)"></div>`}
@@ -1360,6 +1388,7 @@ async function openModal(projectId, hitLookup){
           <div class="name">${escapeHtml(projRes.title)}</div>
           <div class="card-author">by ${escapeHtml(hit.author||"")}</div>
         </div>
+        <button class="card-fav ${modalIsFav?'faved':''}" id="modalFavBtn" title="${modalIsFav?'Remove from favorites':'Add to favorites'}" aria-label="${modalIsFav?'Remove from favorites':'Add to favorites'}">${modalIsFav ? HEART_ICON_FILLED : HEART_ICON_OUTLINE}</button>
         <button class="modal-close" aria-label="Close">✕</button>
       </div>
       ${gallery.length ? `<div class="modal-gallery">${gallery.map((g,i)=>`<img src="${g.url}" alt="${escapeHtml(g.title||'')}" loading="lazy" data-index="${i}">`).join("")}</div>` : ""}
@@ -1384,6 +1413,29 @@ async function openModal(projectId, hitLookup){
         </a>
       </div>
     `;
+
+    const favBtn = backdrop.querySelector("#modalFavBtn");
+    favBtn.addEventListener("click", ()=>{
+      const favHit = {
+        project_id: projectId,
+        title: projRes.title,
+        icon_url: projRes.icon_url,
+        author: hit.author || "",
+        description: projRes.description,
+        categories: projRes.categories || [],
+        downloads: projRes.downloads,
+        follows: projRes.follows
+      };
+      toggleFavorite(favHit);
+      const nowFav = state.favorites.some(f=>f.id === projectId);
+      favBtn.classList.toggle("faved", nowFav);
+      favBtn.innerHTML = nowFav ? HEART_ICON_FILLED : HEART_ICON_OUTLINE;
+      favBtn.title = nowFav ? "Remove from favorites" : "Add to favorites";
+      favBtn.setAttribute("aria-label", favBtn.title);
+      updateFavCount();
+      if(state.tab === "favorites") renderFavorites();
+      updateCardButtonsEverywhere(projectId);
+    });
 
     if(truncated){
       const toggleBtn = backdrop.querySelector("#modalDescToggle");
@@ -1850,20 +1902,10 @@ async function runModpackSearch(){
   resultsEl.innerHTML = "";
   pageEl.innerHTML = "";
 
-  const params = new URLSearchParams({
-    query: state.modpackQuery,
-    limit: String(MODPACK_PAGE_SIZE),
-    offset: String((state.modpackPage - 1) * MODPACK_PAGE_SIZE),
-    index: state.modpackSort,
-    facets: JSON.stringify(buildModpackFacets())
-  });
-
   try{
-    const res = await fetch(`${API}/search?${params.toString()}`);
-    if(!res.ok) throw new Error("Search failed: " + res.status);
-    const data = await res.json();
-    state.modpackResults = data.hits || [];
-    state.modpackTotalHits = data.total_hits || 0;
+    const { hits, totalHits } = await fetchSortedPage(state.modpackQuery, buildModpackFacets(), state.modpackSort, state.modpackPage, MODPACK_PAGE_SIZE);
+    state.modpackResults = hits;
+    state.modpackTotalHits = totalHits;
 
     const showPinned = !state.modpackQuery.trim() && state.modpackPage === 1;
     if(showPinned){
@@ -2179,7 +2221,7 @@ function renderExport(){
     const totalSize = knownSizeMods.reduce((sum,m)=>sum + m.selectedFile.size, 0);
     const hasUnknown = unknownSizeMods.length > 0;
     const sizeDisplay = totalSize > 0
-      ? `${hasUnknown ? "≥" : ""}${formatBytes(totalSize)}`
+      ? `${hasUnknown ? "≥" : "~"}${formatBytes(totalSize)}`
       : (hasUnknown ? "Unknown" : "0 MB");
     const catCounts = {};
     state.pack.forEach(m=>(m.categories||[]).forEach(c=>{ catCounts[c] = (catCounts[c]||0) + 1; }));
