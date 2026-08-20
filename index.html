@@ -1384,12 +1384,14 @@ async function openModal(projectId, hitLookup){
     backdrop.querySelector(".modal").innerHTML = `
       <div class="modal-head">
         ${hit.icon_url ? `<img src="${hit.icon_url}" alt="">` : `<div style="width:72px;height:72px;border-radius:12px;background:var(--surface-2)"></div>`}
-        <div>
+        <div style="flex:1; min-width:0;">
           <div class="name">${escapeHtml(projRes.title)}</div>
           <div class="card-author">by ${escapeHtml(hit.author||"")}</div>
         </div>
-        <button class="card-fav ${modalIsFav?'faved':''}" id="modalFavBtn" title="${modalIsFav?'Remove from favorites':'Add to favorites'}" aria-label="${modalIsFav?'Remove from favorites':'Add to favorites'}">${modalIsFav ? HEART_ICON_FILLED : HEART_ICON_OUTLINE}</button>
-        <button class="modal-close" aria-label="Close">✕</button>
+        <div style="display:flex; align-items:center; gap:10px; flex-shrink:0;">
+          <button class="card-fav ${modalIsFav?'faved':''}" id="modalFavBtn" title="${modalIsFav?'Remove from favorites':'Add to favorites'}" aria-label="${modalIsFav?'Remove from favorites':'Add to favorites'}">${modalIsFav ? HEART_ICON_FILLED : HEART_ICON_OUTLINE}</button>
+          <button class="modal-close" aria-label="Close">✕</button>
+        </div>
       </div>
       ${gallery.length ? `<div class="modal-gallery">${gallery.map((g,i)=>`<img src="${g.url}" alt="${escapeHtml(g.title||'')}" loading="lazy" data-index="${i}">`).join("")}</div>` : ""}
       <div class="modal-desc-full" id="modalDescBody">${shortHtml}</div>
