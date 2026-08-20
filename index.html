@@ -387,6 +387,31 @@
     margin: 0 auto;
   }
   #tab-export{ display:flex; justify-content:center; }
+  .export-hero{ display:flex; align-items:center; gap:14px; }
+  .export-hero-icon{
+    flex-shrink:0; width:44px; height:44px; border-radius:12px;
+    background: var(--accent-soft); color: var(--accent-dark);
+    display:flex; align-items:center; justify-content:center;
+    animation: gentle-bob 2.6s ease-in-out infinite;
+  }
+  .export-hero-icon svg{ width:22px; height:22px; }
+  .export-hero-icon.ready{ background: var(--accent); color:#fff; }
+  @media (prefers-reduced-motion: reduce){ .export-hero-icon{ animation: none; } }
+  .export-stats{
+    display:grid; grid-template-columns:repeat(3, 1fr); gap:10px;
+    margin: 18px 0 4px;
+  }
+  .export-stats:empty{ display:none; }
+  .export-stat{
+    background: var(--surface-2); border-radius: 10px; padding:10px 8px;
+    text-align:center; animation: card-in .25s ease-out backwards;
+  }
+  .export-stat .stat-num{ font-size:1.15rem; font-weight:700; color:var(--accent-dark); line-height:1.2; }
+  .export-stat .stat-label{ font-size:0.68rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:.04em; margin-top:2px; }
+  .export-cats{
+    display:flex; flex-wrap:wrap; gap:6px; margin: 10px 0 0;
+  }
+  @media (prefers-reduced-motion: reduce){ .export-stat{ animation: none; } }
   .export-panel label{ display:block; font-weight:700; font-size:0.85rem; margin: 14px 0 6px; }
   .export-panel select, .export-panel input[type=text]{
     width:100%; padding:10px; border-radius:8px; border:1px solid var(--border);
@@ -400,6 +425,7 @@
   .export-btn:hover{ background: var(--accent-dark); transform: translateY(-1px); }
   .export-btn:active{ transform: translateY(0) scale(.98); }
   .export-btn:disabled{ background:var(--surface-2); color:var(--text-dim); cursor:not-allowed; }
+  .export-btn.success{ background: var(--accent-dark); }
   .export-note{ font-size:0.8rem; color:var(--text-dim); margin-top:10px; }
 
   .modal-backdrop{
@@ -723,8 +749,17 @@
 
   <section id="tab-export" style="display:none;">
     <div class="export-panel">
-      <h2 style="margin-top:0;">Export your pack</h2>
-      <p style="color:var(--text-dim); font-size:0.9rem;">Generates a <code>.mrpack</code> file, importable straight into the Modrinth App, Prism Launcher, or ATLauncher.</p>
+      <div class="export-hero">
+        <div class="export-hero-icon" id="exportHeroIcon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+        </div>
+        <div>
+          <h2 style="margin:0;">Export your pack</h2>
+          <p style="color:var(--text-dim); font-size:0.9rem; margin:4px 0 0;">Generates a <code>.mrpack</code> file, importable straight into the Modrinth App, Prism Launcher, or ATLauncher.</p>
+        </div>
+      </div>
+
+      <div class="export-stats" id="exportStats"></div>
 
       <label for="packName">Pack name</label>
       <input type="text" id="packName" placeholder="My Modpack" value="My Modpack">
@@ -1539,6 +1574,27 @@ function findMajoritySupport(entries, getValues){
   return best;
 }
 
+// Mods that came bundled in the same modpack import were already tested
+// together by the pack author — use the modpack file's own declared target
+// as ground truth instead of that individual mod file's (often narrower)
+// self-reported support range, which is what caused false "no shared
+// version/loader" flags on already-compatible, pre-made packs.
+function effectiveLoaders(x){
+  if(x.mod.fromModpack && x.mod.fromModpackLoaders && x.mod.fromModpackLoaders.length) return x.mod.fromModpackLoaders;
+  return x.version.loaders || [];
+}
+function effectiveGameVersions(x){
+  if(x.mod.fromModpack && x.mod.fromModpackGameVersions && x.mod.fromModpackGameVersions.length) return x.mod.fromModpackGameVersions;
+  return x.version.game_versions || [];
+}
+// Datapacks/resourcepacks are tagged with loader "minecraft" on Modrinth,
+// meaning they aren't tied to a specific loader — never flag them as the
+// outlier in a loader mismatch.
+function isLoaderAgnostic(x){
+  const loaders = effectiveLoaders(x);
+  return loaders.length === 0 || (loaders.length === 1 && loaders[0] === "minecraft");
+}
+
 async function runCompatibilityCheck(){
   const mods = state.pack.filter(m=>m.selectedVersionId && Array.isArray(m.versions));
   const selected = mods.map(m=>({
@@ -1571,17 +1627,19 @@ async function runCompatibilityCheck(){
   }
 
   if(selected.length > 1){
-    const loaderBest = findMajoritySupport(selected, x=>x.version.loaders||[]);
+    const loaderBest = findMajoritySupport(selected, effectiveLoaders);
     if(loaderBest && loaderBest.supporters.length < selected.length){
-      const missing = selected.filter(x=>!loaderBest.supporters.includes(x));
-      issues.push({
-        type: "loader",
-        icon: COMPAT_ICON_LOADER,
-        title: "No shared mod loader",
-        detail: `Every mod in your pack must run on the same loader (Fabric, Forge, Quilt, or NeoForge). Most of your selected mods support ${loaderBest.value}, but these don't have a version built for it. Open each one below and pick a version for that loader instead.`,
-        mods: missing.map(x=>x.mod),
-        perModNote: missing.map(x=>`${x.mod.title}: ${(x.version.loaders||[]).join(", ") || "unknown"}`)
-      });
+      const missing = selected.filter(x=>!loaderBest.supporters.includes(x) && !isLoaderAgnostic(x));
+      if(missing.length){
+        issues.push({
+          type: "loader",
+          icon: COMPAT_ICON_LOADER,
+          title: "No shared mod loader",
+          detail: `Every mod in your pack must run on the same loader (Fabric, Forge, Quilt, or NeoForge). Most of your selected mods support ${loaderBest.value}, but these don't have a version built for it. Open each one below and pick a version for that loader instead.`,
+          mods: missing.map(x=>x.mod),
+          perModNote: missing.map(x=>`${x.mod.title}: ${effectiveLoaders(x).join(", ") || "unknown"}`)
+        });
+      }
     }else if(!loaderBest){
       issues.push({
         type: "loader",
@@ -1593,7 +1651,7 @@ async function runCompatibilityCheck(){
       });
     }
 
-    const gvBest = findMajoritySupport(selected, x=>x.version.game_versions||[]);
+    const gvBest = findMajoritySupport(selected, effectiveGameVersions);
     if(gvBest && gvBest.supporters.length < selected.length){
       const missing = selected.filter(x=>!gvBest.supporters.includes(x));
       issues.push({
@@ -1602,7 +1660,7 @@ async function runCompatibilityCheck(){
         title: "No shared Minecraft version",
         detail: `Every mod needs to support the same Minecraft version. Most of your selected mods support ${gvBest.value}, but these don't have a version for it. Pick versions of each mod below that target that release instead.`,
         mods: missing.map(x=>x.mod),
-        perModNote: missing.map(x=>`${x.mod.title}: ${(x.version.game_versions||[]).slice(-3).join(", ") || "unknown"}`)
+        perModNote: missing.map(x=>`${x.mod.title}: ${effectiveGameVersions(x).slice(-3).join(", ") || "unknown"}`)
       });
     }else if(!gvBest){
       issues.push({
@@ -1826,9 +1884,26 @@ function renderModpackPagination(){
   });
 }
 
+function compareMcVersions(a, b){
+  const pa = String(a).split(/[.\-]/).map(n=>parseInt(n,10));
+  const pb = String(b).split(/[.\-]/).map(n=>parseInt(n,10));
+  for(let i=0;i<Math.max(pa.length,pb.length);i++){
+    const va = isNaN(pa[i]) ? 0 : pa[i];
+    const vb = isNaN(pb[i]) ? 0 : pb[i];
+    if(va !== vb) return va - vb;
+  }
+  return 0;
+}
+
 async function pickModpackVersion(versions){
-  const options = versions.filter(v=>v.files && v.files.length);
-  if(!options.length) return null;
+  const releaseVersions = versions.filter(v=>!v.version_type || v.version_type === "release");
+  const usable = (releaseVersions.length ? releaseVersions : versions).filter(v=>v.files && v.files.length);
+  if(!usable.length) return null;
+  const options = [...usable].sort((a,b)=>{
+    const gvA = (a.game_versions||[]).slice(-1)[0] || "";
+    const gvB = (b.game_versions||[]).slice(-1)[0] || "";
+    return compareMcVersions(gvB, gvA);
+  });
   const distinctGv = [...new Set(options.map(v=>(v.game_versions||[]).slice(-1)[0] || "unknown"))];
   if(distinctGv.length <= 1) return pickBestVersion(options);
 
@@ -1904,6 +1979,8 @@ async function importModpackVersion(projectId, version, btn){
         author: "",
         categories: proj ? proj.categories : [],
         fromModpack: projectId,
+        fromModpackLoaders: version.loaders || [],
+        fromModpackGameVersions: version.game_versions || [],
         selectedVersionId: v.id,
         selectedVersionNumber: v.version_number,
         selectedFile: v.files.find(f=>f.primary) || v.files[0],
@@ -1927,7 +2004,7 @@ async function importModpackVersion(projectId, version, btn){
 
 async function addModpackToCreate(projectId, btn){
   const originalLabel = btn.textContent;
-  btn.textContent = "Loading versions…";
+  btn.textContent = "Loading…";
   btn.disabled = true;
   try{
     const versions = await fetchVersions(projectId);
@@ -1947,19 +2024,55 @@ async function addModpackToCreate(projectId, btn){
   }
 }
 
+function formatBytes(n){
+  if(!n || n <= 0) return "0 MB";
+  const mb = n / (1024*1024);
+  if(mb < 1) return `${Math.max(1, Math.round(n/1024))} KB`;
+  if(mb < 1000) return `${mb.toFixed(mb < 10 ? 1 : 0)} MB`;
+  return `${(mb/1024).toFixed(1)} GB`;
+}
+
 function renderExport(){
   const note = document.getElementById("exportNote");
   const btn = document.getElementById("exportBtn");
   const expMc = document.getElementById("expMcVersion");
   const expLoader = document.getElementById("expLoader");
+  const statsEl = document.getElementById("exportStats");
+  const heroIcon = document.getElementById("exportHeroIcon");
   if(!expMc.value && state.mcVersion) expMc.value = state.mcVersion;
   if(!expLoader.value && state.loaders.length === 1) expLoader.value = state.loaders[0];
   if(state.pack.length === 0){
     note.textContent = "Add mods to your pack first, then choose a version and loader.";
     btn.disabled = true;
+    btn.classList.remove("success");
+    heroIcon.classList.remove("ready");
+    statsEl.innerHTML = "";
   }else{
     note.innerHTML = `<strong>${state.pack.length}</strong> mod${state.pack.length===1?'':'s'} ready to export.`;
     btn.disabled = false;
+    btn.classList.remove("success");
+    heroIcon.classList.add("ready");
+
+    const totalSize = state.pack.reduce((sum,m)=>sum + (m.selectedFile && m.selectedFile.size ? m.selectedFile.size : 0), 0);
+    const catCounts = {};
+    state.pack.forEach(m=>(m.categories||[]).forEach(c=>{ catCounts[c] = (catCounts[c]||0) + 1; }));
+    const topCats = Object.entries(catCounts).sort((a,b)=>b[1]-a[1]).slice(0,4).map(([c])=>c);
+
+    statsEl.innerHTML = `
+      <div class="export-stat" style="animation-delay:0ms;">
+        <div class="stat-num">${state.pack.length}</div>
+        <div class="stat-label">Mod${state.pack.length===1?'':'s'}</div>
+      </div>
+      <div class="export-stat" style="animation-delay:40ms;">
+        <div class="stat-num">${formatBytes(totalSize)}</div>
+        <div class="stat-label">Download size</div>
+      </div>
+      <div class="export-stat" style="animation-delay:80ms;">
+        <div class="stat-num">${state.pack.filter(m=>m.fromModpack).length}</div>
+        <div class="stat-label">From modpacks</div>
+      </div>
+      ${topCats.length ? `<div class="export-cats" style="grid-column:1 / -1;">${topCats.map(c=>`<span class="tag">${escapeHtml(formatCategoryName(c))}</span>`).join("")}</div>` : ""}
+    `;
   }
 }
 
@@ -2017,6 +2130,15 @@ document.getElementById("exportBtn").addEventListener("click", async ()=>{
   a.click();
   a.remove();
   URL.revokeObjectURL(url);
+
+  const exportBtn = document.getElementById("exportBtn");
+  const originalLabel = exportBtn.textContent;
+  exportBtn.classList.add("success");
+  exportBtn.textContent = "Downloaded ✓";
+  setTimeout(()=>{
+    exportBtn.classList.remove("success");
+    exportBtn.textContent = originalLabel;
+  }, 1800);
 });
 
 document.getElementById("searchInput").addEventListener("input", (e)=>{
