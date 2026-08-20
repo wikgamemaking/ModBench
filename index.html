@@ -1101,7 +1101,7 @@
           <button type="button" class="modal-link-btn" id="logoResetBtn" style="display:none;">Reset to default</button>
         </div>
       </div>
-      <p style="color:var(--text-dim); font-size:0.8rem; margin:6px 0 0;">Square image recommended, max 2 MB. Bundled into the .mrpack as its icon.</p>
+      <p style="color:var(--text-dim); font-size:0.8rem; margin:6px 0 0;">Square image recommended, max 2 MB. Bundled into the <code>.mrpack</code> as its icon.</p>
 
       <label for="expMcVersion">Minecraft version</label>
       <select id="expMcVersion"><option value="">Select a version</option></select>
@@ -1463,14 +1463,6 @@ async function fetchSortedPage(query, facets, sort, page, pageSize){
 
 const PAGE_SIZE = 30;
 
-// Some shader packs (e.g. Complementary) are tagged on Modrinth with every
-// performance tier they offer a preset for, since a single pack can range
-// from Potato to Ultra. That's accurate but not useful for filtering: picking
-// "Low" shouldn't surface a pack whose flagship experience is medium-to-high.
-// This table overrides which performance tiers a given project should
-// actually match against, by slug. Only performance values
-// ("low"/"medium"/"high") are consulted here; other categories (style,
-// etc.) are left untouched, and non-shader results are never affected.
 const PERFORMANCE_TIER_OVERRIDES = {
   "complementary-reimagined": ["medium", "high"],
   "complementary-unbound": ["medium", "high"]
@@ -1792,11 +1784,6 @@ function showConfirm(messageHtml, {confirmLabel = "Confirm", danger = true} = {}
 
 async function autoAddDependencies(version, visited, hostProjectType){
   if(!version || !Array.isArray(version.dependencies)) return;
-  // Resource packs and shaders often need a specific mod (e.g. a CIT/connected-
-  // textures mod, or Iris/Optifine) to actually work, but since the pack still
-  // technically "loads" without it, Modrinth authors frequently tag that mod as
-  // an "optional" dependency rather than "required". For non-mod project types
-  // we treat optional dependencies as needed too so those mods get auto-added.
   const includeOptional = hostProjectType && hostProjectType !== "mod";
   for(const dep of version.dependencies){
     if(dep.dependency_type !== "required" && !(includeOptional && dep.dependency_type === "optional")) continue;
@@ -2207,11 +2194,6 @@ function findMajoritySupport(entries, getValues){
   return best;
 }
 
-// Mods that came bundled in the same modpack import were already tested
-// together by the pack author; use the modpack file's own declared target
-// as ground truth instead of that individual mod file's (often narrower)
-// self-reported support range, which is what caused false "no shared
-// version/loader" flags on already-compatible, pre-made packs.
 function effectiveLoaders(x){
   if(x.mod.fromModpack && x.mod.fromModpackLoaders && x.mod.fromModpackLoaders.length) return x.mod.fromModpackLoaders;
   return x.version.loaders || [];
@@ -2220,13 +2202,8 @@ function effectiveGameVersions(x){
   if(x.mod.fromModpack && x.mod.fromModpackGameVersions && x.mod.fromModpackGameVersions.length) return x.mod.fromModpackGameVersions;
   return x.version.game_versions || [];
 }
-// Datapacks/resourcepacks are tagged with loader "minecraft" on Modrinth,
-// meaning they aren't tied to a specific loader; never flag them as the
-// outlier in a loader mismatch.
+
 function isLoaderAgnostic(x){
-  // Shaders and resource packs don't run on a Fabric/Forge/Quilt/NeoForge
-  // mod loader at all, so they should never be flagged in the "no shared
-  // mod loader" check; that check only makes sense among actual mods.
   if(x.mod.projectType && x.mod.projectType !== "mod") return true;
   const loaders = effectiveLoaders(x);
   return loaders.length === 0 || (loaders.length === 1 && loaders[0] === "minecraft");
@@ -3127,7 +3104,7 @@ function showGettingStarted(force){
         <span class="intro-logo"><img src="icons/logo.png" alt=""></span>
         <div class="intro-head-text">
           <div class="name">Welcome to ModBench</div>
-          <p style="margin:2px 0 0; color:var(--text-dim); font-size:0.86rem;">A quick tour before you start building a pack.</p>
+          <p style="margin:2px 0 0; color:var(--text-dim); font-size:0.86rem;">Here is a quick tour before you start building a pack.</p>
         </div>
         <button class="modal-close" aria-label="Close">✕</button>
       </div>
@@ -3157,7 +3134,7 @@ function showGettingStarted(force){
           <div class="intro-step-icon">⭐</div>
           <div>
             <h4>Favorites</h4>
-            <p>Star mods while browsing to save them for later, independent of whatever pack you're currently building.</p>
+            <p>Like mods while browsing to save them for later, independent of whatever pack you're currently building.</p>
           </div>
         </div>
         <div class="intro-step">
