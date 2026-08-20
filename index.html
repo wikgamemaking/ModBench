@@ -630,6 +630,9 @@
   .modal-desc-full img{ max-width:100%; border-radius:8px; margin:8px 0; }
   .modal-desc-full a{ color: var(--accent-dark); }
   .modal-desc-full code{ background: var(--surface-2); padding:1px 5px; border-radius:4px; font-size:0.88em; }
+  .modal-desc-full table{ border-collapse:collapse; width:100%; margin:0 0 12px; font-size:0.88em; display:block; overflow-x:auto; }
+  .modal-desc-full th, .modal-desc-full td{ border:1px solid var(--border); padding:6px 10px; text-align:left; }
+  .modal-desc-full th{ background: var(--surface-2); font-weight:700; }
   .modal-gallery{ display:flex; gap:10px; overflow-x:auto; margin: 14px 0; }
   .modal-gallery img{ height:130px; width:auto; border-radius:8px; flex-shrink:0; transition: transform .15s; }
   .modal-gallery img:hover{ transform: scale(1.03); }
@@ -692,8 +695,16 @@
     display:flex; align-items:center; justify-content:center;
     z-index: 80; padding: 40px 16px;
   }
-  .lightbox-img-wrap{ position:relative; max-width: 90vw; max-height: 85vh; display:flex; flex-direction:column; align-items:center; gap:10px; }
-  .lightbox-img-wrap img{ max-width: 90vw; max-height: 74vh; width:auto; height:auto; border-radius: 8px; box-shadow: 0 8px 30px rgba(0,0,0,.4); }
+  .lightbox-img-wrap{ position:relative; z-index:1; max-width: 90vw; max-height: 85vh; display:flex; flex-direction:column; align-items:center; gap:10px; }
+  .lightbox-img-wrap img{
+    max-width: 90vw; max-height: 74vh; width:auto; height:auto; border-radius: 8px; box-shadow: 0 8px 30px rgba(0,0,0,.4);
+  }
+  @media (min-width: 641px){
+    /* On larger screens, low-res images shouldn't render tiny in the middle
+       of the lightbox -- give them a reasonable floor size while still
+       letting max-width/max-height cap high-res images as before. */
+    .lightbox-img-wrap img{ min-width: min(60vw, 640px); min-height: min(45vh, 420px); object-fit: contain; }
+  }
   .lightbox-counter{ color:#fff; font-size:0.85rem; opacity:.85; }
   .lightbox-close{
     position:absolute; top:-40px; right:0; background:none; border:none; color:#fff;
@@ -705,6 +716,7 @@
     width:44px; height:44px; border-radius:50%; font-size:1.5rem; font-family:inherit; font-weight:700;
     cursor:pointer; padding:0; line-height:1;
     display:flex; align-items:center; justify-content:center;
+    z-index:2;
   }
   .lightbox-nav{ transition: background .15s, transform .15s; }
   .lightbox-nav:hover{ background: rgba(255,255,255,.26); transform: translateY(-50%) scale(1.08); }
@@ -1531,10 +1543,20 @@ function renderMarkdownLite(md){
     const items = block.trim().split(/\n/).map(l=>l.replace(/^[-*]\s+/, "").trim());
     return `<ul>${items.map(i=>`<li>${i}</li>`).join("")}</ul>\n`;
   });
+  // GFM-style tables: a header row, a |---|---| divider row, then body rows.
+  s = s.replace(/^\|.*\|[ \t]*\n\|[ \t:|-]+\|[ \t]*\n(?:\|.*\|[ \t]*\n?)*/gm, block=>{
+    const lines = block.trim().split(/\n/);
+    const splitRow = line=>line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map(c=>c.trim());
+    const headerCells = splitRow(lines[0]);
+    const bodyRows = lines.slice(2).map(splitRow);
+    const thead = `<thead><tr>${headerCells.map(c=>`<th>${c}</th>`).join("")}</tr></thead>`;
+    const tbody = `<tbody>${bodyRows.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join("")}</tr>`).join("")}</tbody>`;
+    return `<table>${thead}${tbody}</table>\n`;
+  });
   s = s.split(/\n{2,}/).map(block=>{
     block = block.trim();
     if(!block) return "";
-    if(/^<(h1|h2|h3|ul|img)/.test(block)) return block;
+    if(/^<(h1|h2|h3|ul|img|table)/.test(block)) return block;
     return `<p>${block.replace(/\n/g, "<br>")}</p>`;
   }).join("\n");
   return s;
@@ -1580,7 +1602,7 @@ async function quickAdd(projectId){
     });
     savePack();
     if(state.tab === "pack") renderPack();
-    await autoAddDependencies(best, new Set([hitId]));
+    await autoAddDependencies(best, new Set([hitId]), hit.project_type || state.browseType || "mod");
     await ensureFabricApi(best ? best.game_versions : null);
     savePack();
     if(state.tab === "pack") renderPack();
@@ -1632,10 +1654,16 @@ function showConfirm(messageHtml, {confirmLabel = "Confirm", danger = true} = {}
   });
 }
 
-async function autoAddDependencies(version, visited){
+async function autoAddDependencies(version, visited, hostProjectType){
   if(!version || !Array.isArray(version.dependencies)) return;
+  // Resource packs and shaders often need a specific mod (e.g. a CIT/connected-
+  // textures mod, or Iris/Optifine) to actually work, but since the pack still
+  // technically "loads" without it, Modrinth authors frequently tag that mod as
+  // an "optional" dependency rather than "required". For non-mod project types
+  // we treat optional dependencies as needed too so those mods get auto-added.
+  const includeOptional = hostProjectType && hostProjectType !== "mod";
   for(const dep of version.dependencies){
-    if(dep.dependency_type !== "required") continue;
+    if(dep.dependency_type !== "required" && !(includeOptional && dep.dependency_type === "optional")) continue;
     let depProjectId = dep.project_id;
     if(!depProjectId && dep.version_id){
       try{
@@ -1658,7 +1686,7 @@ async function autoAddDependencies(version, visited){
         icon_url: proj.icon_url,
         author: proj.team || "",
         categories: proj.categories || [],
-        projectType: "mod",
+        projectType: proj.project_type || "mod",
         clientSide: proj.client_side || "required",
         serverSide: proj.server_side || "required",
         isDependency: true,
@@ -1667,7 +1695,7 @@ async function autoAddDependencies(version, visited){
         selectedFile: best.files.find(f=>f.primary) || best.files[0],
         versions
       });
-      await autoAddDependencies(best, visited);
+      await autoAddDependencies(best, visited, proj.project_type);
       updateCardButtonsEverywhere(depProjectId);
     }catch(e){ console.error("Failed to add dependency", depProjectId, e); }
   }
@@ -1858,7 +1886,7 @@ async function openModal(projectId, hitLookup){
       updateCardButtonsEverywhere(projectId);
       if(state.tab === "pack") renderPack();
       backdrop.remove();
-      await autoAddDependencies(chosenVersion, new Set([projectId]));
+      await autoAddDependencies(chosenVersion, new Set([projectId]), projectType);
       await ensureFabricApi(chosenVersion.game_versions);
       savePack();
       if(state.tab === "pack") renderPack();
@@ -2411,7 +2439,7 @@ async function pickModpackVersion(versions){
         </div>
         <p style="margin:0 0 14px; font-size:0.85rem; color:var(--text-dim);">This modpack has releases for more than one Minecraft version. Choose which build to import into Create.</p>
         <div class="modal-versions">
-          ${options.slice(0,25).map((v,i)=>`
+          ${options.map((v,i)=>`
             <div class="version-row" data-idx="${i}">
               <span class="version-loaders">${loaderIconsHtml(v.loaders)}</span>
               <span class="vname">${escapeHtml(v.version_number)}</span>
