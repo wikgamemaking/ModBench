@@ -115,16 +115,18 @@
   }
   .confetti-piece{
     position: fixed;
-    width: 6px; height: 6px;
     border-radius: 1px;
     pointer-events: none;
     z-index: 9999;
     opacity: 1;
-    animation: confetti-burst 1.1s ease-out forwards;
+    animation-name: confetti-burst;
+    animation-timing-function: cubic-bezier(.15,.6,.4,1);
+    animation-fill-mode: forwards;
   }
   @keyframes confetti-burst{
     0%{ transform: translate(0, 0) rotate(0deg); opacity: 1; }
-    100%{ transform: translate(var(--dx), calc(var(--dy) + 90px)) rotate(var(--rot)); opacity: 0; }
+    70%{ opacity: 1; }
+    100%{ transform: translate(var(--dx), calc(var(--dy) + 140px)) rotate(var(--rot)); opacity: 0; }
   }
 
   main{
@@ -229,6 +231,7 @@
     .toolbar .search-box{ flex:1 1 100%; min-width:0; }
     select#sortSelect, select#modpackSortSelect{ flex:1 1 auto; width:auto; }
     .view-toggle{ flex:0 0 auto; }
+    #favSortBtn{ flex:1 1 100%; }
   }
 
   #results.grid, #favResults.grid, #modpackResults.grid{
@@ -527,6 +530,7 @@
   .page-btn{
     min-width:34px; height:34px; padding:0 8px; border-radius:7px; border:1px solid var(--border);
     background: var(--surface); color:var(--text); font-family:inherit; font-weight:700; font-size:0.88rem; cursor:pointer;
+    text-align:center;
     transition: border-color .15s, transform .1s;
   }
   .page-btn:hover:not(:disabled){ border-color: var(--accent); transform: translateY(-1px); }
@@ -534,6 +538,10 @@
   @keyframes page-pop{
     from{ transform: scale(.85); }
     to{ transform: scale(1); }
+  }
+  #favSortBtn{
+    display:flex; align-items:center; justify-content:center;
+    height:auto; min-height:34px; padding:8px 12px; line-height:1.25;
   }
   .page-btn:disabled{ opacity:0.4; cursor:not-allowed; }
   .page-ellipsis{ color: var(--text-dim); padding:0 2px; }
@@ -612,7 +620,7 @@
       <button class="active" data-tab="browse" role="tab" aria-selected="true">Browse</button>
       <button data-tab="pack" role="tab" aria-selected="false">Create <span class="pack-count" id="packCount">0</span></button>
       <button data-tab="modpacks" role="tab" aria-selected="false">Modpacks</button>
-      <button data-tab="favorites" role="tab" aria-selected="false">My Favorites</button>
+      <button data-tab="favorites" role="tab" aria-selected="false">Favorites</button>
       <button data-tab="export" role="tab" aria-selected="false">Export</button>
     </nav>
   </div>
@@ -1763,32 +1771,46 @@ function renderFavorites(){
   sortBtn.textContent = state.favSort === "alpha" ? "Group by category" : "Sort A→Z";
   sortBtn.classList.toggle("active", state.favSort === "alpha");
 
-  if(state.favSort === "alpha"){
-    filtered.sort((a,b)=>(a.title||"").localeCompare(b.title||""));
-  }else{
-    filtered.sort((a,b)=>{
-      const catA = (a.categories && a.categories[0]) || "zzz";
-      const catB = (b.categories && b.categories[0]) || "zzz";
-      return catA.localeCompare(catB) || (a.title||"").localeCompare(b.title||"");
-    });
-  }
-
   if(state.favorites.length === 0){
+    resultsEl.className = "grid";
     resultsEl.innerHTML = ""; emptyEl.style.display = "block";
     emptyEl.querySelector("p").innerHTML = 'No favorites yet. Tap the heart on any mod in <strong>Browse</strong> or <strong>Modpacks</strong> to save it here.';
     return;
   }
   if(filtered.length === 0){
+    resultsEl.className = "grid";
     resultsEl.innerHTML = ""; emptyEl.style.display = "block";
     emptyEl.querySelector("p").innerHTML = `No favorites match "${escapeHtml(state.favSearch)}".`;
     return;
   }
   emptyEl.style.display = "none";
-  resultsEl.className = "grid";
-  resultsEl.innerHTML = filtered.map(f=>cardHtml({
-    project_id: f.id, title: f.title, icon_url: f.icon_url, author: f.author,
-    description: f.description, categories: f.categories, downloads: f.downloads, follows: f.follows
-  })).join("");
+
+  if(state.favSort === "alpha"){
+    filtered.sort((a,b)=>(a.title||"").localeCompare(b.title||""));
+    resultsEl.className = "grid";
+    resultsEl.innerHTML = filtered.map(f=>cardHtml({
+      project_id: f.id, title: f.title, icon_url: f.icon_url, author: f.author,
+      description: f.description, categories: f.categories, downloads: f.downloads, follows: f.follows
+    })).join("");
+  }else{
+    const groups = {};
+    filtered.forEach(f=>{
+      const cat = (f.categories && f.categories[0]) ? f.categories[0] : "uncategorized";
+      if(!groups[cat]) groups[cat] = [];
+      groups[cat].push(f);
+    });
+    const orderedCats = Object.keys(groups).sort((a,b)=>a.localeCompare(b));
+    resultsEl.className = "";
+    resultsEl.innerHTML = orderedCats.map(cat=>`
+      <div class="pack-category-group">
+        <h4 class="pack-category-label">${escapeHtml(formatCategoryName(cat))}</h4>
+        <div class="grid">${groups[cat].map(f=>cardHtml({
+          project_id: f.id, title: f.title, icon_url: f.icon_url, author: f.author,
+          description: f.description, categories: f.categories, downloads: f.downloads, follows: f.follows
+        })).join("")}</div>
+      </div>
+    `).join("");
+  }
   wireCardEvents(resultsEl, id=>{
     const f = state.favorites.find(x=>x.id===id);
     return f ? {project_id:f.id, title:f.title, icon_url:f.icon_url, author:f.author, description:f.description, categories:f.categories, downloads:f.downloads, follows:f.follows} : null;
@@ -2087,29 +2109,33 @@ function normalizeEnvSupport(value){
   return valid.includes(value) ? value : "required";
 }
 
-const CONFETTI_COLORS = ["#2f6b4f", "#e3ede7", "#a3423a", "#ddd8cc", "#234f3a"];
+const CONFETTI_COLORS = ["#2f6b4f", "#e3ede7", "#a3423a", "#ddd8cc", "#234f3a", "#f0c85a"];
 function fireConfetti(anchorEl){
   const rect = anchorEl.getBoundingClientRect();
   const originX = rect.left + rect.width/2;
   const originY = rect.top;
-  const count = 16;
+  const count = 42;
   for(let i=0;i<count;i++){
     const piece = document.createElement("div");
     piece.className = "confetti-piece";
     const angle = (Math.random() * Math.PI) + Math.PI; // upward-ish spread
-    const distance = 40 + Math.random()*70;
+    const distance = 70 + Math.random()*160;
     const dx = Math.cos(angle) * distance;
-    const dy = Math.sin(angle) * distance - 30;
+    const dy = Math.sin(angle) * distance - 60;
+    const size = 6 + Math.random()*6;
+    piece.style.width = `${size}px`;
+    piece.style.height = `${size * (0.5 + Math.random()*0.6)}px`;
     piece.style.left = `${originX}px`;
     piece.style.top = `${originY}px`;
     piece.style.background = CONFETTI_COLORS[i % CONFETTI_COLORS.length];
     piece.style.setProperty("--dx", `${dx}px`);
     piece.style.setProperty("--dy", `${dy}px`);
-    piece.style.setProperty("--rot", `${(Math.random()*360)|0}deg`);
-    piece.style.animationDelay = `${Math.random()*80}ms`;
+    piece.style.setProperty("--rot", `${(Math.random()*720 - 360)|0}deg`);
+    piece.style.animationDuration = `${1.3 + Math.random()*0.5}s`;
+    piece.style.animationDelay = `${Math.random()*120}ms`;
     document.body.appendChild(piece);
     piece.addEventListener("animationend", ()=>piece.remove());
-    setTimeout(()=>piece.remove(), 1400);
+    setTimeout(()=>piece.remove(), 2200);
   }
 }
 
@@ -2166,7 +2192,7 @@ function renderExport(){
       </div>
       <div class="export-stat" style="animation-delay:40ms;" ${hasUnknown ? `title="${unknownSizeMods.length} mod${unknownSizeMods.length===1?'':'s'} missing file size data — actual download will be larger than shown"` : ""}>
         <div class="stat-num">${sizeDisplay}</div>
-        <div class="stat-label">Download size (client)${hasUnknown ? " est." : ""}</div>
+        <div class="stat-label">Download size${hasUnknown ? " est." : ""}</div>
       </div>
       <div class="export-stat" style="animation-delay:80ms;">
         <div class="stat-num">${state.pack.filter(m=>m.fromModpack).length}</div>
