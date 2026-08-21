@@ -1912,6 +1912,27 @@ async function addLoaderApiMod(apiId, hintGameVersions, requiredLoader){
   }catch(e){ console.error(`Failed to add loader API mod ${apiId}`, e); }
 }
 
+// A mod whose version supports both "fabric" and "quilt" only lists Quilt
+// because Quilt can run Fabric-loader mods via its compat layer - it doesn't
+// actually need Quilt-specific APIs. Auto-adding Quilted Fabric API (QSL) for
+// every such mod meant a normal Fabric pack kept getting QSL bolted on
+// alongside Fabric API for no reason. Only treat "quilt" as a real
+// requirement when the mod is Quilt-exclusive (no "fabric" in its loaders),
+// or when the pack is actually a Quilt pack already.
+function packLeansFabric(){
+  if(state.pack.some(p=>p.id === FABRIC_API_ID)) return true;
+  let fabricCount = 0, quiltOnlyCount = 0;
+  state.pack.forEach(m=>{
+    const v = (m.versions && m.selectedVersionId) ? m.versions.find(x=>x.id === m.selectedVersionId) : null;
+    const ls = v ? (v.loaders || []) : (m.fromModpackLoaders || []);
+    if(!ls.length) return;
+    if(ls.includes("fabric")) fabricCount++;
+    else if(ls.includes("quilt")) quiltOnlyCount++;
+  });
+  if(!fabricCount && !quiltOnlyCount) return false; // no signal either way, don't assume Fabric
+  return fabricCount >= quiltOnlyCount;
+}
+
 // Adds Fabric API and/or Quilted Fabric API (QFAPI)/Quilt Standard Libraries
 // (QSL) depending on which loader(s) are actually involved. `loadersInvolved`
 // should be the loaders of whatever specific mod/version/modpack prompted
@@ -1925,7 +1946,12 @@ async function ensureLoaderApis(hintGameVersions, loadersInvolved){
   if(!loaders || !loaders.length) return;
   const tasks = [];
   if(loaders.includes("fabric")) tasks.push(addLoaderApiMod(FABRIC_API_ID, hintGameVersions, "fabric"));
-  if(loaders.includes("quilt")) tasks.push(addLoaderApiMod(QUILT_API_ID, hintGameVersions, "quilt"));
+  if(loaders.includes("quilt")){
+    const modIsQuiltExclusive = !loaders.includes("fabric");
+    if(modIsQuiltExclusive || !packLeansFabric()){
+      tasks.push(addLoaderApiMod(QUILT_API_ID, hintGameVersions, "quilt"));
+    }
+  }
   await Promise.all(tasks);
 }
 
