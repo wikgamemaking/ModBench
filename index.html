@@ -1264,13 +1264,13 @@ async function fetchShortShareCode(id){
   return rows.length ? rows[0].data : null;
 }
 async function resolveShareCode(code){
-  if(code.startsWith("s-")){
+  if(code.startsWith("mb-")){
     if(!shareBackendConfigured()){
       const err = new Error("short codes not configured");
       err.userMessage = "Short codes aren't set up on this copy of ModBench.";
       throw err;
     }
-    const longCode = await fetchShortShareCode(code.slice(2));
+    const longCode = await fetchShortShareCode(code.slice(3));
     if(!longCode){
       const err = new Error("code not found");
       err.userMessage = "That code wasn't found — it may be mistyped, or no longer exists.";
@@ -3575,7 +3575,7 @@ function showShareModal(){
     if(shareBackendConfigured()){
       try{
         const shortId = await createShortShareCode(longCode);
-        code = `s-${shortId}`;
+        code = `mb-${shortId}`;
       }catch(e){
         console.error(e);
         const intro = backdrop.querySelector("#shareModalIntro");
@@ -3602,7 +3602,7 @@ async function importSharedPack(rawInput){
   }
   let data;
   try{
-    setImportStatus("loading", code.startsWith("s-") ? "Looking up short code…" : "Reading code…", "shareImport");
+    setImportStatus("loading", code.startsWith("mb-") ? "Looking up short code…" : "Reading code…", "shareImport");
     data = await resolveShareCode(code);
     if(!data || !Array.isArray(data.m)) throw new Error("bad shape");
   }catch(e){
@@ -4117,7 +4117,7 @@ document.getElementById("copyShareCodeBtn2").addEventListener("click", async (e)
     btn.innerHTML = "Creating code…";
     try{
       const shortId = await createShortShareCode(longCode);
-      code = `s-${shortId}`;
+      code = `mb-${shortId}`;
     }catch(err){
       console.error(err);
     }
