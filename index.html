@@ -568,7 +568,10 @@
   .export-panel{
     background: var(--surface); border:1px solid var(--border);
     border-radius: var(--radius); padding: 22px; max-width: 520px;
-    margin: 0 auto;
+    width: 100%; margin: 0 auto;
+  }
+  @media (min-width: 900px){
+    .export-panel{ max-width: 720px; }
   }
   #tab-export{ display:flex; justify-content:center; }
   .export-hero{ display:flex; align-items:center; gap:14px; }
@@ -1139,8 +1142,8 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
           </div>
           <div class="import-card-text">
-            <strong>Import a share link/code</strong>
-            <p style="margin:2px 0 0; color:var(--text-dim); font-size:0.82rem;">Paste a link or code someone shared from their ModBench pack. Its mods are resolved on Modrinth and added to <strong>Create</strong>.</p>
+            <strong>Import a share code</strong>
+            <p style="margin:2px 0 0; color:var(--text-dim); font-size:0.82rem;">Paste a code someone shared from their ModBench pack.</p>
           </div>
         </div>
         <div class="import-status" id="shareImportStatus" style="display:none;">
@@ -1148,7 +1151,7 @@
           <span id="shareImportStatusText"></span>
         </div>
         <div style="display:flex; gap:8px;">
-          <input type="text" id="shareImportInput" placeholder="Paste share link or code" style="flex:1; min-width:0;">
+          <input type="text" id="shareImportInput" placeholder="Paste share code" style="flex:1; min-width:0;">
           <button type="button" class="export-btn" id="shareImportBtn" style="width:auto; margin-top:0; padding:0 16px; white-space:nowrap;">Import</button>
         </div>
       </div>
@@ -1192,7 +1195,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px; height:16px;"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
         Copy pack code
       </button>
-      <p style="color:var(--text-dim); font-size:0.8rem; margin:6px 0 0;">Copies a short code with your mod list. Others paste it straight into <strong>Import a share link/code</strong> above to get the same mods. <button type="button" id="shareLinkBtn" style="background:none; border:none; padding:0; color:var(--accent-dark); text-decoration:underline; cursor:pointer; font:inherit;">Prefer a link?</button></p>
+      <p style="color:var(--text-dim); font-size:0.8rem; margin:6px 0 0;">Copies a short code with your mod list. Others paste it straight into <strong>Import a share code</strong> above to get the same mods. <button type="button" id="shareLinkBtn" style="background:none; border:none; padding:0; color:var(--accent-dark); text-decoration:underline; cursor:pointer; font:inherit;">Prefer a link?</button></p>
     </div>
   </section>
 
@@ -3550,7 +3553,7 @@ function showShareModal(){
   backdrop.innerHTML = `
     <div class="modal" style="max-width:480px;">
       <h3 style="margin:0 0 6px;">Share your pack</h3>
-      <p style="margin:0 0 16px; color:var(--text-dim); font-size:0.85rem;" id="shareModalIntro">Anyone who opens this link — or pastes the code into <strong>Import a share link/code</strong> — gets the same ${data.m.length} mod${data.m.length===1?'':'s'} added to their Create tab.</p>
+      <p style="margin:0 0 16px; color:var(--text-dim); font-size:0.85rem;" id="shareModalIntro">Anyone who opens this link, or pastes the code into <strong>Import a share code</strong>, gets the same ${data.m.length} mod${data.m.length===1?'':'s'} added to their Create tab.</p>
       <label style="display:block; font-weight:700; font-size:0.85rem; margin-bottom:6px;">Link</label>
       <div style="display:flex; gap:8px;">
         <input type="text" readonly id="shareLinkOutput" value="${shareBackendConfigured() ? "Generating…" : escapeHtml(shareLinkFromCode(longCode))}" style="flex:1; min-width:0; padding:10px 12px; border-radius:8px; border:1px solid var(--border); background:var(--surface-2); color:var(--text); font-family:inherit; font-size:0.8rem;">
@@ -3579,7 +3582,7 @@ function showShareModal(){
       }catch(e){
         console.error(e);
         const intro = backdrop.querySelector("#shareModalIntro");
-        if(intro) intro.insertAdjacentHTML("beforeend", " <em>(Couldn't reach the short-link service, so here's the full self-contained code instead — it still works the same way.)</em>");
+        if(intro) intro.insertAdjacentHTML("beforeend", " <em>(Couldn't reach the short-link service, so here's the full self-contained code instead, it still works the same way.)</em>");
       }
     }
     const link = shareLinkFromCode(code);
