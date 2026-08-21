@@ -255,6 +255,9 @@
   .pack-type-group:last-child{ margin-bottom:0; }
   .filter-group{ margin-bottom:18px; }
   .filter-group:last-child{ margin-bottom:0; }
+  .filter-sep{ border:none; border-top:1px solid var(--border); margin:0 0 18px; }
+  .cat-subheader{ border-top:1px solid var(--border); padding-top:10px; }
+  .cat-subheader:first-child{ border-top:none; padding-top:0; }
   .filter-group label{
     display:flex; align-items:center; gap:8px;
     font-size:0.92rem; padding:4px 8px; margin:0 -8px; border-radius:6px; cursor:pointer;
@@ -952,6 +955,7 @@
           <label><input type="checkbox" value="quilt" class="loaderCheck"> <img class="loader-icon" src="icons/quilt.png" alt="Quilt" loading="lazy"> Quilt</label>
           <label><input type="checkbox" value="neoforge" class="loaderCheck"> <img class="loader-icon" src="icons/neoforge.png" alt="NeoForge" loading="lazy"> NeoForge</label>
         </div>
+        <hr class="filter-sep">
         <div class="filter-group">
           <button type="button" class="cat-toggle" id="catToggleBrowse" aria-expanded="false">
             <h3 style="margin:0;">Category</h3>
@@ -967,7 +971,19 @@
             <label><input type="checkbox" value="library" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg> Library</label>
           </div>
         </div>
+        <hr class="filter-sep" id="envSepBrowse">
+        <div class="filter-group" id="envFilterGroup">
+          <button type="button" class="cat-toggle" id="catToggleEnv" aria-expanded="false">
+            <h3 style="margin:0;">Side</h3>
+            <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="cat-body" id="catBodyEnv" hidden>
+            <label><input type="checkbox" value="client" class="envCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> Client-side</label>
+            <label><input type="checkbox" value="server" class="envCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg> Server-side</label>
+          </div>
+        </div>
       </aside>
+
 
       <div>
         <div class="toolbar">
@@ -1038,6 +1054,7 @@
           <label><input type="checkbox" value="quilt" class="modpackLoaderCheck"> <img class="loader-icon" src="icons/quilt.png" alt="Quilt" loading="lazy"> Quilt</label>
           <label><input type="checkbox" value="neoforge" class="modpackLoaderCheck"> <img class="loader-icon" src="icons/neoforge.png" alt="NeoForge" loading="lazy"> NeoForge</label>
         </div>
+        <hr class="filter-sep">
         <div class="filter-group">
           <button type="button" class="cat-toggle" id="catToggleModpacks" aria-expanded="false">
             <h3 style="margin:0;">Category</h3>
@@ -1292,6 +1309,7 @@ let state = {
   sort: "relevance",
   mcVersion: "",
   loaders: [],
+  environments: [],
   categories: [],
   results: [],
   page: 1,
@@ -1448,6 +1466,8 @@ function scheduleSearch(){
 function buildFacets(){
   const facets = [];
   if(state.browseType === "mod" && state.loaders.length) facets.push(state.loaders.map(l=>`categories:${l}`));
+  if(state.browseType === "mod" && state.environments.includes("client")) facets.push(["client_side:required","client_side:optional"]);
+  if(state.browseType === "mod" && state.environments.includes("server")) facets.push(["server_side:required","server_side:optional"]);
   if(state.categories.length){
     const set = CATEGORY_SETS[state.browseType] || CATEGORY_SETS.mod;
     const headerOf = {};
@@ -1563,6 +1583,12 @@ document.querySelectorAll("#browseTypeToggle .type-btn").forEach(btn=>{
     state.browseType = btn.dataset.type;
     state.categories = [];
     document.getElementById("loaderFilterGroup").style.display = (state.browseType === "mod") ? "" : "none";
+    document.getElementById("envFilterGroup").style.display = (state.browseType === "mod") ? "" : "none";
+    document.getElementById("envSepBrowse").style.display = (state.browseType === "mod") ? "" : "none";
+    if(state.browseType !== "mod"){
+      state.environments = [];
+      document.querySelectorAll(".envCheck:checked").forEach(cb=>{ cb.checked = false; });
+    }
     const searchInput = document.getElementById("searchInput");
     searchInput.placeholder = BROWSE_TYPE_PLACEHOLDER[state.browseType] || BROWSE_TYPE_PLACEHOLDER.mod;
     renderBrowseCategoryOptions();
@@ -3936,6 +3962,13 @@ document.querySelectorAll(".loaderCheck").forEach(cb=>{
     runSearch();
   });
 });
+document.querySelectorAll(".envCheck").forEach(cb=>{
+  cb.addEventListener("change", ()=>{
+    state.environments = [...document.querySelectorAll(".envCheck:checked")].map(c=>c.value);
+    state.page = 1;
+    runSearch();
+  });
+});
 wireCategoryCheckboxes();
 document.getElementById("favSearchInput").addEventListener("input", (e)=>{
   state.favSearch = e.target.value;
@@ -3988,6 +4021,7 @@ function wireCatToggle(toggleId, bodyId){
 }
 wireCatToggle("catToggleBrowse", "catBodyBrowse");
 wireCatToggle("catToggleModpacks", "catBodyModpacks");
+wireCatToggle("catToggleEnv", "catBodyEnv");
 
 document.getElementById("removeAllBtn").addEventListener("click", async ()=>{
   if(state.pack.length === 0) return;
