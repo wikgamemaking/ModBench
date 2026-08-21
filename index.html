@@ -3100,7 +3100,13 @@ async function importModpackVersion(projectId, version, btn, fallbackMeta = {}){
       return r.arrayBuffer();
     });
     const zip = await JSZip.loadAsync(zipBuf);
-    const wasEmptyBefore = state.pack.length === 0;
+    // Deliberately does NOT call applyImportedPackIdentity here - this is
+    // the "pull mods from a modpack I found on Modrinth" flow, not "load my
+    // own .mrpack to keep editing". Adopting that modpack's name/icon would
+    // silently rebrand whatever the user is building as that modpack, and
+    // it'd stick around (it's persisted) even after they add/remove mods
+    // and make it their own. Export keeps the default ModBench identity
+    // unless the user sets one themselves, or actually uploads a .mrpack.
     const result = await importMrpackZipIntoPack(zip, {
       fromModpackId: projectId,
       loaders: version.loaders || [],
@@ -3108,7 +3114,6 @@ async function importModpackVersion(projectId, version, btn, fallbackMeta = {}){
       fallbackName: fallbackMeta.fallbackName,
       fallbackIcon: fallbackMeta.fallbackIcon
     });
-    applyImportedPackIdentity(result, wasEmptyBefore);
     if(state.tab === "pack") renderPack();
     if(state.tab === "export") renderExport();
     renderModpackResults();
