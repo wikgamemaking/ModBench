@@ -1133,6 +1133,26 @@
         <input type="file" id="mrpackFileInput" accept=".mrpack" style="display:none;">
       </div>
 
+      <div class="import-card">
+        <div class="import-card-top">
+          <div class="import-card-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+          </div>
+          <div class="import-card-text">
+            <strong>Import a share link/code</strong>
+            <p style="margin:2px 0 0; color:var(--text-dim); font-size:0.82rem;">Paste a link or code someone shared from their ModBench pack. Its mods are resolved on Modrinth and added to <strong>Create</strong>.</p>
+          </div>
+        </div>
+        <div class="import-status" id="shareImportStatus" style="display:none;">
+          <span class="import-status-icon" id="shareImportStatusIcon"></span>
+          <span id="shareImportStatusText"></span>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <input type="text" id="shareImportInput" placeholder="Paste share link or code" style="flex:1; min-width:0;">
+          <button type="button" class="export-btn" id="shareImportBtn" style="width:auto; margin-top:0; padding:0 16px; white-space:nowrap;">Import</button>
+        </div>
+      </div>
+
       <label for="packName">Pack name</label>
       <input type="text" id="packName" placeholder="My Modpack" value="My Modpack (via ModBench)">
 
@@ -1167,6 +1187,12 @@
 
       <button class="export-btn" id="exportBtn">Download .mrpack</button>
       <p class="export-note" id="exportNote">Add mods to your pack first, then choose a version and loader.</p>
+
+      <button type="button" class="modal-link-btn" id="copyShareCodeBtn2" style="width:100%; margin-top:10px; justify-content:center;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px; height:16px;"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        Copy pack code
+      </button>
+      <p style="color:var(--text-dim); font-size:0.8rem; margin:6px 0 0;">Copies a short code with your mod list. Others paste it straight into <strong>Import a share link/code</strong> above to get the same mods. <button type="button" id="shareLinkBtn" style="background:none; border:none; padding:0; color:var(--accent-dark); text-decoration:underline; cursor:pointer; font:inherit;">Prefer a link?</button></p>
     </div>
   </section>
 
@@ -1176,6 +1202,84 @@
 
 <script>
 const API = "https://api.modrinth.com/v2";
+
+// ---- Optional Supabase-backed short share codes ------------------------
+// Leave these blank and share codes/links just work as long self-contained
+// codes (no backend needed). Fill them in to get short codes like "s-aB3xQ2"
+// instead. Setup (once):
+//   1. Create a free project at https://supabase.com
+//   2. In its SQL editor, run:
+//        create table shared_packs (
+//          id text primary key,
+//          data text not null,
+//          created_at timestamptz not null default now()
+//        );
+//        alter table shared_packs enable row level security;
+//        create policy "anon can insert shared packs" on shared_packs
+//          for insert to anon with check (true);
+//        create policy "anon can read shared packs" on shared_packs
+//          for select to anon using (true);
+//   3. Project Settings -> API -> copy the "Project URL" and the "anon
+//      public" key (NOT service_role) into the two constants below.
+const SUPABASE_URL = "https://nwshmuzkphmozilcpdti.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im53c2htdXprcGhtb3ppbGNwZHRpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODczMzY2NTcsImV4cCI6MjEwMjkxMjY1N30.8nizLEGs7gckz3MSZvn9uznI_NqHD9fKJvMej-wyLiE";
+const SHARE_TABLE = "shared_packs";
+function shareBackendConfigured(){
+  return Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+}
+function generateShortCode(len = 7){
+  const chars = "23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"; // no 0/O/1/l/I
+  let out = "";
+  for(let i=0;i<len;i++) out += chars[Math.floor(Math.random()*chars.length)];
+  return out;
+}
+async function createShortShareCode(payload, attempts = 4){
+  for(let i=0;i<attempts;i++){
+    const id = generateShortCode();
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${SHARE_TABLE}`, {
+      method: "POST",
+      headers: {
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+        "Content-Type": "application/json",
+        "Prefer": "return=minimal"
+      },
+      body: JSON.stringify({ id, data: payload })
+    });
+    if(res.ok) return id;
+    if(res.status !== 409) throw new Error(`Supabase insert failed (${res.status})`);
+    // 409 = id collision, loop around and try a fresh random id
+  }
+  throw new Error("Couldn't generate a unique short code, try again.");
+}
+async function fetchShortShareCode(id){
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${SHARE_TABLE}?id=eq.${encodeURIComponent(id)}&select=data`, {
+    headers: {
+      "apikey": SUPABASE_ANON_KEY,
+      "Authorization": `Bearer ${SUPABASE_ANON_KEY}`
+    }
+  });
+  if(!res.ok) throw new Error(`Supabase lookup failed (${res.status})`);
+  const rows = await res.json();
+  return rows.length ? rows[0].data : null;
+}
+async function resolveShareCode(code){
+  if(code.startsWith("s-")){
+    if(!shareBackendConfigured()){
+      const err = new Error("short codes not configured");
+      err.userMessage = "Short codes aren't set up on this copy of ModBench.";
+      throw err;
+    }
+    const longCode = await fetchShortShareCode(code.slice(2));
+    if(!longCode){
+      const err = new Error("code not found");
+      err.userMessage = "That code wasn't found — it may be mistyped, or no longer exists.";
+      throw err;
+    }
+    return decodeShareCode(longCode);
+  }
+  return decodeShareCode(code);
+}
 
 let state = {
   tab: "browse",
@@ -2262,13 +2366,20 @@ function renderPack(){
   });
   listEl.querySelectorAll("[data-vselect]").forEach(sel=>{
     sel.addEventListener("click", (e)=> e.stopPropagation());
-    sel.addEventListener("change", ()=>{
+    sel.addEventListener("change", async ()=>{
       const mod = state.pack.find(m=>m.id === sel.dataset.vselect);
       const v = mod.versions.find(v=>v.id === sel.value);
       mod.selectedVersionId = v.id;
       mod.selectedVersionNumber = v.version_number;
       mod.selectedFile = v.files.find(f=>f.primary) || v.files[0];
       syncModpackSnapshot(mod, v);
+      savePack(); renderPack();
+      // Switching to a different version can pull in dependencies (or a
+      // loader library) that the previously-selected version didn't need -
+      // pick those up right away instead of only surfacing them as a
+      // "missing dependency" issue the next time someone runs a check.
+      await autoAddDependencies(v, new Set([mod.id]), mod.projectType);
+      await ensureLoaderApis(v.game_versions, v.loaders);
       savePack(); renderPack();
     });
   });
@@ -2362,14 +2473,39 @@ function modChipHtml(mod){
   return `<span class="compat-mod-chip${inPack ? " clickable" : ""}" ${inPack ? `data-jump-id="${escapeHtml(mod.id)}" role="button" tabindex="0" title="Jump to ${escapeHtml(mod.title)} in your pack"` : ""}>${mod.icon_url ? `<img src="${mod.icon_url}" alt="">` : ""}${escapeHtml(mod.title)}</span>`;
 }
 
+// Caches version_id -> project_id lookups so repeated compatibility scans
+// (the background one re-runs on every pack change) don't keep re-fetching
+// the same version just to find out which project it belongs to.
+const depVersionProjectCache = new Map();
 async function resolveDepProjectId(dep){
   if(dep.project_id) return dep.project_id;
   if(!dep.version_id) return null;
+  if(depVersionProjectCache.has(dep.version_id)) return depVersionProjectCache.get(dep.version_id);
   try{
     const vRes = await fetch(`${API}/version/${dep.version_id}`);
-    if(vRes.ok) return (await vRes.json()).project_id;
-  }catch(e){ }
-  return null;
+    const projectId = vRes.ok ? (await vRes.json()).project_id : null;
+    depVersionProjectCache.set(dep.version_id, projectId);
+    return projectId;
+  }catch(e){
+    // Don't cache network failures - a transient blip shouldn't permanently
+    // hide this dependency from future checks.
+    return null;
+  }
+}
+
+// Caches project lookups (used to show the name/icon of a dependency that
+// isn't in the pack yet) for the same reason as above.
+const depProjectInfoCache = new Map();
+async function getProjectInfoCached(projectId){
+  if(depProjectInfoCache.has(projectId)) return depProjectInfoCache.get(projectId);
+  try{
+    const res = await fetch(`${API}/project/${projectId}`);
+    const data = res.ok ? await res.json() : null;
+    depProjectInfoCache.set(projectId, data);
+    return data;
+  }catch(e){
+    return null;
+  }
 }
 
 // Finds the single value (loader or game version) supported by the most
@@ -2438,26 +2574,51 @@ async function runCompatibilityCheck(){
 
   const issues = [];
   const seenPairs = new Set();
+  const missingDeps = new Map(); // depProjectId -> mods that require it
 
   for(const {mod, version} of selected){
     for(const dep of (version.dependencies||[])){
-      if(dep.dependency_type !== "incompatible") continue;
-      const depProjectId = await resolveDepProjectId(dep);
-      if(!depProjectId) continue;
-      const other = selected.find(x=>x.mod.id === depProjectId);
-      if(other){
-        const pairKey = [mod.id, other.mod.id].sort().join("|");
-        if(seenPairs.has(pairKey)) continue;
-        seenPairs.add(pairKey);
-        issues.push({
-          type: "incompatible",
-          icon: COMPAT_ICON_X,
-          title: "Marked incompatible with each other",
-          detail: `The mod authors have explicitly flagged these two as incompatible when used together. Remove one, or check if either has an alternative version that drops the conflict.`,
-          mods: [mod, other.mod]
-        });
+      if(dep.dependency_type === "incompatible"){
+        const depProjectId = await resolveDepProjectId(dep);
+        if(!depProjectId) continue;
+        const other = selected.find(x=>x.mod.id === depProjectId);
+        if(other){
+          const pairKey = [mod.id, other.mod.id].sort().join("|");
+          if(seenPairs.has(pairKey)) continue;
+          seenPairs.add(pairKey);
+          issues.push({
+            type: "incompatible",
+            icon: COMPAT_ICON_X,
+            title: "Marked incompatible with each other",
+            detail: `The mod authors have explicitly flagged these two as incompatible when used together. Remove one, or check if either has an alternative version that drops the conflict.`,
+            mods: [mod, other.mod]
+          });
+        }
+        continue;
+      }
+      if(dep.dependency_type === "required"){
+        const depProjectId = await resolveDepProjectId(dep);
+        if(!depProjectId) continue;
+        // Already in the pack (regardless of whether it has a version
+        // selected yet - that's a separate "skipped" case) - not missing.
+        if(state.pack.some(p=>p.id === depProjectId)) continue;
+        if(!missingDeps.has(depProjectId)) missingDeps.set(depProjectId, []);
+        missingDeps.get(depProjectId).push(mod);
       }
     }
+  }
+
+  for(const [depProjectId, requiredBy] of missingDeps){
+    const info = await getProjectInfoCached(depProjectId);
+    const depTitle = info ? info.title : "an unknown mod";
+    issues.push({
+      type: "missing-dependency",
+      icon: COMPAT_ICON_X,
+      title: `Missing required dependency: ${depTitle}`,
+      detail: `${requiredBy.map(m=>boldEsc(m.title)).join(", ")} require${requiredBy.length===1?"s":""} this to work, but it isn't in your pack. Add it, or AutoSolve can add it for you.`,
+      mods: [...requiredBy, ...(info ? [{id: depProjectId, title: info.title, icon_url: info.icon_url}] : [])],
+      missingDepProjectId: depProjectId
+    });
   }
 
   if(selected.length > 1){
@@ -2541,65 +2702,177 @@ function getCompatTargets(selected){
   return { loader: loaderPick ? loaderPick.loader : null, mcVersion: gvBest ? gvBest.value : null };
 }
 
-// Auto-resolves "no shared loader" / "no shared Minecraft version" issues by
-// swapping each offending mod to the newest version of itself (per the API)
-// that matches the pack's target loader and MC version. Explicit
-// author-flagged "incompatible with each other" issues can't be fixed this
-// way (there's no version that removes that flag), so those are left as-is.
-function autoFixCompatibility(){
+// Fetches and adds a missing required dependency to the pack, picking the
+// version that best matches the pack's target loader/MC version (falling
+// back to pickBestVersion's own heuristic if neither target is known).
+// Returns true on success so the caller can tally what AutoSolve managed.
+async function autoAddMissingDependency(depProjectId, targetLoader, targetMc){
+  if(state.pack.some(p=>p.id === depProjectId)) return true; // added by an earlier iteration this run
+  try{
+    const proj = await getProjectInfoCached(depProjectId);
+    if(!proj) return false;
+    const versions = await fetchVersions(depProjectId);
+    if(!versions.length) return false;
+
+    const runnableLoaders = targetLoader ? (LOADER_RUNS_ON[targetLoader] || [targetLoader]) : null;
+    const matching = sortByGameVersionRecency(versions).filter(v=>{
+      const loaderOk = !runnableLoaders || (v.loaders||[]).some(l=>runnableLoaders.includes(l));
+      const mcOk = !targetMc || (v.game_versions||[]).includes(targetMc);
+      return loaderOk && mcOk;
+    });
+    const best = matching[0] || pickBestVersion(versions);
+    if(!best || !best.files || !best.files.length) return false;
+
+    state.pack.push({
+      id: depProjectId,
+      title: proj.title,
+      icon_url: proj.icon_url,
+      author: proj.team || "",
+      categories: proj.categories || [],
+      projectType: proj.project_type || "mod",
+      clientSide: proj.client_side || "required",
+      serverSide: proj.server_side || "required",
+      isDependency: true,
+      selectedVersionId: best.id,
+      selectedVersionNumber: best.version_number,
+      selectedFile: best.files.find(f=>f.primary) || best.files[0],
+      versions
+    });
+    // This dependency might itself need dependencies (or a loader library,
+    // e.g. Fabric API) - chase those down too instead of adding an item
+    // that's still missing something to actually work.
+    await autoAddDependencies(best, new Set([depProjectId]), proj.project_type || "mod");
+    await ensureLoaderApis(best.game_versions, best.loaders);
+    return true;
+  }catch(e){
+    console.error("AutoSolve: failed to add missing dependency", depProjectId, e);
+    return false;
+  }
+}
+
+// Auto-resolves compatibility issues:
+//  - "no shared loader" / "no shared Minecraft version": swaps each
+//    offending mod to the newest version of itself (per the API) that
+//    matches the pack's target loader and MC version.
+//  - "missing required dependency": fetches the dependency from Modrinth
+//    and adds it to the pack directly.
+// Explicit author-flagged "incompatible with each other" issues can't be
+// fixed this way (there's no version that removes that flag), so those are
+// left as-is.
+//
+// `missingDepIds` (optional) is the list of dependency project ids the
+// compatibility check already found missing, so this doesn't need to
+// re-derive them from scratch.
+async function autoFixCompatibility(missingDepIds){
   const selected = state.pack
     .filter(m=>m.selectedVersionId && Array.isArray(m.versions))
     .map(m=>({ mod: m, version: m.versions.find(v=>v.id === m.selectedVersionId) }))
     .filter(x=>x.version);
 
-  if(selected.length < 2) return { fixedCount: 0, unresolved: [] };
-
-  const { loader: targetLoader, mcVersion: targetMc } = getCompatTargets(selected);
-  // Nothing to target at all - none of the selected mods' versions report a
-  // loader or a Minecraft version, so there's no majority to fix toward.
-  // Report this back explicitly instead of silently doing nothing (which
-  // left the modal looking like the fix button just doesn't work).
-  if(!targetLoader && !targetMc) return { fixedCount: 0, unresolved: selected.map(x=>x.mod), noTarget: true };
+  const { loader: targetLoader, mcVersion: targetMc } = selected.length
+    ? getCompatTargets(selected)
+    : { loader: null, mcVersion: null };
 
   let fixedCount = 0;
   const unresolved = [];
+  const swappedVersions = []; // {mod, version} for newly-swapped mods, so we can pull in their dependencies below
+  // Nothing to target at all - none of the selected mods' versions report a
+  // loader or a Minecraft version, so there's no majority to fix toward.
+  // Only relevant when there's actually a loader/version mismatch to fix;
+  // missing dependencies can still be added below regardless.
+  const noTarget = selected.length >= 2 && !targetLoader && !targetMc;
 
-  selected.forEach(x=>{
-    const { mod } = x;
-    const okLoader = !targetLoader || isLoaderAgnostic(x) || modRunsOnLoader(x, targetLoader);
-    const okVersion = !targetMc || effectiveGameVersions(x).includes(targetMc);
-    if(okLoader && okVersion) return; // already fine, leave it alone
+  if(selected.length >= 2 && !noTarget){
+    for(const x of selected){
+      const { mod } = x;
+      const okLoader = !targetLoader || isLoaderAgnostic(x) || modRunsOnLoader(x, targetLoader);
+      const okVersion = !targetMc || effectiveGameVersions(x).includes(targetMc);
+      if(okLoader && okVersion) continue; // already fine, leave it alone
 
-    const runnableLoaders = targetLoader ? (LOADER_RUNS_ON[targetLoader] || [targetLoader]) : null;
-    const candidates = sortByGameVersionRecency(mod.versions).filter(v=>{
-      const loaderOk = !runnableLoaders || (v.loaders||[]).some(l=>runnableLoaders.includes(l));
-      const mcOk = !targetMc || (v.game_versions||[]).includes(targetMc);
-      return loaderOk && mcOk;
-    });
+      const runnableLoaders = targetLoader ? (LOADER_RUNS_ON[targetLoader] || [targetLoader]) : null;
+      const candidates = sortByGameVersionRecency(mod.versions).filter(v=>{
+        const loaderOk = !runnableLoaders || (v.loaders||[]).some(l=>runnableLoaders.includes(l));
+        const mcOk = !targetMc || (v.game_versions||[]).includes(targetMc);
+        return loaderOk && mcOk;
+      });
 
-    const best = candidates[0];
-    if(best){
-      mod.selectedVersionId = best.id;
-      mod.selectedVersionNumber = best.version_number;
-      mod.selectedFile = best.files.find(f=>f.primary) || best.files[0];
-      syncModpackSnapshot(mod, best);
-      fixedCount++;
-    }else{
-      unresolved.push(mod);
+      const best = candidates[0];
+      if(best && best.files && best.files.length){
+        mod.selectedVersionId = best.id;
+        mod.selectedVersionNumber = best.version_number;
+        mod.selectedFile = best.files.find(f=>f.primary) || best.files[0];
+        syncModpackSnapshot(mod, best);
+        fixedCount++;
+        swappedVersions.push({ mod, version: best });
+      }else{
+        unresolved.push(mod);
+      }
     }
-  });
+  }
 
-  if(fixedCount){ savePack(); renderPack(); }
-  return { fixedCount, unresolved };
+  // A version swap can introduce dependencies (or a loader library) the
+  // mod's previous version didn't need - pick those up too instead of
+  // leaving them for a follow-up check.
+  for(const { mod, version } of swappedVersions){
+    await autoAddDependencies(version, new Set([mod.id]), mod.projectType);
+    await ensureLoaderApis(version.game_versions, version.loaders);
+  }
+
+  let depsAdded = 0;
+  const depsUnresolved = [];
+  for(const depProjectId of (missingDepIds || [])){
+    const ok = await autoAddMissingDependency(depProjectId, targetLoader, targetMc);
+    if(ok) depsAdded++; else depsUnresolved.push(depProjectId);
+  }
+
+  if(fixedCount || depsAdded){ savePack(); renderPack(); }
+  return { fixedCount, unresolved, depsAdded, depsUnresolved, noTarget };
+}
+
+// Renders a minimal error modal when the check itself couldn't run (e.g.
+// Modrinth unreachable), instead of leaving the user staring at a stuck
+// button or nothing at all.
+function showCompatCheckError(){
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  backdrop.style.alignItems = "center";
+  backdrop.innerHTML = `
+    <div class="modal" style="max-width:420px;">
+      <div class="modal-head" style="margin-bottom:14px;">
+        <div class="name" style="font-size:1.1rem;">Compatibility check</div>
+        <button class="modal-close" aria-label="Close">✕</button>
+      </div>
+      <div class="compat-summary bad">
+        <span class="icon">${COMPAT_ICON_WARN}</span>
+        <div>
+          <div class="headline">Couldn't run the compatibility check</div>
+          <div class="subline">Modrinth may be unreachable right now. Check your connection and try again.</div>
+        </div>
+      </div>
+      <button class="page-btn" data-choice="close" style="margin-top:18px; width:100%; padding:9px 16px;">Close</button>
+    </div>`;
+  backdrop.addEventListener("click", (e)=>{ if(e.target === backdrop) backdrop.remove(); });
+  backdrop.querySelector(".modal-close").addEventListener("click", ()=>backdrop.remove());
+  backdrop.querySelector('[data-choice="close"]').addEventListener("click", ()=>backdrop.remove());
+  document.body.appendChild(backdrop);
 }
 
 async function showCompatibilityResults(fixNote){
-  const { issues, skipped, checked } = await runCompatibilityCheck();
+  let checkResult;
+  try{
+    checkResult = await runCompatibilityCheck();
+  }catch(e){
+    console.error("Compatibility check failed", e);
+    showCompatCheckError();
+    return;
+  }
+  const { issues, skipped, checked } = checkResult;
   const backdrop = document.createElement("div");
   backdrop.className = "modal-backdrop";
   backdrop.style.alignItems = "center";
 
-  const fixableIssues = issues.some(i=>i.type === "loader" || i.type === "version");
+  const fixableIssues = issues.some(i=>i.type === "loader" || i.type === "version" || i.type === "missing-dependency");
+  const missingDepIds = issues.filter(i=>i.type === "missing-dependency").map(i=>i.missingDepProjectId);
 
   const summaryHtml = issues.length
     ? `<div class="compat-summary bad">
@@ -2657,41 +2930,77 @@ async function showCompatibilityResults(fixNote){
     fixBtn.addEventListener("click", async ()=>{
       fixBtn.disabled = true;
       fixBtn.textContent = "Fixing…";
-      const { fixedCount, unresolved, noTarget } = autoFixCompatibility();
-      backdrop.remove();
       let note;
-      if(noTarget){
+      try{
+        const { fixedCount, unresolved, depsAdded, depsUnresolved, noTarget } = await autoFixCompatibility(missingDepIds);
+        const versionIssueCount = fixedCount + unresolved.length;
+        const depParts = [];
+        if(depsAdded) depParts.push(`added ${depsAdded} missing dependenc${depsAdded===1?"y":"ies"}`);
+        const depFailNote = depsUnresolved.length
+          ? ` Couldn't fetch ${depsUnresolved.length===1 ? "one dependency" : `${depsUnresolved.length} dependencies`} from Modrinth - try again in a moment.`
+          : "";
+
+        if(noTarget && versionIssueCount){
+          note = {
+            ok: depsAdded > 0 && !depsUnresolved.length,
+            headline: depsAdded ? `Added ${depsAdded} dependenc${depsAdded===1?"y":"ies"}, but couldn't fix versions` : `AutoSolve couldn't fix incompatibilities`,
+            sublineHtml: `None of the selected mods' versions report a loader or Minecraft version to target, so there's nothing to match toward. Open each mod below and pick a version that lists a loader and Minecraft version.${depFailNote}`
+          };
+        }else if(fixedCount && !unresolved.length && !depsUnresolved.length){
+          note = {
+            ok: true,
+            headline: depsAdded ? `Fixed ${fixedCount} mod${fixedCount===1?"":"s"} and ${depParts[0]}` : `Fixed ${fixedCount} mod${fixedCount===1?"":"s"}`,
+            sublineHtml: `Switched to versions matching your pack's loader/Minecraft version.`
+          };
+        }else if(!versionIssueCount && depsAdded && !depsUnresolved.length){
+          note = {
+            ok: true,
+            headline: `Added ${depsAdded} missing dependenc${depsAdded===1?"y":"ies"}`,
+            sublineHtml: `Fetched from Modrinth and added to your pack.`
+          };
+        }else if((fixedCount || depsAdded) && (unresolved.length || depsUnresolved.length)){
+          const bits = [];
+          if(fixedCount || unresolved.length) bits.push(`${fixedCount} of ${versionIssueCount} version mismatch${versionIssueCount===1?"":"es"}`);
+          if(depsAdded || depsUnresolved.length) bits.push(`${depsAdded} of ${depsAdded + depsUnresolved.length} missing dependenc${(depsAdded+depsUnresolved.length)===1?"y":"ies"}`);
+          note = {
+            ok: false,
+            headline: `Partially fixed: ${bits.join(", ")}`,
+            sublineHtml: `${unresolved.length ? `ModBench couldn't fix ${unresolved.map(m=>`<strong>${escapeHtml(m.title)}</strong>`).join(", ")} — none of their available versions match your pack's target loader/Minecraft version. ` : ""}${depFailNote} Take a look at the details below.`
+          };
+        }else if(unresolved.length){
+          note = {
+            ok: false,
+            headline: `AutoSolve couldn't fix incompatibilities`,
+            sublineHtml: `None of the available versions of ${unresolved.map(m=>`<strong>${escapeHtml(m.title)}</strong>`).join(", ")} match your pack's target loader/Minecraft version. Update ${unresolved.length===1?"it":"them"} manually below, or adjust your target on the Export tab.`
+          };
+        }else if(depsUnresolved.length){
+          note = {
+            ok: false,
+            headline: `AutoSolve couldn't add the missing dependenc${depsUnresolved.length===1?"y":"ies"}`,
+            sublineHtml: `Modrinth didn't return a usable version for ${depsUnresolved.length===1?"it":"them"}. Try again, or add ${depsUnresolved.length===1?"it":"them"} manually from Browse.`
+          };
+        }else{
+          note = {
+            ok: false,
+            headline: `AutoSolve couldn't fix incompatibilities`,
+            sublineHtml: `No version change would resolve the remaining issue automatically. Take a look at the details below and adjust versions manually.`
+          };
+        }
+      }catch(e){
+        console.error("AutoSolve failed", e);
         note = {
           ok: false,
-          headline: `AutoSolve couldn't fix incompatibilities.`,
-          sublineHtml: `None of the selected mods' versions report a loader or Minecraft version to target, so there's nothing to match toward. Open each mod below and pick a version that lists a loader and Minecraft version.`
-        };
-      }else if(fixedCount && !unresolved.length){
-        note = {
-          ok: true,
-          headline: `Fixed ${fixedCount} mod${fixedCount===1?"":"s"}`,
-          sublineHtml: `Switched to versions matching your pack's loader/Minecraft version.`
-        };
-      }else if(fixedCount && unresolved.length){
-        note = {
-          ok: false,
-          headline: `Fixed ${fixedCount} of ${fixedCount + unresolved.length} mod${(fixedCount+unresolved.length)===1?"":"s"}`,
-          sublineHtml: `ModBench couldn't fix ${unresolved.map(m=>`<strong>${escapeHtml(m.title)}</strong>`).join(", ")} — none of their available versions match your pack's target loader/Minecraft version. Update ${unresolved.length===1?"it":"them"} manually below.`
-        };
-      }else if(unresolved.length){
-        note = {
-          ok: false,
-          headline: `AutoSolve couldn't fix incompatibilities`,
-          sublineHtml: `None of the available versions of ${unresolved.map(m=>`<strong>${escapeHtml(m.title)}</strong>`).join(", ")} match your pack's target loader/Minecraft version. Update ${unresolved.length===1?"it":"them"} manually below, or adjust your target on the Export tab.`
-        };
-      }else{
-        note = {
-          ok: false,
-          headline: `AutoSolve couldn't fix incompatibilities`,
-          sublineHtml: `No version change would resolve the remaining issue automatically. Take a look at the details below and adjust versions manually.`
+          headline: `AutoSolve hit a problem`,
+          sublineHtml: `Something went wrong talking to Modrinth. Check your connection and try again, or fix things manually below.`
         };
       }
-      await showCompatibilityResults(note);
+      backdrop.remove();
+      try{
+        await showCompatibilityResults(note);
+      }catch(e){
+        console.error("Failed to refresh compatibility results after AutoSolve", e);
+        showCompatCheckError();
+      }
     });
   }
   backdrop.querySelectorAll(".compat-mod-chip[data-jump-id]").forEach(chip=>{
@@ -3109,10 +3418,10 @@ const IMPORT_STATUS_ICON_CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="c
 const IMPORT_STATUS_ICON_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
 const IMPORT_STATUS_ICON_LOADING = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" stroke-dasharray="42" stroke-dashoffset="14"/></svg>';
 
-function setImportStatus(kind, text){
-  const statusEl = document.getElementById("mrpackImportStatus");
-  const iconEl = document.getElementById("mrpackImportStatusIcon");
-  const textEl = document.getElementById("mrpackImportStatusText");
+function setImportStatus(kind, text, prefix = "mrpack"){
+  const statusEl = document.getElementById(`${prefix}ImportStatus`);
+  const iconEl = document.getElementById(`${prefix}ImportStatusIcon`);
+  const textEl = document.getElementById(`${prefix}ImportStatusText`);
   statusEl.style.display = "flex";
   statusEl.classList.remove("success", "error");
   if(kind === "success") statusEl.classList.add("success");
@@ -3148,6 +3457,232 @@ async function importMrpackFile(file){
   }catch(e){
     console.error(e);
     setImportStatus("error", "Couldn't read that file. Make sure it's a valid .mrpack.");
+  }
+}
+
+// ---- Share link/code: encode the current pack into a short code (and a
+// full link built around it) so someone else can paste it back in and get
+// the same mods resolved fresh from Modrinth. The icon is deliberately left
+// out to keep the code short — it stays a .mrpack-only thing.
+//
+// Encoding is a compact "~"-delimited string (not JSON) to avoid quote/brace/
+// bracket overhead, and stores only version IDs (not project IDs too) since
+// Modrinth's /versions lookup already returns each version's project_id —
+// that alone roughly halves the length versus storing both per mod.
+function buildShareData(){
+  const versionIds = state.pack.filter(m=>m.selectedVersionId).map(m=>m.selectedVersionId);
+  return {
+    n: (document.getElementById("packName").value || "").trim(),
+    mc: document.getElementById("expMcVersion").value || "",
+    l: document.getElementById("expLoader").value || "",
+    m: versionIds
+  };
+}
+function encodeShareData(data){
+  const raw = [
+    "1",
+    encodeURIComponent(data.mc || ""),
+    encodeURIComponent(data.l || ""),
+    encodeURIComponent(data.n || ""),
+    data.m.join(",")
+  ].join("~");
+  const b64 = btoa(unescape(encodeURIComponent(raw)));
+  return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function decodeShareCode(code){
+  let b64 = code.trim().replace(/-/g, "+").replace(/_/g, "/");
+  while(b64.length % 4) b64 += "=";
+  const raw = decodeURIComponent(escape(atob(b64)));
+  const parts = raw.split("~");
+  if(parts.length < 5) throw new Error("bad share code shape");
+  const [, mc, l, n, mods] = parts;
+  return {
+    n: decodeURIComponent(n || ""),
+    mc: decodeURIComponent(mc || ""),
+    l: decodeURIComponent(l || ""),
+    m: mods ? mods.split(",").filter(Boolean) : []
+  };
+}
+function extractShareCode(raw){
+  const trimmed = (raw || "").trim();
+  const match = trimmed.match(/[?&#]import=([^&\s]+)/);
+  return match ? decodeURIComponent(match[1]) : trimmed;
+}
+function copyTextToClipboard(text, btn){
+  const done = ()=>{
+    if(!btn) return;
+    const original = btn.dataset.originalHtml !== undefined ? btn.dataset.originalHtml : btn.innerHTML;
+    btn.dataset.originalHtml = original;
+    btn.innerHTML = "Copied ✓";
+    clearTimeout(btn._copyResetTimer);
+    btn._copyResetTimer = setTimeout(()=>{ btn.innerHTML = original; }, 1400);
+  };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(done).catch(()=>fallbackCopyText(text, done));
+  } else {
+    fallbackCopyText(text, done);
+  }
+}
+function fallbackCopyText(text, done){
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.style.position = "fixed";
+  ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  try{ document.execCommand("copy"); }catch(e){}
+  document.body.removeChild(ta);
+  done();
+}
+function shareLinkFromCode(code){
+  return `${location.origin}${location.pathname}#import=${code}`;
+}
+function showShareModal(){
+  const data = buildShareData();
+  if(data.m.length === 0){
+    alert("Add mods to your pack first, then generate a share link.");
+    return;
+  }
+  const longCode = encodeShareData(data);
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  backdrop.innerHTML = `
+    <div class="modal" style="max-width:480px;">
+      <h3 style="margin:0 0 6px;">Share your pack</h3>
+      <p style="margin:0 0 16px; color:var(--text-dim); font-size:0.85rem;" id="shareModalIntro">Anyone who opens this link — or pastes the code into <strong>Import a share link/code</strong> — gets the same ${data.m.length} mod${data.m.length===1?'':'s'} added to their Create tab.</p>
+      <label style="display:block; font-weight:700; font-size:0.85rem; margin-bottom:6px;">Link</label>
+      <div style="display:flex; gap:8px;">
+        <input type="text" readonly id="shareLinkOutput" value="${shareBackendConfigured() ? "Generating…" : escapeHtml(shareLinkFromCode(longCode))}" style="flex:1; min-width:0; padding:10px 12px; border-radius:8px; border:1px solid var(--border); background:var(--surface-2); color:var(--text); font-family:inherit; font-size:0.8rem;">
+        <button type="button" class="export-btn" id="copyShareLinkBtn" style="width:auto; margin-top:0; padding:0 14px; white-space:nowrap;">Copy</button>
+      </div>
+      <label style="display:block; font-weight:700; font-size:0.85rem; margin:16px 0 6px;">Code only</label>
+      <div style="display:flex; gap:8px;">
+        <input type="text" readonly id="shareCodeOutput" value="${shareBackendConfigured() ? "Generating…" : escapeHtml(longCode)}" style="flex:1; min-width:0; padding:10px 12px; border-radius:8px; border:1px solid var(--border); background:var(--surface-2); color:var(--text); font-family:inherit; font-size:0.8rem;">
+        <button type="button" class="export-btn" id="copyShareCodeBtn" style="width:auto; margin-top:0; padding:0 14px; white-space:nowrap;">Copy</button>
+      </div>
+      <div class="modal-actions" style="justify-content:flex-end;">
+        <button class="page-btn" id="shareModalCloseBtn">Close</button>
+      </div>
+    </div>`;
+  function close(){ backdrop.remove(); }
+  backdrop.addEventListener("click", (e)=>{ if(e.target === backdrop) close(); });
+  backdrop.querySelector("#shareModalCloseBtn").addEventListener("click", close);
+  document.body.appendChild(backdrop);
+
+  (async ()=>{
+    let code = longCode;
+    if(shareBackendConfigured()){
+      try{
+        const shortId = await createShortShareCode(longCode);
+        code = `s-${shortId}`;
+      }catch(e){
+        console.error(e);
+        const intro = backdrop.querySelector("#shareModalIntro");
+        if(intro) intro.insertAdjacentHTML("beforeend", " <em>(Couldn't reach the short-link service, so here's the full self-contained code instead — it still works the same way.)</em>");
+      }
+    }
+    const link = shareLinkFromCode(code);
+    const linkInput = backdrop.querySelector("#shareLinkOutput");
+    const codeInput = backdrop.querySelector("#shareCodeOutput");
+    if(linkInput) linkInput.value = link;
+    if(codeInput) codeInput.value = code;
+    const copyLinkBtn = backdrop.querySelector("#copyShareLinkBtn");
+    const copyCodeBtn = backdrop.querySelector("#copyShareCodeBtn");
+    if(copyLinkBtn) copyLinkBtn.addEventListener("click", (e)=>copyTextToClipboard(link, e.currentTarget));
+    if(copyCodeBtn) copyCodeBtn.addEventListener("click", (e)=>copyTextToClipboard(code, e.currentTarget));
+  })();
+}
+
+async function importSharedPack(rawInput){
+  const code = extractShareCode(rawInput);
+  if(!code){
+    setImportStatus("error", "Paste a share link or code first.", "shareImport");
+    return;
+  }
+  let data;
+  try{
+    setImportStatus("loading", code.startsWith("s-") ? "Looking up short code…" : "Reading code…", "shareImport");
+    data = await resolveShareCode(code);
+    if(!data || !Array.isArray(data.m)) throw new Error("bad shape");
+  }catch(e){
+    console.error(e);
+    setImportStatus("error", e && e.userMessage ? e.userMessage : "That link/code looks invalid or corrupted.", "shareImport");
+    return;
+  }
+  if(data.m.length === 0){
+    setImportStatus("error", "That share code doesn't contain any mods.", "shareImport");
+    return;
+  }
+  setImportStatus("loading", "Resolving mods on Modrinth…", "shareImport");
+  try{
+    const versionIds = [...new Set(data.m.filter(Boolean))];
+    const versionsRes = await fetch(`${API}/versions?ids=${encodeURIComponent(JSON.stringify(versionIds))}`);
+    if(!versionsRes.ok) throw new Error("versions fetch failed");
+    const versions = await versionsRes.json();
+    if(!versions.length) throw new Error("no versions resolved");
+    const projectIds = [...new Set(versions.map(v=>v.project_id))];
+    const projectsRes = await fetch(`${API}/projects?ids=${encodeURIComponent(JSON.stringify(projectIds))}`);
+    const projects = projectsRes.ok ? await projectsRes.json() : [];
+    const projectById = Object.fromEntries(projects.map(p=>[p.id, p]));
+
+    const wasEmptyBefore = state.pack.length === 0;
+    let added = 0;
+    versions.forEach(v=>{
+      if(state.pack.some(p=>p.id === v.project_id)) return;
+      const proj = projectById[v.project_id];
+      state.pack.push({
+        id: v.project_id,
+        title: proj ? proj.title : v.name,
+        icon_url: proj ? proj.icon_url : "",
+        author: "",
+        categories: proj ? proj.categories : [],
+        projectType: (proj && proj.project_type) || "mod",
+        clientSide: (proj && proj.client_side) || "required",
+        serverSide: (proj && proj.server_side) || "required",
+        fromModpack: "shared-code",
+        fromModpackLoaders: data.l ? [data.l] : [],
+        fromModpackGameVersions: data.mc ? [data.mc] : [],
+        selectedVersionId: v.id,
+        selectedVersionNumber: v.version_number,
+        selectedFile: v.files.find(f=>f.primary) || v.files[0],
+        versions: [v]
+      });
+      added++;
+    });
+
+    const depVisited = new Set(versions.map(v=>v.project_id));
+    for(const v of versions){
+      const proj = projectById[v.project_id];
+      await autoAddDependencies(v, depVisited, (proj && proj.project_type) || "mod");
+    }
+    await ensureLoaderApis(data.mc ? [data.mc] : [], data.l ? [data.l] : []);
+    savePack();
+    versions.forEach(v=>updateCardButtonsEverywhere(v.project_id));
+
+    const nameInput = document.getElementById("packName");
+    const DEFAULT_NAME = "My Modpack (via ModBench)";
+    const shouldApplyName = wasEmptyBefore || !nameInput.value.trim() || nameInput.value.trim() === DEFAULT_NAME || nameInput.value.trim() === "My Modpack";
+    if(data.n && shouldApplyName) nameInput.value = data.n;
+
+    if(state.tab === "pack") renderPack();
+    if(state.tab === "export") renderExport();
+
+    const totalRequested = data.m.length;
+    const totalResolved = versions.length;
+    if(added === 0){
+      setImportStatus("success", `All ${totalResolved} mod${totalResolved===1?'':'s'} from that pack are already in Create.`, "shareImport");
+    } else {
+      const skipped = totalResolved - added;
+      const missing = totalRequested - totalResolved;
+      let msg = `Added ${added} of ${totalResolved} mod${totalResolved===1?'':'s'} to Create.`;
+      if(skipped) msg += ` (${skipped} already there.)`;
+      if(missing) msg += ` ${missing} mod${missing===1?'':'s'} from the code couldn't be found on Modrinth (maybe removed).`;
+      setImportStatus("success", msg, "shareImport");
+    }
+  }catch(e){
+    console.error(e);
+    setImportStatus("error", "Couldn't resolve that pack. Modrinth may be unreachable, or the code is invalid.", "shareImport");
   }
 }
 
@@ -3461,6 +3996,11 @@ document.getElementById("removeAllBtn").addEventListener("click", async ()=>{
   );
   if(ok){
     state.pack = [];
+    // The custom icon belongs to the pack that just got wiped — don't let it
+    // silently carry over (from local storage) into whatever's built next.
+    state.packIcon = "";
+    savePackIcon();
+    renderLogoPicker();
     refreshAllViews();
   }
 });
@@ -3561,6 +4101,66 @@ document.getElementById("logoResetBtn").addEventListener("click", ()=>{
   renderLogoPicker();
 });
 
+document.getElementById("shareLinkBtn").addEventListener("click", showShareModal);
+document.getElementById("copyShareCodeBtn2").addEventListener("click", async (e)=>{
+  const data = buildShareData();
+  if(data.m.length === 0){
+    alert("Add mods to your pack first, then copy a share code.");
+    return;
+  }
+  const longCode = encodeShareData(data);
+  const btn = e.currentTarget;
+  let code = longCode;
+  if(shareBackendConfigured()){
+    const original = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = "Creating code…";
+    try{
+      const shortId = await createShortShareCode(longCode);
+      code = `s-${shortId}`;
+    }catch(err){
+      console.error(err);
+    }
+    btn.disabled = false;
+    btn.innerHTML = original;
+  }
+  copyTextToClipboard(code, btn);
+});
+document.getElementById("shareImportBtn").addEventListener("click", ()=>{
+  importSharedPack(document.getElementById("shareImportInput").value);
+});
+document.getElementById("shareImportInput").addEventListener("keydown", (e)=>{
+  if(e.key === "Enter"){
+    e.preventDefault();
+    importSharedPack(document.getElementById("shareImportInput").value);
+  }
+});
+
+async function checkIncomingShareLink(){
+  const match = location.hash.match(/[#&]import=([^&\s]+)/);
+  if(!match) return;
+  const code = decodeURIComponent(match[1]);
+  history.replaceState(null, "", location.pathname + location.search);
+  let data;
+  try{
+    data = await resolveShareCode(code);
+    if(!data || !Array.isArray(data.m) || !data.m.length) throw new Error("bad shape");
+  }catch(e){
+    console.error(e);
+    return;
+  }
+  const ok = await showConfirm(
+    `Import the shared pack${data.n ? ` "<strong>${escapeHtml(data.n)}</strong>"` : ""} with <strong>${data.m.length}</strong> mod${data.m.length===1?'':'s'} into Create?`,
+    {confirmLabel:"Import", danger:false}
+  );
+  if(ok){
+    const exportTabBtn = document.querySelector('nav.tabs button[data-tab="export"]');
+    if(exportTabBtn) exportTabBtn.click();
+    document.getElementById("shareImportInput").value = code;
+    importSharedPack(code);
+  }
+}
+
 function showGettingStarted(force){
   if(!force && localStorage.getItem("modbench_intro_seen")) return;
   const backdrop = document.createElement("div");
@@ -3647,7 +4247,11 @@ const gameVersionRankReady = loadGameVersions().then(()=>{
   if(state.tab === "pack") renderPack();
 });
 runSearch();
-showGettingStarted();
+if(location.hash.includes("import=")){
+  checkIncomingShareLink();
+} else {
+  showGettingStarted();
+}
 </script>
 </body>
 </html>
