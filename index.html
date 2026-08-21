@@ -254,6 +254,7 @@
   .pack-type-group{ margin-bottom:22px; }
   .pack-type-group:last-child{ margin-bottom:0; }
   .filter-group{ margin-bottom:18px; }
+  .filter-group.filter-sep{ border-top:1px solid var(--border); padding-top:16px; }
   .filter-group:last-child{ margin-bottom:0; }
   .filter-group label{
     display:flex; align-items:center; gap:8px;
@@ -952,7 +953,7 @@
           <label><input type="checkbox" value="quilt" class="loaderCheck"> <img class="loader-icon" src="icons/quilt.png" alt="Quilt" loading="lazy"> Quilt</label>
           <label><input type="checkbox" value="neoforge" class="loaderCheck"> <img class="loader-icon" src="icons/neoforge.png" alt="NeoForge" loading="lazy"> NeoForge</label>
         </div>
-        <div class="filter-group">
+        <div class="filter-group filter-sep">
           <button type="button" class="cat-toggle" id="catToggleBrowse" aria-expanded="false">
             <h3 style="margin:0;">Category</h3>
             <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
@@ -965,6 +966,16 @@
             <label><input type="checkbox" value="optimization" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Optimization</label>
             <label><input type="checkbox" value="utility" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg> Utility</label>
             <label><input type="checkbox" value="library" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg> Library</label>
+          </div>
+        </div>
+        <div class="filter-group filter-sep" id="envFilterGroup">
+          <button type="button" class="cat-toggle" id="envToggleBrowse" aria-expanded="false">
+            <h3 style="margin:0;">Side</h3>
+            <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="cat-body" id="envBodyBrowse" hidden>
+            <label><input type="checkbox" value="client" class="envCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> Client-side</label>
+            <label><input type="checkbox" value="server" class="envCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg> Server-side</label>
           </div>
         </div>
       </aside>
@@ -1195,7 +1206,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px; height:16px;"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
         Copy pack code
       </button>
-      <p style="color:var(--text-dim); font-size:0.8rem; margin:6px 0 0;">Copies a short code with your mod list. Others paste it straight into <strong>Import a share code</strong> above to get the same mods. <button type="button" id="shareLinkBtn" style="background:none; border:none; padding:0; color:var(--accent-dark); text-decoration:underline; cursor:pointer; font:inherit;">Prefer a link?</button></p>
+      <p style="color:var(--text-dim); font-size:0.8rem; margin:6px 0 0;">Copies a short code containing your full mod list. Others can paste it straight into <strong>Import a share code</strong> above to get the exact same mods added to their own pack. <button type="button" id="shareLinkBtn" style="background:none; border:none; padding:0; color:var(--accent-dark); text-decoration:underline; cursor:pointer; font:inherit;">Prefer a link?</button></p>
     </div>
   </section>
 
@@ -1293,6 +1304,7 @@ let state = {
   mcVersion: "",
   loaders: [],
   categories: [],
+  envFilter: [],
   results: [],
   page: 1,
   totalHits: 0,
@@ -1461,6 +1473,8 @@ function buildFacets(){
     Object.values(byHeader).forEach(vals=>facets.push(vals.map(c=>`categories:${c}`)));
   }
   if(state.mcVersion) facets.push([`versions:${state.mcVersion}`]);
+  if(state.browseType === "mod" && state.envFilter.includes("client")) facets.push(["client_side!=unsupported"]);
+  if(state.browseType === "mod" && state.envFilter.includes("server")) facets.push(["server_side!=unsupported"]);
   facets.push([`project_type:${state.browseType}`]);
   return facets;
 }
@@ -1563,6 +1577,7 @@ document.querySelectorAll("#browseTypeToggle .type-btn").forEach(btn=>{
     state.browseType = btn.dataset.type;
     state.categories = [];
     document.getElementById("loaderFilterGroup").style.display = (state.browseType === "mod") ? "" : "none";
+    document.getElementById("envFilterGroup").style.display = (state.browseType === "mod") ? "" : "none";
     const searchInput = document.getElementById("searchInput");
     searchInput.placeholder = BROWSE_TYPE_PLACEHOLDER[state.browseType] || BROWSE_TYPE_PLACEHOLDER.mod;
     renderBrowseCategoryOptions();
@@ -2024,10 +2039,6 @@ function packLeansFabric(){
   return fabricCount >= quiltOnlyCount;
 }
 
-// Adds Fabric API and/or Quilted Fabric API (QFAPI)/Quilt Standard Libraries
-// (QSL) depending on which loader(s) are actually involved. `loadersInvolved`
-// should be the loaders of whatever specific mod/version/modpack prompted
-// this call; falls back to the global Browse loader filter if not given.
 async function ensureLoaderApis(hintGameVersions, loadersInvolved){
   let loaders = (loadersInvolved && loadersInvolved.length) ? loadersInvolved : state.loaders;
   if(state.loaders.length && loadersInvolved && loadersInvolved.length){
@@ -2377,10 +2388,6 @@ function renderPack(){
       mod.selectedFile = v.files.find(f=>f.primary) || v.files[0];
       syncModpackSnapshot(mod, v);
       savePack(); renderPack();
-      // Switching to a different version can pull in dependencies (or a
-      // loader library) that the previously-selected version didn't need -
-      // pick those up right away instead of only surfacing them as a
-      // "missing dependency" issue the next time someone runs a check.
       await autoAddDependencies(v, new Set([mod.id]), mod.projectType);
       await ensureLoaderApis(v.game_versions, v.loaders);
       savePack(); renderPack();
@@ -2394,12 +2401,6 @@ function renderPack(){
 // DOM with results from before the most recent pack change.
 let packIssueScanId = 0;
 
-// Runs the compatibility check in the background whenever the pack changes
-// and reflects the results directly in the Create list - red-highlighting
-// affected mod rows and a summary banner - so conflicts are visible without
-// having to press "Check compatibility" first. The button/modal still work
-// for the full breakdown. Can be turned off via the "Auto-flag
-// incompatibilities" toggle, in which case only a manual check runs it.
 async function updatePackIssueHighlights(){
   const runId = ++packIssueScanId;
   const bannerEl = document.getElementById("packIssueBanner");
@@ -2625,9 +2626,6 @@ async function runCompatibilityCheck(){
   }
 
   if(selected.length > 1){
-    // Trust an explicit target the user already picked on the Export tab
-    // over a guessed majority - once they've settled on Fabric or Quilt,
-    // that's the real target, not whatever happens to have the most votes.
     const expLoaderEl = document.getElementById("expLoader");
     const explicitLoader = expLoaderEl && expLoaderEl.value ? expLoaderEl.value : null;
     const loaderPick = explicitLoader ? { loader: explicitLoader, runners: selected.filter(x=>modRunsOnLoader(x, explicitLoader)) } : pickBestLoaderForPack(selected);
@@ -2689,10 +2687,6 @@ async function runCompatibilityCheck(){
   return { issues, skipped, checked: selected.length };
 }
 
-// Works out which loader / Minecraft version the pack should target, using
-// the same "explicit Export-tab choice wins, otherwise majority" rule that
-// runCompatibilityCheck uses, so the auto-fixer targets exactly what the
-// checker flagged against.
 function getCompatTargets(selected){
   const expLoaderEl = document.getElementById("expLoader");
   const explicitLoader = expLoaderEl && expLoaderEl.value ? expLoaderEl.value : null;
@@ -2705,10 +2699,6 @@ function getCompatTargets(selected){
   return { loader: loaderPick ? loaderPick.loader : null, mcVersion: gvBest ? gvBest.value : null };
 }
 
-// Fetches and adds a missing required dependency to the pack, picking the
-// version that best matches the pack's target loader/MC version (falling
-// back to pickBestVersion's own heuristic if neither target is known).
-// Returns true on success so the caller can tally what AutoSolve managed.
 async function autoAddMissingDependency(depProjectId, targetLoader, targetMc){
   if(state.pack.some(p=>p.id === depProjectId)) return true; // added by an earlier iteration this run
   try{
@@ -2741,9 +2731,6 @@ async function autoAddMissingDependency(depProjectId, targetLoader, targetMc){
       selectedFile: best.files.find(f=>f.primary) || best.files[0],
       versions
     });
-    // This dependency might itself need dependencies (or a loader library,
-    // e.g. Fabric API) - chase those down too instead of adding an item
-    // that's still missing something to actually work.
     await autoAddDependencies(best, new Set([depProjectId]), proj.project_type || "mod");
     await ensureLoaderApis(best.game_versions, best.loaders);
     return true;
@@ -2753,19 +2740,6 @@ async function autoAddMissingDependency(depProjectId, targetLoader, targetMc){
   }
 }
 
-// Auto-resolves compatibility issues:
-//  - "no shared loader" / "no shared Minecraft version": swaps each
-//    offending mod to the newest version of itself (per the API) that
-//    matches the pack's target loader and MC version.
-//  - "missing required dependency": fetches the dependency from Modrinth
-//    and adds it to the pack directly.
-// Explicit author-flagged "incompatible with each other" issues can't be
-// fixed this way (there's no version that removes that flag), so those are
-// left as-is.
-//
-// `missingDepIds` (optional) is the list of dependency project ids the
-// compatibility check already found missing, so this doesn't need to
-// re-derive them from scratch.
 async function autoFixCompatibility(missingDepIds){
   const selected = state.pack
     .filter(m=>m.selectedVersionId && Array.isArray(m.versions))
@@ -2778,11 +2752,7 @@ async function autoFixCompatibility(missingDepIds){
 
   let fixedCount = 0;
   const unresolved = [];
-  const swappedVersions = []; // {mod, version} for newly-swapped mods, so we can pull in their dependencies below
-  // Nothing to target at all - none of the selected mods' versions report a
-  // loader or a Minecraft version, so there's no majority to fix toward.
-  // Only relevant when there's actually a loader/version mismatch to fix;
-  // missing dependencies can still be added below regardless.
+  const swappedVersions = [];
   const noTarget = selected.length >= 2 && !targetLoader && !targetMc;
 
   if(selected.length >= 2 && !noTarget){
@@ -2790,7 +2760,7 @@ async function autoFixCompatibility(missingDepIds){
       const { mod } = x;
       const okLoader = !targetLoader || isLoaderAgnostic(x) || modRunsOnLoader(x, targetLoader);
       const okVersion = !targetMc || effectiveGameVersions(x).includes(targetMc);
-      if(okLoader && okVersion) continue; // already fine, leave it alone
+      if(okLoader && okVersion) continue;
 
       const runnableLoaders = targetLoader ? (LOADER_RUNS_ON[targetLoader] || [targetLoader]) : null;
       const candidates = sortByGameVersionRecency(mod.versions).filter(v=>{
@@ -3144,10 +3114,6 @@ async function runModpackSearch(){
 
     const showPinned = !state.modpackQuery.trim() && state.modpackPage === 1 && state.modpackSort === "relevance";
     if(showPinned){
-      // Pinned modpacks skip the search index, so they need to be checked
-      // against the active loader/category/MC-version filters by hand -
-      // otherwise they'd keep showing up even when they don't match what
-      // the user just filtered for.
       let pinned = await getPinnedModpacks();
       if(state.modpackLoaders.length){
         pinned = pinned.filter(p=>state.modpackLoaders.some(l=>p.categories.includes(l)));
@@ -3936,6 +3902,13 @@ document.querySelectorAll(".loaderCheck").forEach(cb=>{
     runSearch();
   });
 });
+document.querySelectorAll(".envCheck").forEach(cb=>{
+  cb.addEventListener("change", ()=>{
+    state.envFilter = [...document.querySelectorAll(".envCheck:checked")].map(c=>c.value);
+    state.page = 1;
+    runSearch();
+  });
+});
 wireCategoryCheckboxes();
 document.getElementById("favSearchInput").addEventListener("input", (e)=>{
   state.favSearch = e.target.value;
@@ -3988,6 +3961,7 @@ function wireCatToggle(toggleId, bodyId){
 }
 wireCatToggle("catToggleBrowse", "catBodyBrowse");
 wireCatToggle("catToggleModpacks", "catBodyModpacks");
+wireCatToggle("envToggleBrowse", "envBodyBrowse");
 
 document.getElementById("removeAllBtn").addEventListener("click", async ()=>{
   if(state.pack.length === 0) return;
