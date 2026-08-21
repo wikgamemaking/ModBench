@@ -984,7 +984,6 @@
         </div>
       </aside>
 
-
       <div>
         <div class="toolbar">
           <div class="search-box">
@@ -1223,24 +1222,6 @@
 <script>
 const API = "https://api.modrinth.com/v2";
 
-// ---- Optional Supabase-backed short share codes ------------------------
-// Leave these blank and share codes/links just work as long self-contained
-// codes (no backend needed). Fill them in to get short codes like "s-aB3xQ2"
-// instead. Setup (once):
-//   1. Create a free project at https://supabase.com
-//   2. In its SQL editor, run:
-//        create table shared_packs (
-//          id text primary key,
-//          data text not null,
-//          created_at timestamptz not null default now()
-//        );
-//        alter table shared_packs enable row level security;
-//        create policy "anon can insert shared packs" on shared_packs
-//          for insert to anon with check (true);
-//        create policy "anon can read shared packs" on shared_packs
-//          for select to anon using (true);
-//   3. Project Settings -> API -> copy the "Project URL" and the "anon
-//      public" key (NOT service_role) into the two constants below.
 const SUPABASE_URL = "https://nwshmuzkphmozilcpdti.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im53c2htdXprcGhtb3ppbGNwZHRpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODczMzY2NTcsImV4cCI6MjEwMjkxMjY1N30.8nizLEGs7gckz3MSZvn9uznI_NqHD9fKJvMej-wyLiE";
 const SHARE_TABLE = "shared_packs";
@@ -1268,7 +1249,6 @@ async function createShortShareCode(payload, attempts = 4){
     });
     if(res.ok) return id;
     if(res.status !== 409) throw new Error(`Supabase insert failed (${res.status})`);
-    // 409 = id collision, loop around and try a fresh random id
   }
   throw new Error("Couldn't generate a unique short code, try again.");
 }
@@ -1429,8 +1409,6 @@ async function loadGameVersions(){
   }
 }
 
-// A mod version counts as a "snapshot" version if none of the Minecraft
-// versions it targets are stable releases (i.e. it only supports snapshots).
 function isSnapshotOnlyVersion(v){
   const gvs = v.game_versions || [];
   if(!gvs.length) return false;
@@ -1537,8 +1515,6 @@ const CATEGORY_SETS = {
 function wireCategoryCheckboxes(){
   document.querySelectorAll(".catCheck").forEach(cb=>{
     cb.addEventListener("change", ()=>{
-      // Performance tier is exclusive; picking one tier deselects the others,
-      // since "medium AND high" isn't a meaningful combination.
       if(cb.checked && cb.dataset.header === "Performance"){
         document.querySelectorAll(`.catCheck[data-header="Performance"]`).forEach(other=>{
           if(other !== cb) other.checked = false;
@@ -1565,7 +1541,6 @@ function renderBrowseCategoryOptions(){
   }).join("");
   wireCategoryCheckboxes();
 }
-
 
 const BROWSE_TYPE_PLACEHOLDER = {
   mod: "Search mods on Modrinth…",
@@ -1620,8 +1595,6 @@ async function fetchSortedPage(query, facets, sort, page, pageSize){
     return { hits: data.hits || [], totalHits: data.total_hits || 0 };
   }
 
-  // Modrinth's API only sorts descending; to get true ascending order,
-  // fetch from the tail of the descending list and reverse it locally.
   const countParams = new URLSearchParams({ query, limit:"1", offset:"0", index:apiIndex, facets:JSON.stringify(facets) });
   const countRes = await fetch(`${API}/search?${countParams.toString()}`);
   if(!countRes.ok) throw new Error("Search failed: " + countRes.status);
@@ -1849,7 +1822,6 @@ function renderMarkdownLite(md){
     const items = block.trim().split(/\n/).map(l=>l.replace(/^[-*]\s+/, "").trim());
     return `<ul>${items.map(i=>`<li>${i}</li>`).join("")}</ul>\n`;
   });
-  // GFM-style tables: a header row, a |---|---| divider row, then body rows.
   s = s.replace(/^\|.*\|[ \t]*\n\|[ \t:|-]+\|[ \t]*\n(?:\|.*\|[ \t]*\n?)*/gm, block=>{
     const lines = block.trim().split(/\n/);
     const splitRow = line=>line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map(c=>c.trim());
@@ -2002,8 +1974,6 @@ async function autoAddDependencies(version, visited, hostProjectType){
   }
 }
 
-// Quilted Fabric API / Quilt Standard Libraries - Quilt's own combined
-// analogue of Fabric API. Ships QFAPI + QSL as a single Modrinth project.
 const QUILT_API_ID = "qvIfYCYJ";
 
 async function addLoaderApiMod(apiId, hintGameVersions, requiredLoader){
@@ -2050,10 +2020,6 @@ function packLeansFabric(){
   return fabricCount >= quiltOnlyCount;
 }
 
-// Adds Fabric API and/or Quilted Fabric API (QFAPI)/Quilt Standard Libraries
-// (QSL) depending on which loader(s) are actually involved. `loadersInvolved`
-// should be the loaders of whatever specific mod/version/modpack prompted
-// this call; falls back to the global Browse loader filter if not given.
 async function ensureLoaderApis(hintGameVersions, loadersInvolved){
   let loaders = (loadersInvolved && loadersInvolved.length) ? loadersInvolved : state.loaders;
   if(state.loaders.length && loadersInvolved && loadersInvolved.length){
@@ -2084,9 +2050,6 @@ function pickBestVersion(versions, hintGameVersions, hintLoaders){
   if(state.loaders.length){
     candidates = candidates.filter(v=>v.loaders.some(l=>state.loaders.includes(l))) || candidates;
   } else if(hintLoaders && hintLoaders.length){
-    // No explicit loader filter active: prefer versions matching the loader(s)
-    // of whatever prompted this pick (e.g. a dependency should match its
-    // parent mod's loader) so we don't silently add a mismatched-loader file.
     const hintedL = candidates.filter(v=>v.loaders.some(l=>hintLoaders.includes(l)));
     if(hintedL.length) candidates = hintedL;
   }
@@ -2403,10 +2366,6 @@ function renderPack(){
       mod.selectedFile = v.files.find(f=>f.primary) || v.files[0];
       syncModpackSnapshot(mod, v);
       savePack(); renderPack();
-      // Switching to a different version can pull in dependencies (or a
-      // loader library) that the previously-selected version didn't need -
-      // pick those up right away instead of only surfacing them as a
-      // "missing dependency" issue the next time someone runs a check.
       await autoAddDependencies(v, new Set([mod.id]), mod.projectType);
       await ensureLoaderApis(v.game_versions, v.loaders);
       savePack(); renderPack();
@@ -2416,16 +2375,8 @@ function renderPack(){
   updatePackIssueHighlights();
 }
 
-// Generation counter so a slow/stale automatic scan can never overwrite the
-// DOM with results from before the most recent pack change.
 let packIssueScanId = 0;
 
-// Runs the compatibility check in the background whenever the pack changes
-// and reflects the results directly in the Create list - red-highlighting
-// affected mod rows and a summary banner - so conflicts are visible without
-// having to press "Check compatibility" first. The button/modal still work
-// for the full breakdown. Can be turned off via the "Auto-flag
-// incompatibilities" toggle, in which case only a manual check runs it.
 async function updatePackIssueHighlights(){
   const runId = ++packIssueScanId;
   const bannerEl = document.getElementById("packIssueBanner");
@@ -2502,9 +2453,6 @@ function modChipHtml(mod){
   return `<span class="compat-mod-chip${inPack ? " clickable" : ""}" ${inPack ? `data-jump-id="${escapeHtml(mod.id)}" role="button" tabindex="0" title="Jump to ${escapeHtml(mod.title)} in your pack"` : ""}>${mod.icon_url ? `<img src="${mod.icon_url}" alt="">` : ""}${escapeHtml(mod.title)}</span>`;
 }
 
-// Caches version_id -> project_id lookups so repeated compatibility scans
-// (the background one re-runs on every pack change) don't keep re-fetching
-// the same version just to find out which project it belongs to.
 const depVersionProjectCache = new Map();
 async function resolveDepProjectId(dep){
   if(dep.project_id) return dep.project_id;
@@ -2516,14 +2464,10 @@ async function resolveDepProjectId(dep){
     depVersionProjectCache.set(dep.version_id, projectId);
     return projectId;
   }catch(e){
-    // Don't cache network failures - a transient blip shouldn't permanently
-    // hide this dependency from future checks.
     return null;
   }
 }
 
-// Caches project lookups (used to show the name/icon of a dependency that
-// isn't in the pack yet) for the same reason as above.
 const depProjectInfoCache = new Map();
 async function getProjectInfoCached(projectId){
   if(depProjectInfoCache.has(projectId)) return depProjectInfoCache.get(projectId);
@@ -2537,9 +2481,6 @@ async function getProjectInfoCached(projectId){
   }
 }
 
-// Finds the single value (loader or game version) supported by the most
-// entries, so we can flag the actual outliers instead of blaming every mod
-// just because a full, exact intersection across the whole pack doesn't exist.
 function findMajoritySupport(entries, getValues){
   const allValues = new Set();
   entries.forEach(x=>getValues(x).forEach(v=>allValues.add(v)));
@@ -2628,8 +2569,6 @@ async function runCompatibilityCheck(){
       if(dep.dependency_type === "required"){
         const depProjectId = await resolveDepProjectId(dep);
         if(!depProjectId) continue;
-        // Already in the pack (regardless of whether it has a version
-        // selected yet - that's a separate "skipped" case) - not missing.
         if(state.pack.some(p=>p.id === depProjectId)) continue;
         if(!missingDeps.has(depProjectId)) missingDeps.set(depProjectId, []);
         missingDeps.get(depProjectId).push(mod);
@@ -2651,9 +2590,6 @@ async function runCompatibilityCheck(){
   }
 
   if(selected.length > 1){
-    // Trust an explicit target the user already picked on the Export tab
-    // over a guessed majority - once they've settled on Fabric or Quilt,
-    // that's the real target, not whatever happens to have the most votes.
     const expLoaderEl = document.getElementById("expLoader");
     const explicitLoader = expLoaderEl && expLoaderEl.value ? expLoaderEl.value : null;
     const loaderPick = explicitLoader ? { loader: explicitLoader, runners: selected.filter(x=>modRunsOnLoader(x, explicitLoader)) } : pickBestLoaderForPack(selected);
@@ -2715,10 +2651,6 @@ async function runCompatibilityCheck(){
   return { issues, skipped, checked: selected.length };
 }
 
-// Works out which loader / Minecraft version the pack should target, using
-// the same "explicit Export-tab choice wins, otherwise majority" rule that
-// runCompatibilityCheck uses, so the auto-fixer targets exactly what the
-// checker flagged against.
 function getCompatTargets(selected){
   const expLoaderEl = document.getElementById("expLoader");
   const explicitLoader = expLoaderEl && expLoaderEl.value ? expLoaderEl.value : null;
@@ -2731,10 +2663,6 @@ function getCompatTargets(selected){
   return { loader: loaderPick ? loaderPick.loader : null, mcVersion: gvBest ? gvBest.value : null };
 }
 
-// Fetches and adds a missing required dependency to the pack, picking the
-// version that best matches the pack's target loader/MC version (falling
-// back to pickBestVersion's own heuristic if neither target is known).
-// Returns true on success so the caller can tally what AutoSolve managed.
 async function autoAddMissingDependency(depProjectId, targetLoader, targetMc){
   if(state.pack.some(p=>p.id === depProjectId)) return true; // added by an earlier iteration this run
   try{
@@ -2767,9 +2695,6 @@ async function autoAddMissingDependency(depProjectId, targetLoader, targetMc){
       selectedFile: best.files.find(f=>f.primary) || best.files[0],
       versions
     });
-    // This dependency might itself need dependencies (or a loader library,
-    // e.g. Fabric API) - chase those down too instead of adding an item
-    // that's still missing something to actually work.
     await autoAddDependencies(best, new Set([depProjectId]), proj.project_type || "mod");
     await ensureLoaderApis(best.game_versions, best.loaders);
     return true;
@@ -2779,19 +2704,6 @@ async function autoAddMissingDependency(depProjectId, targetLoader, targetMc){
   }
 }
 
-// Auto-resolves compatibility issues:
-//  - "no shared loader" / "no shared Minecraft version": swaps each
-//    offending mod to the newest version of itself (per the API) that
-//    matches the pack's target loader and MC version.
-//  - "missing required dependency": fetches the dependency from Modrinth
-//    and adds it to the pack directly.
-// Explicit author-flagged "incompatible with each other" issues can't be
-// fixed this way (there's no version that removes that flag), so those are
-// left as-is.
-//
-// `missingDepIds` (optional) is the list of dependency project ids the
-// compatibility check already found missing, so this doesn't need to
-// re-derive them from scratch.
 async function autoFixCompatibility(missingDepIds){
   const selected = state.pack
     .filter(m=>m.selectedVersionId && Array.isArray(m.versions))
@@ -2805,10 +2717,6 @@ async function autoFixCompatibility(missingDepIds){
   let fixedCount = 0;
   const unresolved = [];
   const swappedVersions = []; // {mod, version} for newly-swapped mods, so we can pull in their dependencies below
-  // Nothing to target at all - none of the selected mods' versions report a
-  // loader or a Minecraft version, so there's no majority to fix toward.
-  // Only relevant when there's actually a loader/version mismatch to fix;
-  // missing dependencies can still be added below regardless.
   const noTarget = selected.length >= 2 && !targetLoader && !targetMc;
 
   if(selected.length >= 2 && !noTarget){
@@ -2839,9 +2747,6 @@ async function autoFixCompatibility(missingDepIds){
     }
   }
 
-  // A version swap can introduce dependencies (or a loader library) the
-  // mod's previous version didn't need - pick those up too instead of
-  // leaving them for a follow-up check.
   for(const { mod, version } of swappedVersions){
     await autoAddDependencies(version, new Set([mod.id]), mod.projectType);
     await ensureLoaderApis(version.game_versions, version.loaders);
@@ -2858,9 +2763,6 @@ async function autoFixCompatibility(missingDepIds){
   return { fixedCount, unresolved, depsAdded, depsUnresolved, noTarget };
 }
 
-// Renders a minimal error modal when the check itself couldn't run (e.g.
-// Modrinth unreachable), instead of leaving the user staring at a stuck
-// button or nothing at all.
 function showCompatCheckError(){
   const backdrop = document.createElement("div");
   backdrop.className = "modal-backdrop";
@@ -3048,9 +2950,6 @@ async function showCompatibilityResults(fixNote){
   document.body.appendChild(backdrop);
 }
 
-// Switches to the Create tab, clears any active pack search so the mod is
-// guaranteed to be visible, scrolls its row into view, and briefly flashes
-// it so the user can immediately find and act on it.
 function jumpToPackMod(id){
   const tabBtn = document.querySelector('nav.tabs button[data-tab="pack"]');
   if(tabBtn && !tabBtn.classList.contains("active")) tabBtn.click();
@@ -3170,10 +3069,6 @@ async function runModpackSearch(){
 
     const showPinned = !state.modpackQuery.trim() && state.modpackPage === 1 && state.modpackSort === "relevance";
     if(showPinned){
-      // Pinned modpacks skip the search index, so they need to be checked
-      // against the active loader/category/MC-version filters by hand -
-      // otherwise they'd keep showing up even when they don't match what
-      // the user just filtered for.
       let pinned = await getPinnedModpacks();
       if(state.modpackLoaders.length){
         pinned = pinned.filter(p=>state.modpackLoaders.some(l=>p.categories.includes(l)));
@@ -3489,15 +3384,6 @@ async function importMrpackFile(file){
   }
 }
 
-// ---- Share link/code: encode the current pack into a short code (and a
-// full link built around it) so someone else can paste it back in and get
-// the same mods resolved fresh from Modrinth. The icon is deliberately left
-// out to keep the code short — it stays a .mrpack-only thing.
-//
-// Encoding is a compact "~"-delimited string (not JSON) to avoid quote/brace/
-// bracket overhead, and stores only version IDs (not project IDs too) since
-// Modrinth's /versions lookup already returns each version's project_id —
-// that alone roughly halves the length versus storing both per mod.
 function buildShareData(){
   const versionIds = state.pack.filter(m=>m.selectedVersionId).map(m=>m.selectedVersionId);
   return {
@@ -4033,8 +3919,6 @@ document.getElementById("removeAllBtn").addEventListener("click", async ()=>{
   );
   if(ok){
     state.pack = [];
-    // The custom icon belongs to the pack that just got wiped — don't let it
-    // silently carry over (from local storage) into whatever's built next.
     state.packIcon = "";
     savePackIcon();
     renderLogoPicker();
