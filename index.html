@@ -475,10 +475,39 @@
     cursor:pointer;
   }
   .pack-row:hover{ border-color: var(--accent); box-shadow: 0 4px 12px rgba(38,36,32,.06); }
+  .pack-row.has-issue{ border-color: var(--danger-border); background: var(--danger-soft); }
+  .pack-row.has-issue:hover{ border-color: var(--danger); box-shadow: 0 4px 12px rgba(163,66,58,.12); }
   .pack-row img{ width:40px; height:40px; border-radius:7px; flex-shrink:0; background:var(--surface-2); }
   .pack-row .info{ flex:1; min-width:0; }
-  .pack-row .info .name{ font-weight:700; font-size:0.95rem; overflow-wrap:anywhere; }
+  .pack-row .info .name{ font-weight:700; font-size:0.95rem; overflow-wrap:anywhere; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
   .pack-row .info .sub{ font-size:0.8rem; color:var(--text-dim); overflow-wrap:anywhere; }
+  .pack-row-issue-badge{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:16px; height:16px; color: var(--danger); flex-shrink:0;
+  }
+  .pack-row-issue-badge svg{ width:14px; height:14px; }
+  /* `display:inline-flex` below wins over the UA [hidden] stylesheet rule
+     (author styles beat UA styles regardless of the [hidden] attribute), so
+     this badge stayed visible even when JS set `hidden`. Force it off
+     explicitly whenever the attribute is present. */
+  .pack-row-issue-badge[hidden]{ display:none !important; }
+  .auto-compat-toggle{ display:inline-flex; align-items:center; gap:8px; cursor:pointer; margin-right:auto; }
+  .auto-compat-toggle .switch{ position:relative; display:inline-block; width:34px; height:20px; flex-shrink:0; }
+  .auto-compat-toggle .switch input{ position:absolute; opacity:0; width:100%; height:100%; margin:0; cursor:pointer; z-index:1; }
+  .auto-compat-toggle .switch-track{
+    position:absolute; inset:0; background: var(--surface-2); border:1px solid var(--border);
+    border-radius:999px; transition: background .15s ease, border-color .15s ease;
+  }
+  .auto-compat-toggle .switch-thumb{
+    position:absolute; top:1px; left:1px; width:16px; height:16px; border-radius:50%;
+    background: var(--text-dim); transition: transform .15s ease, background .15s ease;
+  }
+  .auto-compat-toggle .switch input:checked ~ .switch-track{ background: var(--accent); border-color: var(--accent); }
+  .auto-compat-toggle .switch input:checked ~ .switch-track .switch-thumb{ transform: translateX(14px); background:#fff; }
+  .auto-compat-toggle .switch-label{ font-size:0.85rem; color: var(--text-dim); }
+  #packIssueBanner.compat-summary{ cursor:pointer; transition: filter .15s ease; }
+  #packIssueBanner.compat-summary:hover{ filter: brightness(0.97); }
+  html[data-theme="dark"] #packIssueBanner.compat-summary:hover{ filter: brightness(1.12); }
   .pack-row select{
     padding:6px 8px; border-radius:6px; border:1px solid var(--border);
     font-family:inherit; font-size:0.82rem; max-width:150px;
@@ -1039,11 +1068,19 @@
   </section>
 
   <section id="tab-pack" style="display:none;">
-    <div class="toolbar" id="createToolbar" style="display:none; justify-content:flex-end;">
+    <div class="toolbar" id="createToolbar" style="display:none; justify-content:flex-end; align-items:center; flex-wrap:wrap; gap:10px;">
+      <label class="auto-compat-toggle" id="autoCompatToggleWrap" title="Automatically scan for compatibility issues as you edit your pack">
+        <span class="switch">
+          <input type="checkbox" id="autoCompatToggle">
+          <span class="switch-track"><span class="switch-thumb"></span></span>
+        </span>
+        <span class="switch-label">Auto-flag incompatibilities</span>
+      </label>
       <button class="page-btn" id="sortAlphaBtn">Sort A→Z</button>
       <button class="page-btn" id="checkCompatBtn">Check compatibility</button>
       <button class="page-btn" id="removeAllBtn" style="color:var(--danger); border-color:var(--danger-border);">Remove all contents</button>
     </div>
+    <div id="packIssueBanner" class="compat-summary bad" style="display:none;"></div>
     <div id="packList"></div>
     <div id="packEmpty" class="empty-state" style="display:none;">
       <div class="big">🧰</div>
@@ -1154,7 +1191,8 @@ let state = {
   modpackPage: 1,
   modpackTotalHits: 0,
   modpackSearched: false,
-  packIcon: localStorage.getItem("modbench_pack_icon") || ""
+  packIcon: localStorage.getItem("modbench_pack_icon") || "",
+  autoCompatCheck: localStorage.getItem("modbench_auto_compat_check") !== "off"
 };
 
 function savePackIcon(){
@@ -1731,7 +1769,7 @@ async function quickAdd(projectId){
     savePack();
     if(state.tab === "pack") renderPack();
     await autoAddDependencies(best, new Set([hitId]), hit.project_type || state.browseType || "mod");
-    await ensureFabricApi(best ? best.game_versions : null);
+    await ensureLoaderApis(best ? best.game_versions : null, best ? best.loaders : null);
     savePack();
     if(state.tab === "pack") renderPack();
   }catch(e){
@@ -1801,7 +1839,7 @@ async function autoAddDependencies(version, visited, hostProjectType){
       const proj = await fetch(`${API}/project/${depProjectId}`).then(r=>r.ok?r.json():null);
       if(!proj) continue;
       const versions = await fetchVersions(depProjectId);
-      const best = pickBestVersion(versions, version.game_versions);
+      const best = pickBestVersion(versions, version.game_versions, version.loaders);
       if(!best) continue;
       state.pack.push({
         id: depProjectId,
@@ -1824,17 +1862,26 @@ async function autoAddDependencies(version, visited, hostProjectType){
   }
 }
 
-async function ensureFabricApi(hintGameVersions){
-  if(state.pack.some(p=>p.id === FABRIC_API_ID)) return;
-  if(state.loaders.length && !state.loaders.includes("fabric") && !state.loaders.includes("quilt")) return;
+// Quilted Fabric API / Quilt Standard Libraries - Quilt's own combined
+// analogue of Fabric API. Ships QFAPI + QSL as a single Modrinth project.
+const QUILT_API_ID = "qvIfYCYJ";
+
+async function addLoaderApiMod(apiId, hintGameVersions, requiredLoader){
+  if(state.pack.some(p=>p.id === apiId)) return;
   try{
-    const proj = await fetch(`${API}/project/${FABRIC_API_ID}`).then(r=>r.ok?r.json():null);
+    const proj = await fetch(`${API}/project/${apiId}`).then(r=>r.ok?r.json():null);
     if(!proj) return;
-    const versions = await fetchVersions(FABRIC_API_ID);
-    const best = pickBestVersion(versions, hintGameVersions);
+    const versions = await fetchVersions(apiId);
+    if(!versions.length) return;
+    // Only consider files actually built for the loader we're adding this
+    // for, so a Quilt-only pack never ends up with a Fabric-loader jar (or
+    // vice versa) silently added as a "dependency".
+    const loaderMatched = versions.filter(v=>v.loaders.includes(requiredLoader));
+    const pool = loaderMatched.length ? loaderMatched : versions;
+    const best = pickBestVersion(pool, hintGameVersions, [requiredLoader]);
     if(!best) return;
     state.pack.push({
-      id: FABRIC_API_ID,
+      id: apiId,
       title: proj.title,
       icon_url: proj.icon_url,
       author: proj.team || "",
@@ -1848,11 +1895,28 @@ async function ensureFabricApi(hintGameVersions){
       selectedFile: best.files.find(f=>f.primary) || best.files[0],
       versions
     });
-    updateCardButtonsEverywhere(FABRIC_API_ID);
-  }catch(e){ console.error("Failed to add Fabric API", e); }
+    updateCardButtonsEverywhere(apiId);
+  }catch(e){ console.error(`Failed to add loader API mod ${apiId}`, e); }
 }
 
-function pickBestVersion(versions, hintGameVersions){
+// Adds Fabric API and/or Quilted Fabric API (QFAPI)/Quilt Standard Libraries
+// (QSL) depending on which loader(s) are actually involved. `loadersInvolved`
+// should be the loaders of whatever specific mod/version/modpack prompted
+// this call; falls back to the global Browse loader filter if not given.
+async function ensureLoaderApis(hintGameVersions, loadersInvolved){
+  let loaders = (loadersInvolved && loadersInvolved.length) ? loadersInvolved : state.loaders;
+  if(state.loaders.length && loadersInvolved && loadersInvolved.length){
+    const narrowed = loadersInvolved.filter(l=>state.loaders.includes(l));
+    if(narrowed.length) loaders = narrowed;
+  }
+  if(!loaders || !loaders.length) return;
+  const tasks = [];
+  if(loaders.includes("fabric")) tasks.push(addLoaderApiMod(FABRIC_API_ID, hintGameVersions, "fabric"));
+  if(loaders.includes("quilt")) tasks.push(addLoaderApiMod(QUILT_API_ID, hintGameVersions, "quilt"));
+  await Promise.all(tasks);
+}
+
+function pickBestVersion(versions, hintGameVersions, hintLoaders){
   if(!versions.length) return null;
   let candidates = versions;
   if(state.mcVersion){
@@ -1861,7 +1925,15 @@ function pickBestVersion(versions, hintGameVersions){
     const hinted = candidates.filter(v=>v.game_versions.some(gv=>hintGameVersions.includes(gv)));
     if(hinted.length) candidates = hinted;
   }
-  if(state.loaders.length) candidates = candidates.filter(v=>v.loaders.some(l=>state.loaders.includes(l))) || candidates;
+  if(state.loaders.length){
+    candidates = candidates.filter(v=>v.loaders.some(l=>state.loaders.includes(l))) || candidates;
+  } else if(hintLoaders && hintLoaders.length){
+    // No explicit loader filter active: prefer versions matching the loader(s)
+    // of whatever prompted this pick (e.g. a dependency should match its
+    // parent mod's loader) so we don't silently add a mismatched-loader file.
+    const hintedL = candidates.filter(v=>v.loaders.some(l=>hintLoaders.includes(l)));
+    if(hintedL.length) candidates = hintedL;
+  }
   return (candidates.length ? candidates : versions)[0];
 }
 
@@ -1985,7 +2057,7 @@ async function openModal(projectId, hitLookup){
       if(!chosenVersion){ alert("Pick a version first."); return; }
       if(isModpack){
         const addBtn = backdrop.querySelector("#modalAddBtn");
-        const ok = await importModpackVersion(projectId, chosenVersion, addBtn);
+        const ok = await importModpackVersion(projectId, chosenVersion, addBtn, { fallbackName: projRes.title, fallbackIcon: hit.icon_url || projRes.icon_url });
         if(ok) backdrop.remove();
         return;
       }
@@ -2010,7 +2082,7 @@ async function openModal(projectId, hitLookup){
       if(state.tab === "pack") renderPack();
       backdrop.remove();
       await autoAddDependencies(chosenVersion, new Set([projectId]), projectType);
-      await ensureFabricApi(chosenVersion.game_versions);
+      await ensureLoaderApis(chosenVersion.game_versions, chosenVersion.loaders);
       savePack();
       if(state.tab === "pack") renderPack();
     });
@@ -2066,7 +2138,7 @@ function packRowHtml(mod){
     <div class="pack-row" data-id="${mod.id}" tabindex="0" role="button" aria-label="View ${escapeHtml(mod.title)}">
       ${mod.icon_url ? `<img src="${mod.icon_url}" alt="">` : `<img alt="">`}
       <div class="info">
-        <div class="name">${escapeHtml(mod.title)}${mod.isDependency ? ' <span class="tag" style="margin-left:4px;">auto-added</span>' : ''}</div>
+        <div class="name">${escapeHtml(mod.title)}${mod.isDependency ? ' <span class="tag" style="margin-left:4px;">auto-added</span>' : ''}<span class="pack-row-issue-badge" hidden title=""></span></div>
         <div class="sub">by ${escapeHtml(mod.author||"")} · ${escapeHtml(mod.selectedVersionNumber||"no version")}</div>
       </div>
       <select data-vselect="${mod.id}">
@@ -2080,9 +2152,11 @@ function renderPack(){
   const listEl = document.getElementById("packList");
   const emptyEl = document.getElementById("packEmpty");
   const toolbarEl = document.getElementById("createToolbar");
+  const bannerEl = document.getElementById("packIssueBanner");
   if(state.pack.length === 0){
     listEl.innerHTML = ""; emptyEl.style.display = "block";
     toolbarEl.style.display = "none";
+    bannerEl.style.display = "none";
     return;
   }
   emptyEl.style.display = "none";
@@ -2156,6 +2230,83 @@ function renderPack(){
       savePack(); renderPack();
     });
   });
+
+  updatePackIssueHighlights();
+}
+
+// Generation counter so a slow/stale automatic scan can never overwrite the
+// DOM with results from before the most recent pack change.
+let packIssueScanId = 0;
+
+// Runs the compatibility check in the background whenever the pack changes
+// and reflects the results directly in the Create list - red-highlighting
+// affected mod rows and a summary banner - so conflicts are visible without
+// having to press "Check compatibility" first. The button/modal still work
+// for the full breakdown. Can be turned off via the "Auto-flag
+// incompatibilities" toggle, in which case only a manual check runs it.
+async function updatePackIssueHighlights(){
+  const runId = ++packIssueScanId;
+  const bannerEl = document.getElementById("packIssueBanner");
+  if(!state.autoCompatCheck){
+    if(bannerEl) bannerEl.style.display = "none";
+    document.querySelectorAll("#packList .pack-row").forEach(row=>{
+      row.classList.remove("has-issue");
+      const badge = row.querySelector(".pack-row-issue-badge");
+      if(badge) badge.hidden = true;
+    });
+    return;
+  }
+  if(!state.pack.length){
+    if(bannerEl) bannerEl.style.display = "none";
+    return;
+  }
+  let result;
+  try{
+    result = await runCompatibilityCheck();
+  }catch(e){
+    console.error("Background compatibility scan failed", e);
+    return;
+  }
+  if(runId !== packIssueScanId) return; // a newer scan superseded this one
+  const { issues } = result;
+
+  const badModIds = new Set();
+  const notesByMod = new Map();
+  issues.forEach(issue=>{
+    issue.mods.forEach(mod=>{
+      badModIds.add(mod.id);
+      const notes = notesByMod.get(mod.id) || [];
+      notes.push(issue.title);
+      notesByMod.set(mod.id, notes);
+    });
+  });
+
+  document.querySelectorAll("#packList .pack-row").forEach(row=>{
+    const bad = badModIds.has(row.dataset.id);
+    row.classList.toggle("has-issue", bad);
+    const badge = row.querySelector(".pack-row-issue-badge");
+    if(badge){
+      badge.hidden = !bad;
+      if(bad){
+        badge.innerHTML = COMPAT_ICON_WARN;
+        badge.title = notesByMod.get(row.dataset.id).join(" · ");
+      }
+    }
+  });
+
+  if(bannerEl){
+    if(issues.length){
+      bannerEl.style.display = "flex";
+      bannerEl.innerHTML = `
+        <span class="icon">${COMPAT_ICON_WARN}</span>
+        <div>
+          <div class="headline">${issues.length} compatibility issue${issues.length===1?"":"s"} found</div>
+          <div class="subline">Affected mods are highlighted in red below - tap here for details</div>
+        </div>`;
+    }else{
+      bannerEl.style.display = "none";
+    }
+  }
 }
 
 const COMPAT_ICON_WARN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
@@ -2209,6 +2360,42 @@ function isLoaderAgnostic(x){
   return loaders.length === 0 || (loaders.length === 1 && loaders[0] === "minecraft");
 }
 
+// The Quilt loader implements the Fabric Loader API, so a mod that only
+// declares "fabric" still runs fine under Quilt. This is one-directional -
+// a Quilt-only mod does NOT run on plain Fabric - so treating them as
+// interchangeable both ways is what used to cause false "no shared loader"
+// flags on perfectly normal Fabric+Quilt packs.
+const LOADER_RUNS_ON = { fabric: ["fabric"], quilt: ["quilt", "fabric"], forge: ["forge"], neoforge: ["neoforge"] };
+const LOADER_DISPLAY_NAMES = { fabric: "Fabric", quilt: "Quilt", forge: "Forge", neoforge: "NeoForge" };
+function formatLoaderName(loader){ return LOADER_DISPLAY_NAMES[loader] || formatCategoryName(loader || ""); }
+
+function modRunsOnLoader(x, loader){
+  if(isLoaderAgnostic(x)) return true;
+  const runnable = LOADER_RUNS_ON[loader] || [loader];
+  return effectiveLoaders(x).some(l=>runnable.includes(l));
+}
+
+// Picks whichever loader the most selected mods can actually run under
+// (accounting for Quilt's Fabric compatibility), rather than a strict
+// "which exact loader string appears most" count.
+function pickBestLoaderForPack(selected){
+  const candidateLoaders = ["fabric", "quilt", "forge", "neoforge"];
+  let best = null;
+  candidateLoaders.forEach(loader=>{
+    const runners = selected.filter(x=>modRunsOnLoader(x, loader));
+    if(runners.length && (!best || runners.length > best.runners.length)){
+      best = { loader, runners };
+    }
+  });
+  return best;
+}
+
+// Escapes then bolds a dynamic value (mod loader name, version number, etc.)
+// for safe insertion into the pre-built HTML strings below.
+function boldEsc(text){
+  return `<strong>${escapeHtml(text)}</strong>`;
+}
+
 async function runCompatibilityCheck(){
   const mods = state.pack.filter(m=>m.selectedVersionId && Array.isArray(m.versions));
   const selected = mods.map(m=>({
@@ -2241,40 +2428,53 @@ async function runCompatibilityCheck(){
   }
 
   if(selected.length > 1){
-    const loaderBest = findMajoritySupport(selected, effectiveLoaders);
-    if(loaderBest && loaderBest.supporters.length < selected.length){
-      const missing = selected.filter(x=>!loaderBest.supporters.includes(x) && !isLoaderAgnostic(x));
+    // Trust an explicit target the user already picked on the Export tab
+    // over a guessed majority - once they've settled on Fabric or Quilt,
+    // that's the real target, not whatever happens to have the most votes.
+    const expLoaderEl = document.getElementById("expLoader");
+    const explicitLoader = expLoaderEl && expLoaderEl.value ? expLoaderEl.value : null;
+    const loaderPick = explicitLoader ? { loader: explicitLoader, runners: selected.filter(x=>modRunsOnLoader(x, explicitLoader)) } : pickBestLoaderForPack(selected);
+
+    if(loaderPick){
+      const missing = selected.filter(x=>!modRunsOnLoader(x, loaderPick.loader));
       if(missing.length){
+        const loaderLabel = formatLoaderName(loaderPick.loader);
+        const loaderStrong = boldEsc(loaderLabel);
         issues.push({
           type: "loader",
           icon: COMPAT_ICON_LOADER,
           title: "No shared mod loader",
-          detail: `Every mod in your pack must run on the same loader (Fabric, Forge, Quilt, or NeoForge). Most of your selected mods support ${loaderBest.value}, but these don't have a version built for it. Open each one below and pick a version for that loader instead.`,
+          detail: `${explicitLoader ? `Your pack targets ${loaderStrong}` : `Most of your selected mods can run on ${loaderStrong}`}${loaderPick.loader === "quilt" ? " (Quilt also runs Fabric-only mods)" : ""}, but these don't have a compatible version. Open each one below and pick a version for ${loaderStrong} instead.`,
           mods: missing.map(x=>x.mod),
-          perModNote: missing.map(x=>`${x.mod.title}: ${effectiveLoaders(x).join(", ") || "unknown"}`)
+          perModNote: missing.map(x=>`${escapeHtml(x.mod.title)}: ${boldEsc(effectiveLoaders(x).join(", ") || "unknown")}`)
         });
       }
-    }else if(!loaderBest){
+    }else{
       issues.push({
         type: "loader",
         icon: COMPAT_ICON_LOADER,
         title: "No shared mod loader",
         detail: `None of your selected mod versions report a loader, so compatibility can't be confirmed. Open each mod below and check it has a proper loader-specific version selected.`,
         mods: selected.map(x=>x.mod),
-        perModNote: selected.map(x=>`${x.mod.title}: ${(x.version.loaders||[]).join(", ") || "unknown"}`)
+        perModNote: selected.map(x=>`${escapeHtml(x.mod.title)}: ${boldEsc((x.version.loaders||[]).join(", ") || "unknown")}`)
       });
     }
 
-    const gvBest = findMajoritySupport(selected, effectiveGameVersions);
+    const expMcEl = document.getElementById("expMcVersion");
+    const explicitMc = expMcEl && expMcEl.value ? expMcEl.value : null;
+    const gvBest = explicitMc
+      ? { value: explicitMc, supporters: selected.filter(x=>effectiveGameVersions(x).includes(explicitMc)) }
+      : findMajoritySupport(selected, effectiveGameVersions);
     if(gvBest && gvBest.supporters.length < selected.length){
       const missing = selected.filter(x=>!gvBest.supporters.includes(x));
+      const mcStrong = boldEsc(explicitMc ? `Minecraft ${gvBest.value}` : gvBest.value);
       issues.push({
         type: "version",
         icon: COMPAT_ICON_BLOCK,
         title: "No shared Minecraft version",
-        detail: `Every mod needs to support the same Minecraft version. Most of your selected mods support ${gvBest.value}, but these don't have a version for it. Pick versions of each mod below that target that release instead.`,
+        detail: `${explicitMc ? `Your pack targets ${mcStrong}` : `Most of your selected mods support ${mcStrong}`}, but these don't have a version for it. Pick versions of each mod below that target that release instead.`,
         mods: missing.map(x=>x.mod),
-        perModNote: missing.map(x=>`${x.mod.title}: ${effectiveGameVersions(x).slice(-3).join(", ") || "unknown"}`)
+        perModNote: missing.map(x=>`${escapeHtml(x.mod.title)}: ${boldEsc(effectiveGameVersions(x).slice(-3).join(", ") || "unknown")}`)
       });
     }else if(!gvBest){
       issues.push({
@@ -2283,7 +2483,7 @@ async function runCompatibilityCheck(){
         title: "No shared Minecraft version",
         detail: `None of your selected mod versions report a Minecraft version, so compatibility can't be confirmed. Open each mod below and check its selected version.`,
         mods: selected.map(x=>x.mod),
-        perModNote: selected.map(x=>`${x.mod.title}: ${(x.version.game_versions||[]).slice(-3).join(", ") || "unknown"}`)
+        perModNote: selected.map(x=>`${escapeHtml(x.mod.title)}: ${boldEsc((x.version.game_versions||[]).slice(-3).join(", ") || "unknown")}`)
       });
     }
   }
@@ -2292,11 +2492,76 @@ async function runCompatibilityCheck(){
   return { issues, skipped, checked: selected.length };
 }
 
+// Works out which loader / Minecraft version the pack should target, using
+// the same "explicit Export-tab choice wins, otherwise majority" rule that
+// runCompatibilityCheck uses, so the auto-fixer targets exactly what the
+// checker flagged against.
+function getCompatTargets(selected){
+  const expLoaderEl = document.getElementById("expLoader");
+  const explicitLoader = expLoaderEl && expLoaderEl.value ? expLoaderEl.value : null;
+  const loaderPick = explicitLoader ? { loader: explicitLoader } : pickBestLoaderForPack(selected);
+
+  const expMcEl = document.getElementById("expMcVersion");
+  const explicitMc = expMcEl && expMcEl.value ? expMcEl.value : null;
+  const gvBest = explicitMc ? { value: explicitMc } : findMajoritySupport(selected, effectiveGameVersions);
+
+  return { loader: loaderPick ? loaderPick.loader : null, mcVersion: gvBest ? gvBest.value : null };
+}
+
+// Auto-resolves "no shared loader" / "no shared Minecraft version" issues by
+// swapping each offending mod to the newest version of itself (per the API)
+// that matches the pack's target loader and MC version. Explicit
+// author-flagged "incompatible with each other" issues can't be fixed this
+// way (there's no version that removes that flag), so those are left as-is.
+function autoFixCompatibility(){
+  const selected = state.pack
+    .filter(m=>m.selectedVersionId && Array.isArray(m.versions))
+    .map(m=>({ mod: m, version: m.versions.find(v=>v.id === m.selectedVersionId) }))
+    .filter(x=>x.version);
+
+  if(selected.length < 2) return { fixedCount: 0, unresolved: [] };
+
+  const { loader: targetLoader, mcVersion: targetMc } = getCompatTargets(selected);
+  if(!targetLoader && !targetMc) return { fixedCount: 0, unresolved: [] };
+
+  let fixedCount = 0;
+  const unresolved = [];
+
+  selected.forEach(x=>{
+    const { mod } = x;
+    const okLoader = !targetLoader || isLoaderAgnostic(x) || modRunsOnLoader(x, targetLoader);
+    const okVersion = !targetMc || effectiveGameVersions(x).includes(targetMc);
+    if(okLoader && okVersion) return; // already fine, leave it alone
+
+    const runnableLoaders = targetLoader ? (LOADER_RUNS_ON[targetLoader] || [targetLoader]) : null;
+    const candidates = sortByGameVersionRecency(mod.versions).filter(v=>{
+      const loaderOk = !runnableLoaders || (v.loaders||[]).some(l=>runnableLoaders.includes(l));
+      const mcOk = !targetMc || (v.game_versions||[]).includes(targetMc);
+      return loaderOk && mcOk;
+    });
+
+    const best = candidates[0];
+    if(best){
+      mod.selectedVersionId = best.id;
+      mod.selectedVersionNumber = best.version_number;
+      mod.selectedFile = best.files.find(f=>f.primary) || best.files[0];
+      fixedCount++;
+    }else{
+      unresolved.push(mod);
+    }
+  });
+
+  if(fixedCount){ savePack(); renderPack(); }
+  return { fixedCount, unresolved };
+}
+
 async function showCompatibilityResults(){
   const { issues, skipped, checked } = await runCompatibilityCheck();
   const backdrop = document.createElement("div");
   backdrop.className = "modal-backdrop";
   backdrop.style.alignItems = "center";
+
+  const fixableIssues = issues.some(i=>i.type === "loader" || i.type === "version");
 
   const summaryHtml = issues.length
     ? `<div class="compat-summary bad">
@@ -2317,9 +2582,9 @@ async function showCompatibilityResults(){
   const issuesHtml = issues.map(issue=>`
     <div class="compat-issue">
       <div class="issue-title">${issue.icon} ${escapeHtml(issue.title)}</div>
-      <div class="issue-detail">${escapeHtml(issue.detail)}</div>
+      <div class="issue-detail">${issue.detail}</div>
       <div class="issue-mods">${issue.mods.map(modChipHtml).join("")}</div>
-      ${issue.perModNote ? `<div class="issue-detail" style="margin-top:8px; font-size:0.8rem;">${issue.perModNote.map(escapeHtml).join("<br>")}</div>` : ""}
+      ${issue.perModNote ? `<div class="issue-detail" style="margin-top:8px; font-size:0.8rem;">${issue.perModNote.join("<br>")}</div>` : ""}
     </div>
   `).join("");
 
@@ -2330,13 +2595,36 @@ async function showCompatibilityResults(){
         <button class="modal-close" aria-label="Close">✕</button>
       </div>
       ${summaryHtml}
+      ${fixableIssues ? `<button class="export-btn" id="autoFixCompatBtn" style="margin-top:12px; width:100%;">Let ModBench fix the incompatibility</button>` : ""}
       <div style="margin-top:16px;">${issuesHtml}</div>
       ${skipped > 0 ? `<div class="compat-skipped">${skipped} mod${skipped===1?"":"s"} skipped: no version selected yet.</div>` : ""}
-      <button class="export-btn" data-choice="close" style="margin-top:18px;">Close</button>
+      <button class="page-btn" data-choice="close" style="margin-top:18px; width:100%; padding:9px 16px;">Close</button>
     </div>`;
   backdrop.addEventListener("click", (e)=>{ if(e.target === backdrop) backdrop.remove(); });
   backdrop.querySelector(".modal-close").addEventListener("click", ()=>backdrop.remove());
   backdrop.querySelector('[data-choice="close"]').addEventListener("click", ()=>backdrop.remove());
+  const fixBtn = backdrop.querySelector("#autoFixCompatBtn");
+  if(fixBtn){
+    fixBtn.addEventListener("click", async ()=>{
+      fixBtn.disabled = true;
+      fixBtn.textContent = "Fixing…";
+      const { fixedCount } = autoFixCompatibility();
+      backdrop.remove();
+      await showCompatibilityResults();
+      if(fixedCount){
+        const banner = document.getElementById("packIssueBanner");
+        if(banner){
+          const prevText = banner.innerHTML;
+          const noteEl = document.createElement("div");
+          noteEl.className = "compat-summary ok";
+          noteEl.style.marginBottom = "10px";
+          noteEl.innerHTML = `<span class="icon">${COMPAT_ICON_CHECK}</span><div><div class="headline">Fixed ${fixedCount} mod${fixedCount===1?"":"s"}</div><div class="subline">Switched to versions matching your pack's loader/Minecraft version</div></div>`;
+          banner.parentNode.insertBefore(noteEl, banner);
+          setTimeout(()=>noteEl.remove(), 4000);
+        }
+      }
+    });
+  }
   document.body.appendChild(backdrop);
 }
 
@@ -2570,6 +2858,23 @@ async function pickModpackVersion(versions){
   });
 }
 
+// Looks for a bundled pack icon inside a .mrpack zip (ModBench exports one
+// to overrides/icon.png, and most other Modrinth-format packs/launchers use
+// the same convention at the zip root or inside an overrides folder).
+async function extractMrpackIcon(zip){
+  const candidates = Object.keys(zip.files)
+    .filter(path => !zip.files[path].dir && /(^|\/)icon\.(png|jpe?g|webp|gif)$/i.test(path))
+    .sort((a,b) => a.split("/").length - b.split("/").length); // prefer shallower paths
+  if(!candidates.length) return null;
+  const path = candidates[0];
+  const ext = path.split(".").pop().toLowerCase();
+  const mime = ext === "jpg" ? "image/jpeg" : `image/${ext}`;
+  try{
+    const base64 = await zip.files[path].async("base64");
+    return `data:${mime};base64,${base64}`;
+  }catch(e){ return null; }
+}
+
 // Shared core: given a loaded JSZip of a .mrpack, resolve its files against
 // the Modrinth API and add any not-yet-present mods to Create. Used both for
 // importing a browsed modpack's version and for a user-supplied .mrpack file.
@@ -2621,13 +2926,50 @@ async function importMrpackZipIntoPack(zip, meta = {}){
     });
     added++;
   });
-  await ensureFabricApi(gameVersions);
+
+  // Some .mrpack files (hand-built, or ones where a hash lookup missed) don't
+  // actually list every required dependency. Walk each resolved mod's own
+  // dependency list the same way a manual "add" would, so nothing needed to
+  // actually run the pack is silently missing after import.
+  const depVisited = new Set(foundVersions.map(v=>v.project_id));
+  for(const v of foundVersions){
+    const proj = projectById[v.project_id];
+    await autoAddDependencies(v, depVisited, (proj && proj.project_type) || "mod");
+  }
+  await ensureLoaderApis(gameVersions, loaders);
   savePack();
   foundVersions.forEach(v=>updateCardButtonsEverywhere(v.project_id));
-  return { index, total: foundVersions.length, added };
+
+  const icon = await extractMrpackIcon(zip).catch(()=>null);
+  return {
+    index,
+    total: foundVersions.length,
+    added,
+    name: (index.name || "").trim() || meta.fallbackName || "",
+    icon: icon || meta.fallbackIcon || ""
+  };
 }
 
-async function importModpackVersion(projectId, version, btn){
+// Applies an imported pack's name/icon to the Export fields. Only overwrites
+// what's there when the pack was empty before this import or the fields are
+// still at their defaults, so importing on top of an already-customized pack
+// doesn't clobber the user's own naming.
+function applyImportedPackIdentity(result, wasEmptyBefore){
+  if(!result) return;
+  const nameInput = document.getElementById("packName");
+  const DEFAULT_NAME = "My Modpack (via ModBench)";
+  const shouldApply = wasEmptyBefore || !nameInput.value.trim() || nameInput.value.trim() === DEFAULT_NAME || nameInput.value.trim() === "My Modpack";
+  if(result.name && shouldApply){
+    nameInput.value = result.name;
+  }
+  if(result.icon && shouldApply){
+    state.packIcon = result.icon;
+    savePackIcon();
+    renderLogoPicker();
+  }
+}
+
+async function importModpackVersion(projectId, version, btn, fallbackMeta = {}){
   const originalLabel = btn.textContent;
   btn.textContent = "Adding…";
   btn.disabled = true;
@@ -2639,8 +2981,17 @@ async function importModpackVersion(projectId, version, btn){
       return r.arrayBuffer();
     });
     const zip = await JSZip.loadAsync(zipBuf);
-    await importMrpackZipIntoPack(zip, { fromModpackId: projectId, loaders: version.loaders || [], gameVersions: version.game_versions || [] });
+    const wasEmptyBefore = state.pack.length === 0;
+    const result = await importMrpackZipIntoPack(zip, {
+      fromModpackId: projectId,
+      loaders: version.loaders || [],
+      gameVersions: version.game_versions || [],
+      fallbackName: fallbackMeta.fallbackName,
+      fallbackIcon: fallbackMeta.fallbackIcon
+    });
+    applyImportedPackIdentity(result, wasEmptyBefore);
     if(state.tab === "pack") renderPack();
+    if(state.tab === "export") renderExport();
     renderModpackResults();
     return true;
   }catch(e){
@@ -2679,7 +3030,10 @@ async function importMrpackFile(file){
   try{
     const buf = await file.arrayBuffer();
     const zip = await JSZip.loadAsync(buf);
-    const result = await importMrpackZipIntoPack(zip, { fromModpackId: `imported:${file.name}` });
+    const wasEmptyBefore = state.pack.length === 0;
+    const fileNameFallback = file.name.replace(/\.mrpack$/i, "").replace(/[_-]+/g, " ").trim();
+    const result = await importMrpackZipIntoPack(zip, { fromModpackId: `imported:${file.name}`, fallbackName: fileNameFallback });
+    applyImportedPackIdentity(result, wasEmptyBefore);
     if(state.tab === "pack") renderPack();
     if(state.tab === "export") renderExport();
     if(result.total === 0){
@@ -2709,7 +3063,8 @@ async function addModpackToCreate(projectId, btn){
       btn.disabled = false;
       return;
     }
-    await importModpackVersion(projectId, chosen, btn);
+    const hit = findHitAnywhere(projectId);
+    await importModpackVersion(projectId, chosen, btn, { fallbackName: hit && hit.title, fallbackIcon: hit && hit.icon_url });
   }catch(e){
     console.error(e);
     alert("Couldn't import that modpack's mods. Modrinth may be unreachable, or this modpack isn't in the standard .mrpack format.");
@@ -2728,10 +3083,10 @@ function guessPackTarget(){
   })).filter(x=>x.version);
   if(!selected.length) return { mcVersion: "", loader: "" };
   const gvBest = findMajoritySupport(selected, effectiveGameVersions);
-  const loaderBest = findMajoritySupport(selected, x=>effectiveLoaders(x).filter(l=>l!=="minecraft"));
+  const loaderBest = pickBestLoaderForPack(selected);
   return {
     mcVersion: gvBest ? gvBest.value : "",
-    loader: loaderBest ? loaderBest.value : ""
+    loader: loaderBest ? loaderBest.loader : ""
   };
 }
 
@@ -3011,6 +3366,13 @@ document.getElementById("removeAllBtn").addEventListener("click", async ()=>{
     refreshAllViews();
   }
 });
+const autoCompatToggleEl = document.getElementById("autoCompatToggle");
+autoCompatToggleEl.checked = state.autoCompatCheck;
+autoCompatToggleEl.addEventListener("change", ()=>{
+  state.autoCompatCheck = autoCompatToggleEl.checked;
+  localStorage.setItem("modbench_auto_compat_check", state.autoCompatCheck ? "on" : "off");
+  updatePackIssueHighlights();
+});
 document.getElementById("sortAlphaBtn").addEventListener("click", ()=>{
   state.packSort = state.packSort === "alpha" ? "category" : "alpha";
   document.getElementById("sortAlphaBtn").textContent = state.packSort === "alpha" ? "Group by category" : "Sort A→Z";
@@ -3028,6 +3390,9 @@ document.getElementById("checkCompatBtn").addEventListener("click", async ()=>{
     btn.disabled = false;
     btn.textContent = originalLabel;
   }
+});
+document.getElementById("packIssueBanner").addEventListener("click", ()=>{
+  showCompatibilityResults();
 });
 document.getElementById("gridBtn").addEventListener("click", ()=>{
   state.view = "grid";
