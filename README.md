@@ -1,31 +1,45 @@
 # ModBench
 
-ModBench is a lightweight, browser-based tool for creating, configuring, and exporting custom Minecraft modpacks.
+[![Live Demo](https://img.shields.io/badge/Website-modbench.net-green?style=for-the-badge)](https://modbench.net)
+[![Powered by](https://img.shields.io/badge/Powered%20by-555555?style=for-the-badge)](https://modrinth.com)[![Modrinth](https://img.shields.io/badge/Modrinth-00AF5C?style=for-the-badge&logo=modrinth&logoColor=white)](https://modrinth.com)
+[![Architecture](https://img.shields.io/badge/Architecture-100%25%20Client--Side-blue?style=for-the-badge)](#tech-stack)
 
-Powered by the Modrinth API, it runs entirely in your browser with no installation or backend required.
+**ModBench** is a fast, lightweight, and browser-based **Minecraft modpack builder and editor**. It allows you to search mods, automatically resolve dependencies, import existing `.mrpack` files, and export custom modpacks ready for launchers—processed entirely in your browser with zero server dependencies.
 
-## Features
+---
 
-- **Browse & Search:** Search thousands of mods and modpacks directly from Modrinth.
-- **Dependency Management:** Automatically fetches and includes required mod dependencies and loader libraries.
-- **Multi-Loader Support:** Compatible with Fabric, Forge, Quilt, and NeoForge across multiple Minecraft versions.
-- **Modpack Customization:** Select specific file versions, organize mods by category, or import existing modpacks.
-- **Simple Exports:** Generates `.mrpack` files ready for instant import into Prism Launcher, ATLauncher, or the Modrinth App.
-- **Favorites:** Save favorite mods locally in your browser.
+## Key Features
+
+- **Browse & Search:** Instantly query thousands of Minecraft mods, resource packs, and modpacks directly from the Modrinth API.
+- **Import & Edit `.mrpack`:** Drag and drop any existing `.mrpack` file to inspect, edit, add, or remove mods.
+- **Automatic Dependency Resolution:** Automatically fetches required sub-dependencies and libraries so your modpack works out of the box.
+- **Multi-Loader & Multi-Version:** Native support for **Fabric**, **Forge**, **Quilt**, and **NeoForge** across any Minecraft version.
+- **Modpack Customization:** Add custom pack names, descriptions, and icon images directly bundled into your `.mrpack`.
+- **One-Click Export:** Generates `.mrpack` files instantly compatible with **Modrinth App**, **Prism Launcher**, and **ATLauncher**.
+- **Local Favorites:** Save and organize favorite mods locally in your browser.
+
+---
 
 ## How to Use
 
-1. Open [ModBench](https://www.modbench.net/).
-2. Search for mods in the **Browse** tab and click **+ Add**.
-3. Review your pack and select versions in **Create** / **Export**.
-4. Click **Download .mrpack** and import the file directly into your launcher.
+1. **Open the Tool:** Go to [modbench.net](https://modbench.net).
+2. **Build or Import:** 
+   - **Start fresh:** Search for mods in the **Browse** tab and click **+ Add**.
+   - **Edit existing:** Go to **Create / Export** and drop an existing `.mrpack` file.
+3. **Configure Settings:** Set your target Minecraft version, loader, and custom pack icon.
+4. **Export:** Click **Download .mrpack** and drop the file directly into Prism Launcher or Modrinth App.
+
+---
 
 ## Tech Stack
 
-- HTML5 / CSS / Vanilla JavaScript
-- [Modrinth API v2](https://docs.modrinth.com/api/)
-- [JSZip](https://stuk.github.io/jszip/) (client-side `.mrpack` zip generation)
+- **Frontend:** Vanilla JavaScript (ES6+), HTML5, CSS3
+- **API:** [Modrinth API v2](https://docs.modrinth.com/api/)
+- **Zip Generation:** [JSZip](https://stuk.github.io/jszip/) (client-side `.mrpack` processing)
+- **Hosting:** GitHub Pages / Custom Domain
 
-## Disclaimer
+---
 
-ModBench is an open tool and is not affiliated with Modrinth or Mojang AB.
+## License & Disclaimer
+
+ModBench is an open-source tool and is not affiliated with Modrinth or Mojang AB. Minecraft is a trademark of Mojang AB.
