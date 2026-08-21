@@ -876,6 +876,14 @@
     padding:3px 9px 3px 3px; border-radius:999px; font-size:0.78rem; font-weight:700;
   }
   .compat-mod-chip img{ width:18px; height:18px; border-radius:50%; object-fit:cover; }
+  .compat-mod-chip.clickable{ cursor:pointer; transition: background .15s ease, border-color .15s ease, transform .15s ease; border:1px solid transparent; }
+  .compat-mod-chip.clickable:hover{ background: var(--surface-2); border-color: var(--accent); transform: translateY(-1px); }
+  .compat-mod-chip.clickable:active{ transform: translateY(0) scale(.97); }
+  @keyframes pack-row-jump-flash{
+    0%{ background: var(--accent-soft); border-color: var(--accent); }
+    100%{ background: transparent; border-color: var(--border); }
+  }
+  .pack-row.jump-flash{ animation: pack-row-jump-flash 1.6s ease-out; }
   .compat-skipped{ font-size:0.8rem; color: var(--text-dim); margin-top:14px; padding-top:12px; border-top:1px solid var(--border); }
 </style>
 </head>
@@ -1068,6 +1076,10 @@
   </section>
 
   <section id="tab-pack" style="display:none;">
+    <div class="search-box" id="packSearchBar" style="display:none; margin-bottom:12px;">
+      <span aria-hidden="true">🔍</span>
+      <input type="text" id="packSearchInput" placeholder="Search your pack…" aria-label="Search your pack">
+    </div>
     <div class="toolbar" id="createToolbar" style="display:none; justify-content:flex-end; align-items:center; flex-wrap:wrap; gap:10px;">
       <label class="auto-compat-toggle" id="autoCompatToggleWrap" title="Automatically scan for compatibility issues as you edit your pack">
         <span class="switch">
@@ -1179,6 +1191,7 @@ let state = {
   totalHits: 0,
   pack: JSON.parse(localStorage.getItem("packsmith_pack") || "[]"),
   packSort: "category",
+  packSearch: "",
   favorites: JSON.parse(localStorage.getItem("packsmith_favorites") || "[]"),
   favSort: "alpha",
   favView: "grid",
@@ -1802,7 +1815,7 @@ function showConfirm(messageHtml, {confirmLabel = "Confirm", danger = true} = {}
     backdrop.className = "modal-backdrop";
     backdrop.style.alignItems = "center";
     backdrop.innerHTML = `
-      <div class="modal" style="max-width:380px; margin-top:0;">
+      <div class="modal" style="max-width:380px;">
         <p style="margin:0 0 20px; font-size:0.95rem;">${messageHtml}</p>
         <div style="display:flex; gap:10px; justify-content:flex-end;">
           <button class="page-btn" data-choice="cancel">Cancel</button>
@@ -2153,19 +2166,31 @@ function renderPack(){
   const emptyEl = document.getElementById("packEmpty");
   const toolbarEl = document.getElementById("createToolbar");
   const bannerEl = document.getElementById("packIssueBanner");
+  const searchBarEl = document.getElementById("packSearchBar");
   if(state.pack.length === 0){
     listEl.innerHTML = ""; emptyEl.style.display = "block";
     toolbarEl.style.display = "none";
     bannerEl.style.display = "none";
+    searchBarEl.style.display = "none";
     return;
   }
   emptyEl.style.display = "none";
   toolbarEl.style.display = "flex";
+  searchBarEl.style.display = "flex";
+
+  const q = (state.packSearch || "").trim().toLowerCase();
+  const visiblePack = q ? state.pack.filter(m=>m.title.toLowerCase().includes(q)) : state.pack;
+
+  if(!visiblePack.length){
+    listEl.innerHTML = `<div class="status-msg">No mods in your pack match "${escapeHtml(state.packSearch.trim())}".</div>`;
+    updatePackIssueHighlights();
+    return;
+  }
 
   const TYPE_LABELS = { mod: "Mods", shader: "Shaders", resourcepack: "Resource Packs" };
   const TYPE_ORDER = ["mod", "shader", "resourcepack"];
   const byType = {};
-  state.pack.forEach(mod=>{
+  visiblePack.forEach(mod=>{
     const t = mod.projectType || "mod";
     if(!byType[t]) byType[t] = [];
     byType[t].push(mod);
@@ -2316,7 +2341,8 @@ const COMPAT_ICON_LOADER = '<svg viewBox="0 0 24 24" fill="none" stroke="current
 const COMPAT_ICON_BLOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>';
 
 function modChipHtml(mod){
-  return `<span class="compat-mod-chip">${mod.icon_url ? `<img src="${mod.icon_url}" alt="">` : ""}${escapeHtml(mod.title)}</span>`;
+  const inPack = state.pack.some(m=>m.id === mod.id);
+  return `<span class="compat-mod-chip${inPack ? " clickable" : ""}" ${inPack ? `data-jump-id="${escapeHtml(mod.id)}" role="button" tabindex="0" title="Jump to ${escapeHtml(mod.title)} in your pack"` : ""}>${mod.icon_url ? `<img src="${mod.icon_url}" alt="">` : ""}${escapeHtml(mod.title)}</span>`;
 }
 
 async function resolveDepProjectId(dep){
@@ -2555,7 +2581,7 @@ function autoFixCompatibility(){
   return { fixedCount, unresolved };
 }
 
-async function showCompatibilityResults(){
+async function showCompatibilityResults(fixNote){
   const { issues, skipped, checked } = await runCompatibilityCheck();
   const backdrop = document.createElement("div");
   backdrop.className = "modal-backdrop";
@@ -2588,12 +2614,23 @@ async function showCompatibilityResults(){
     </div>
   `).join("");
 
+  const fixNoteHtml = fixNote
+    ? `<div class="compat-summary ${fixNote.ok ? "ok" : "bad"}" style="margin-bottom:14px;">
+         <span class="icon">${fixNote.ok ? COMPAT_ICON_CHECK : COMPAT_ICON_WARN}</span>
+         <div>
+           <div class="headline">${escapeHtml(fixNote.headline)}</div>
+           <div class="subline">${fixNote.sublineHtml}</div>
+         </div>
+       </div>`
+    : "";
+
   backdrop.innerHTML = `
-    <div class="modal" style="max-width:480px; margin-top:0;">
+    <div class="modal" style="max-width:480px;">
       <div class="modal-head" style="margin-bottom:14px;">
         <div class="name" style="font-size:1.1rem;">Compatibility check</div>
         <button class="modal-close" aria-label="Close">✕</button>
       </div>
+      ${fixNoteHtml}
       ${summaryHtml}
       ${fixableIssues ? `<button class="export-btn" id="autoFixCompatBtn" style="margin-top:12px; width:100%;">Let ModBench fix the incompatibility</button>` : ""}
       <div style="margin-top:16px;">${issuesHtml}</div>
@@ -2608,24 +2645,66 @@ async function showCompatibilityResults(){
     fixBtn.addEventListener("click", async ()=>{
       fixBtn.disabled = true;
       fixBtn.textContent = "Fixing…";
-      const { fixedCount } = autoFixCompatibility();
+      const { fixedCount, unresolved } = autoFixCompatibility();
       backdrop.remove();
-      await showCompatibilityResults();
-      if(fixedCount){
-        const banner = document.getElementById("packIssueBanner");
-        if(banner){
-          const prevText = banner.innerHTML;
-          const noteEl = document.createElement("div");
-          noteEl.className = "compat-summary ok";
-          noteEl.style.marginBottom = "10px";
-          noteEl.innerHTML = `<span class="icon">${COMPAT_ICON_CHECK}</span><div><div class="headline">Fixed ${fixedCount} mod${fixedCount===1?"":"s"}</div><div class="subline">Switched to versions matching your pack's loader/Minecraft version</div></div>`;
-          banner.parentNode.insertBefore(noteEl, banner);
-          setTimeout(()=>noteEl.remove(), 4000);
-        }
+      let note = null;
+      if(fixedCount && !unresolved.length){
+        note = {
+          ok: true,
+          headline: `Fixed ${fixedCount} mod${fixedCount===1?"":"s"}`,
+          sublineHtml: `Switched to versions matching your pack's loader/Minecraft version.`
+        };
+      }else if(fixedCount && unresolved.length){
+        note = {
+          ok: false,
+          headline: `Fixed ${fixedCount} of ${fixedCount + unresolved.length} mod${(fixedCount+unresolved.length)===1?"":"s"}`,
+          sublineHtml: `ModBench couldn't fix ${unresolved.map(m=>`<strong>${escapeHtml(m.title)}</strong>`).join(", ")} — none of their available versions match your pack's target loader/Minecraft version. Update ${unresolved.length===1?"it":"them"} manually below.`
+        };
+      }else if(unresolved.length){
+        note = {
+          ok: false,
+          headline: `ModBench couldn't fix the incompatibility`,
+          sublineHtml: `None of the available versions of ${unresolved.map(m=>`<strong>${escapeHtml(m.title)}</strong>`).join(", ")} match your pack's target loader/Minecraft version. Update ${unresolved.length===1?"it":"them"} manually below, or adjust your target on the Export tab.`
+        };
       }
+      await showCompatibilityResults(note);
     });
   }
+  backdrop.querySelectorAll(".compat-mod-chip[data-jump-id]").forEach(chip=>{
+    chip.addEventListener("click", ()=>{
+      const id = chip.dataset.jumpId;
+      backdrop.remove();
+      jumpToPackMod(id);
+    });
+    chip.addEventListener("keydown", (e)=>{
+      if(e.key === "Enter" || e.key === " "){
+        e.preventDefault();
+        chip.click();
+      }
+    });
+  });
   document.body.appendChild(backdrop);
+}
+
+// Switches to the Create tab, clears any active pack search so the mod is
+// guaranteed to be visible, scrolls its row into view, and briefly flashes
+// it so the user can immediately find and act on it.
+function jumpToPackMod(id){
+  const tabBtn = document.querySelector('nav.tabs button[data-tab="pack"]');
+  if(tabBtn && !tabBtn.classList.contains("active")) tabBtn.click();
+  if(state.packSearch){
+    state.packSearch = "";
+    const searchInput = document.getElementById("packSearchInput");
+    if(searchInput) searchInput.value = "";
+    renderPack();
+  }
+  requestAnimationFrame(()=>{
+    const row = document.querySelector(`#packList .pack-row[data-id="${CSS.escape(id)}"]`);
+    if(!row) return;
+    row.scrollIntoView({ behavior: "smooth", block: "center" });
+    row.classList.add("jump-flash");
+    setTimeout(()=>row.classList.remove("jump-flash"), 1600);
+  });
 }
 
 function renderFavorites(){
@@ -2704,6 +2783,7 @@ async function getPinnedModpacks(){
     author: p.team || "",
     description: p.description,
     categories: p.categories || [],
+    game_versions: p.game_versions || [],
     downloads: p.downloads,
     follows: p.followers,
     pinned: true
@@ -2728,7 +2808,20 @@ async function runModpackSearch(){
 
     const showPinned = !state.modpackQuery.trim() && state.modpackPage === 1 && state.modpackSort === "relevance";
     if(showPinned){
-      const pinned = await getPinnedModpacks();
+      // Pinned modpacks skip the search index, so they need to be checked
+      // against the active loader/category/MC-version filters by hand -
+      // otherwise they'd keep showing up even when they don't match what
+      // the user just filtered for.
+      let pinned = await getPinnedModpacks();
+      if(state.modpackLoaders.length){
+        pinned = pinned.filter(p=>state.modpackLoaders.some(l=>p.categories.includes(l)));
+      }
+      if(state.modpackCategories.length){
+        pinned = pinned.filter(p=>state.modpackCategories.some(c=>p.categories.includes(c)));
+      }
+      if(state.modpackMcVersion){
+        pinned = pinned.filter(p=>p.game_versions.includes(state.modpackMcVersion));
+      }
       const pinnedIds = new Set(pinned.map(p=>p.project_id));
       state.modpackResults = [...pinned, ...state.modpackResults.filter(h=>!pinnedIds.has(h.project_id))];
     }
@@ -2833,7 +2926,7 @@ async function pickModpackVersion(versions){
     backdrop.className = "modal-backdrop";
     backdrop.style.alignItems = "center";
     backdrop.innerHTML = `
-      <div class="modal" style="max-width:400px; margin-top:0;">
+      <div class="modal" style="max-width:400px;">
         <div class="modal-head" style="margin-bottom:14px;">
           <div class="name" style="font-size:1.05rem;">Pick a Minecraft version</div>
           <button class="modal-close" aria-label="Close">✕</button>
@@ -3365,6 +3458,10 @@ document.getElementById("removeAllBtn").addEventListener("click", async ()=>{
     state.pack = [];
     refreshAllViews();
   }
+});
+document.getElementById("packSearchInput").addEventListener("input", (e)=>{
+  state.packSearch = e.target.value;
+  renderPack();
 });
 const autoCompatToggleEl = document.getElementById("autoCompatToggle");
 autoCompatToggleEl.checked = state.autoCompatCheck;
