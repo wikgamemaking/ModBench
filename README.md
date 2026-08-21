@@ -36,7 +36,6 @@
 - **Frontend:** Vanilla JavaScript (ES6+), HTML5, CSS3
 - **API:** [Modrinth API v2](https://docs.modrinth.com/api/)
 - **Zip Generation:** [JSZip](https://stuk.github.io/jszip/) (client-side `.mrpack` processing)
-- **Hosting:** GitHub Pages / Custom Domain
 
 ---
 
