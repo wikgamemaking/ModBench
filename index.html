@@ -1342,9 +1342,6 @@ function buildFacets(){
   const facets = [];
   if(state.browseType === "mod" && state.loaders.length) facets.push(state.loaders.map(l=>`categories:${l}`));
   if(state.categories.length){
-    // Different category groups (e.g. shader "style" vs "performance tier")
-    // must be AND'd together, like Modrinth's own filters do; only
-    // categories within the same group should be OR'd.
     const set = CATEGORY_SETS[state.browseType] || CATEGORY_SETS.mod;
     const headerOf = {};
     set.forEach(c=>{ headerOf[c.value] = c.header || "default"; });
@@ -1361,9 +1358,6 @@ function buildFacets(){
   return facets;
 }
 
-// Category options differ per content type on Modrinth: mods, shaders and
-// resource packs each have their own taxonomy. Each entry carries the inner
-// SVG markup for its filter icon.
 const ICON = {
   technology: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.6V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.6 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.6 1z"/>',
   magic: '<path d="M12 3l1.9 4.9L19 9l-5.1 1.9L12 16l-1.9-5.1L5 9l5.1-1.1L12 3z"/><path d="M19 17l.9 2.1L22 20l-2.1.9L19 23l-.9-2.1L16 20l2.1-.9L19 17z"/>',
@@ -1886,9 +1880,6 @@ async function addLoaderApiMod(apiId, hintGameVersions, requiredLoader){
     if(!proj) return;
     const versions = await fetchVersions(apiId);
     if(!versions.length) return;
-    // Only consider files actually built for the loader we're adding this
-    // for, so a Quilt-only pack never ends up with a Fabric-loader jar (or
-    // vice versa) silently added as a "dependency".
     const loaderMatched = versions.filter(v=>v.loaders.includes(requiredLoader));
     const pool = loaderMatched.length ? loaderMatched : versions;
     const best = pickBestVersion(pool, hintGameVersions, [requiredLoader]);
@@ -1912,13 +1903,6 @@ async function addLoaderApiMod(apiId, hintGameVersions, requiredLoader){
   }catch(e){ console.error(`Failed to add loader API mod ${apiId}`, e); }
 }
 
-// A mod whose version supports both "fabric" and "quilt" only lists Quilt
-// because Quilt can run Fabric-loader mods via its compat layer - it doesn't
-// actually need Quilt-specific APIs. Auto-adding Quilted Fabric API (QSL) for
-// every such mod meant a normal Fabric pack kept getting QSL bolted on
-// alongside Fabric API for no reason. Only treat "quilt" as a real
-// requirement when the mod is Quilt-exclusive (no "fabric" in its loaders),
-// or when the pack is actually a Quilt pack already.
 function packLeansFabric(){
   if(state.pack.some(p=>p.id === FABRIC_API_ID)) return true;
   let fabricCount = 0, quiltOnlyCount = 0;
@@ -2171,6 +2155,12 @@ function openLightbox(images, startIndex){
   document.body.appendChild(lb);
 }
 
+function syncModpackSnapshot(mod, version){
+  if(!mod.fromModpack) return;
+  mod.fromModpackLoaders = version.loaders || [];
+  mod.fromModpackGameVersions = version.game_versions || [];
+}
+
 function packRowHtml(mod){
   const displayVersions = sortByGameVersionRecency(mod.versions);
   return `
@@ -2278,6 +2268,7 @@ function renderPack(){
       mod.selectedVersionId = v.id;
       mod.selectedVersionNumber = v.version_number;
       mod.selectedFile = v.files.find(f=>f.primary) || v.files[0];
+      syncModpackSnapshot(mod, v);
       savePack(); renderPack();
     });
   });
@@ -2412,11 +2403,6 @@ function isLoaderAgnostic(x){
   return loaders.length === 0 || (loaders.length === 1 && loaders[0] === "minecraft");
 }
 
-// The Quilt loader implements the Fabric Loader API, so a mod that only
-// declares "fabric" still runs fine under Quilt. This is one-directional -
-// a Quilt-only mod does NOT run on plain Fabric - so treating them as
-// interchangeable both ways is what used to cause false "no shared loader"
-// flags on perfectly normal Fabric+Quilt packs.
 const LOADER_RUNS_ON = { fabric: ["fabric"], quilt: ["quilt", "fabric"], forge: ["forge"], neoforge: ["neoforge"] };
 const LOADER_DISPLAY_NAMES = { fabric: "Fabric", quilt: "Quilt", forge: "Forge", neoforge: "NeoForge" };
 function formatLoaderName(loader){ return LOADER_DISPLAY_NAMES[loader] || formatCategoryName(loader || ""); }
@@ -2427,9 +2413,6 @@ function modRunsOnLoader(x, loader){
   return effectiveLoaders(x).some(l=>runnable.includes(l));
 }
 
-// Picks whichever loader the most selected mods can actually run under
-// (accounting for Quilt's Fabric compatibility), rather than a strict
-// "which exact loader string appears most" count.
 function pickBestLoaderForPack(selected){
   const candidateLoaders = ["fabric", "quilt", "forge", "neoforge"];
   let best = null;
@@ -2442,8 +2425,6 @@ function pickBestLoaderForPack(selected){
   return best;
 }
 
-// Escapes then bolds a dynamic value (mod loader name, version number, etc.)
-// for safe insertion into the pre-built HTML strings below.
 function boldEsc(text){
   return `<strong>${escapeHtml(text)}</strong>`;
 }
@@ -2574,7 +2555,11 @@ function autoFixCompatibility(){
   if(selected.length < 2) return { fixedCount: 0, unresolved: [] };
 
   const { loader: targetLoader, mcVersion: targetMc } = getCompatTargets(selected);
-  if(!targetLoader && !targetMc) return { fixedCount: 0, unresolved: [] };
+  // Nothing to target at all - none of the selected mods' versions report a
+  // loader or a Minecraft version, so there's no majority to fix toward.
+  // Report this back explicitly instead of silently doing nothing (which
+  // left the modal looking like the fix button just doesn't work).
+  if(!targetLoader && !targetMc) return { fixedCount: 0, unresolved: selected.map(x=>x.mod), noTarget: true };
 
   let fixedCount = 0;
   const unresolved = [];
@@ -2597,6 +2582,7 @@ function autoFixCompatibility(){
       mod.selectedVersionId = best.id;
       mod.selectedVersionNumber = best.version_number;
       mod.selectedFile = best.files.find(f=>f.primary) || best.files[0];
+      syncModpackSnapshot(mod, best);
       fixedCount++;
     }else{
       unresolved.push(mod);
@@ -2658,7 +2644,7 @@ async function showCompatibilityResults(fixNote){
       </div>
       ${fixNoteHtml}
       ${summaryHtml}
-      ${fixableIssues ? `<button class="export-btn" id="autoFixCompatBtn" style="margin-top:12px; width:100%;">Let ModBench fix the incompatibility</button>` : ""}
+      ${fixableIssues ? `<button class="export-btn" id="autoFixCompatBtn" style="margin-top:12px; width:100%;">Let AutoSolve fix incompatibilities</button>` : ""}
       <div style="margin-top:16px;">${issuesHtml}</div>
       ${skipped > 0 ? `<div class="compat-skipped">${skipped} mod${skipped===1?"":"s"} skipped: no version selected yet.</div>` : ""}
       <button class="page-btn" data-choice="close" style="margin-top:18px; width:100%; padding:9px 16px;">Close</button>
@@ -2671,10 +2657,16 @@ async function showCompatibilityResults(fixNote){
     fixBtn.addEventListener("click", async ()=>{
       fixBtn.disabled = true;
       fixBtn.textContent = "Fixing…";
-      const { fixedCount, unresolved } = autoFixCompatibility();
+      const { fixedCount, unresolved, noTarget } = autoFixCompatibility();
       backdrop.remove();
-      let note = null;
-      if(fixedCount && !unresolved.length){
+      let note;
+      if(noTarget){
+        note = {
+          ok: false,
+          headline: `AutoSolve couldn't fix incompatibilities.`,
+          sublineHtml: `None of the selected mods' versions report a loader or Minecraft version to target, so there's nothing to match toward. Open each mod below and pick a version that lists a loader and Minecraft version.`
+        };
+      }else if(fixedCount && !unresolved.length){
         note = {
           ok: true,
           headline: `Fixed ${fixedCount} mod${fixedCount===1?"":"s"}`,
@@ -2689,8 +2681,14 @@ async function showCompatibilityResults(fixNote){
       }else if(unresolved.length){
         note = {
           ok: false,
-          headline: `ModBench couldn't fix the incompatibility`,
+          headline: `AutoSolve couldn't fix incompatibilities`,
           sublineHtml: `None of the available versions of ${unresolved.map(m=>`<strong>${escapeHtml(m.title)}</strong>`).join(", ")} match your pack's target loader/Minecraft version. Update ${unresolved.length===1?"it":"them"} manually below, or adjust your target on the Export tab.`
+        };
+      }else{
+        note = {
+          ok: false,
+          headline: `AutoSolve couldn't fix incompatibilities`,
+          sublineHtml: `No version change would resolve the remaining issue automatically. Take a look at the details below and adjust versions manually.`
         };
       }
       await showCompatibilityResults(note);
@@ -2977,9 +2975,6 @@ async function pickModpackVersion(versions){
   });
 }
 
-// Looks for a bundled pack icon inside a .mrpack zip (ModBench exports one
-// to overrides/icon.png, and most other Modrinth-format packs/launchers use
-// the same convention at the zip root or inside an overrides folder).
 async function extractMrpackIcon(zip){
   const candidates = Object.keys(zip.files)
     .filter(path => !zip.files[path].dir && /(^|\/)icon\.(png|jpe?g|webp|gif)$/i.test(path))
@@ -2994,9 +2989,6 @@ async function extractMrpackIcon(zip){
   }catch(e){ return null; }
 }
 
-// Shared core: given a loaded JSZip of a .mrpack, resolve its files against
-// the Modrinth API and add any not-yet-present mods to Create. Used both for
-// importing a browsed modpack's version and for a user-supplied .mrpack file.
 async function importMrpackZipIntoPack(zip, meta = {}){
   const indexEntry = zip.file("modrinth.index.json");
   if(!indexEntry) throw new Error("Not a Modrinth modpack format");
@@ -3046,10 +3038,6 @@ async function importMrpackZipIntoPack(zip, meta = {}){
     added++;
   });
 
-  // Some .mrpack files (hand-built, or ones where a hash lookup missed) don't
-  // actually list every required dependency. Walk each resolved mod's own
-  // dependency list the same way a manual "add" would, so nothing needed to
-  // actually run the pack is silently missing after import.
   const depVisited = new Set(foundVersions.map(v=>v.project_id));
   for(const v of foundVersions){
     const proj = projectById[v.project_id];
@@ -3069,10 +3057,6 @@ async function importMrpackZipIntoPack(zip, meta = {}){
   };
 }
 
-// Applies an imported pack's name/icon to the Export fields. Only overwrites
-// what's there when the pack was empty before this import or the fields are
-// still at their defaults, so importing on top of an already-customized pack
-// doesn't clobber the user's own naming.
 function applyImportedPackIdentity(result, wasEmptyBefore){
   if(!result) return;
   const nameInput = document.getElementById("packName");
@@ -3100,13 +3084,6 @@ async function importModpackVersion(projectId, version, btn, fallbackMeta = {}){
       return r.arrayBuffer();
     });
     const zip = await JSZip.loadAsync(zipBuf);
-    // Deliberately does NOT call applyImportedPackIdentity here - this is
-    // the "pull mods from a modpack I found on Modrinth" flow, not "load my
-    // own .mrpack to keep editing". Adopting that modpack's name/icon would
-    // silently rebrand whatever the user is building as that modpack, and
-    // it'd stick around (it's persisted) even after they add/remove mods
-    // and make it their own. Export keeps the default ModBench identity
-    // unless the user sets one themselves, or actually uploads a .mrpack.
     const result = await importMrpackZipIntoPack(zip, {
       fromModpackId: projectId,
       loaders: version.loaders || [],
@@ -3197,9 +3174,6 @@ async function addModpackToCreate(projectId, btn){
   }
 }
 
-// Best guess at the pack's overall Minecraft version/loader, used to
-// pre-fill the export fields when nothing was picked via the Browse filters
-// (e.g. a pack built entirely from a modpack import).
 function guessPackTarget(){
   const selected = state.pack.filter(m=>m.selectedVersionId && Array.isArray(m.versions)).map(m=>({
     mod: m,
