@@ -3597,24 +3597,24 @@ function showShareModal(){
 async function importSharedPack(rawInput){
   const code = extractShareCode(rawInput);
   if(!code){
-    setImportStatus("error", "Paste a share link or code first.", "shareImport");
+    setImportStatus("error", "Paste a share link or code first.", "share");
     return;
   }
   let data;
   try{
-    setImportStatus("loading", code.startsWith("mb-") ? "Looking up short code…" : "Reading code…", "shareImport");
+    setImportStatus("loading", code.startsWith("mb-") ? "Looking up short code…" : "Reading code…", "share");
     data = await resolveShareCode(code);
     if(!data || !Array.isArray(data.m)) throw new Error("bad shape");
   }catch(e){
     console.error(e);
-    setImportStatus("error", e && e.userMessage ? e.userMessage : "That link/code looks invalid or corrupted.", "shareImport");
+    setImportStatus("error", e && e.userMessage ? e.userMessage : "That link/code looks invalid or corrupted.", "share");
     return;
   }
   if(data.m.length === 0){
-    setImportStatus("error", "That share code doesn't contain any mods.", "shareImport");
+    setImportStatus("error", "That share code doesn't contain any mods.", "share");
     return;
   }
-  setImportStatus("loading", "Resolving mods on Modrinth…", "shareImport");
+  setImportStatus("loading", "Resolving mods on Modrinth…", "share");
   try{
     const versionIds = [...new Set(data.m.filter(Boolean))];
     const versionsRes = await fetch(`${API}/versions?ids=${encodeURIComponent(JSON.stringify(versionIds))}`);
@@ -3671,18 +3671,18 @@ async function importSharedPack(rawInput){
     const totalRequested = data.m.length;
     const totalResolved = versions.length;
     if(added === 0){
-      setImportStatus("success", `All ${totalResolved} mod${totalResolved===1?'':'s'} from that pack are already in Create.`, "shareImport");
+      setImportStatus("success", `All ${totalResolved} mod${totalResolved===1?'':'s'} from that pack are already in Create.`, "share");
     } else {
       const skipped = totalResolved - added;
       const missing = totalRequested - totalResolved;
       let msg = `Added ${added} of ${totalResolved} mod${totalResolved===1?'':'s'} to Create.`;
       if(skipped) msg += ` (${skipped} already there.)`;
       if(missing) msg += ` ${missing} mod${missing===1?'':'s'} from the code couldn't be found on Modrinth (maybe removed).`;
-      setImportStatus("success", msg, "shareImport");
+      setImportStatus("success", msg, "share");
     }
   }catch(e){
     console.error(e);
-    setImportStatus("error", "Couldn't resolve that pack. Modrinth may be unreachable, or the code is invalid.", "shareImport");
+    setImportStatus("error", "Couldn't resolve that pack. Modrinth may be unreachable, or the code is invalid.", "share");
   }
 }
 
