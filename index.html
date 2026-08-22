@@ -2597,6 +2597,27 @@ function boldEsc(text){
   return `<strong>${escapeHtml(text)}</strong>`;
 }
 
+// If most of the selected mods came from the same modpack import, trust the loader that
+// import already recorded (from the pack's own manifest — see importMrpackZipIntoPack)
+// instead of re-deriving it by voting across each mod's individual Modrinth version data.
+// Per-mod version metadata is often missing or unreliable (especially for older mods or
+// ones bridged over from CurseForge), so a majority-share import signal is much stronger
+// than a per-mod vote and should win outright rather than just add one more vote to the mix.
+function dominantImportedLoader(selected){
+  const counts = new Map();
+  selected.forEach(x=>{
+    const m = x.mod;
+    if(!m.fromModpack || !m.fromModpackLoaders || m.fromModpackLoaders.length !== 1) return;
+    const key = `${m.fromModpack}|${m.fromModpackLoaders[0]}`;
+    counts.set(key, (counts.get(key) || 0) + 1);
+  });
+  if(!counts.size) return null;
+  let bestKey = null, bestCount = 0;
+  counts.forEach((count, key)=>{ if(count > bestCount){ bestCount = count; bestKey = key; } });
+  if(bestCount < selected.length * 0.5) return null; // not a clear majority, don't override
+  return bestKey.split("|")[1];
+}
+
 async function runCompatibilityCheck(){
   const mods = state.pack.filter(m=>m.selectedVersionId && Array.isArray(m.versions));
   const selected = mods.map(m=>({
@@ -2653,7 +2674,7 @@ async function runCompatibilityCheck(){
 
   if(selected.length > 1){
     const expLoaderEl = document.getElementById("expLoader");
-    const explicitLoader = expLoaderEl && expLoaderEl.value ? expLoaderEl.value : null;
+    const explicitLoader = (expLoaderEl && expLoaderEl.value) ? expLoaderEl.value : dominantImportedLoader(selected);
     const loaderPick = explicitLoader ? { loader: explicitLoader, runners: selected.filter(x=>modRunsOnLoader(x, explicitLoader)) } : pickBestLoaderForPack(selected);
 
     if(loaderPick){
