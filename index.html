@@ -1776,6 +1776,12 @@ function updateCardButtons(container, projectId){
     addBtn.classList.toggle("added", inPack);
     addBtn.textContent = inPack ? "Added ✓" : "+ Add";
   }
+  if(addBtn && addBtn.hasAttribute("data-addpack")){
+    const alreadyAdded = state.pack.some(p=>p.fromModpack === projectId);
+    addBtn.classList.toggle("added", alreadyAdded);
+    addBtn.disabled = alreadyAdded;
+    addBtn.textContent = alreadyAdded ? "In Create ✓" : "+ Add mods";
+  }
   const favBtn = card.querySelector("[data-fav]");
   if(favBtn){
     favBtn.classList.toggle("faved", isFav);
@@ -3209,7 +3215,11 @@ function renderModpackResults(){
   resultsEl.className = "grid";
   resultsEl.innerHTML = state.modpackResults.map(hit=>{
     const html = cardHtml(hit);
-    return html.replace('data-add="'+hit.project_id+'"', 'data-addpack="'+hit.project_id+'"').replace(/\+ Add|Added ✓/, state.pack.some(p=>p.fromModpack===hit.project_id) ? "In Create ✓" : "+ Add mods");
+    const alreadyAdded = state.pack.some(p=>p.fromModpack===hit.project_id);
+    return html
+      .replace('data-add="'+hit.project_id+'"', 'data-addpack="'+hit.project_id+'"'+(alreadyAdded ? ' disabled' : ''))
+      .replace(/class="card-add\s*(added)?"/, alreadyAdded ? 'class="card-add added"' : 'class="card-add "')
+      .replace(/\+ Add|Added ✓/, alreadyAdded ? "In Create ✓" : "+ Add mods");
   }).join("");
 
   resultsEl.querySelectorAll(".card").forEach(card=>{
@@ -3228,8 +3238,16 @@ function renderModpackResults(){
     });
   });
   resultsEl.querySelectorAll("[data-addpack]").forEach(btn=>{
+    // Once a modpack's mods are already in Create, re-clicking would re-download and
+    // re-parse the whole .mrpack for nothing (importMrpackZipIntoPack already skips mods
+    // that are present, but that's still a wasted network round trip and CPU work, and on
+    // a flaky connection it can even resurface a spurious "couldn't import" error for a
+    // pack that's already fully added). The button is rendered disabled in that case above;
+    // this guard just makes sure a stale/re-enabled button can't trigger it either.
+    if(btn.disabled) return;
     btn.addEventListener("click", (e)=>{
       e.stopPropagation();
+      if(state.pack.some(p=>p.fromModpack===btn.dataset.addpack)) return;
       addModpackToCreate(btn.dataset.addpack, btn);
     });
   });
@@ -3729,6 +3747,7 @@ async function importSharedPack(rawInput){
 }
 
 async function addModpackToCreate(projectId, btn){
+  if(state.pack.some(p=>p.fromModpack === projectId)) return; // already imported, nothing to do
   const originalLabel = btn.textContent;
   btn.textContent = "Loading…";
   btn.disabled = true;
