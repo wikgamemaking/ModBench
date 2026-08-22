@@ -3913,16 +3913,16 @@ function showShareModal(){
   backdrop.className = "modal-backdrop";
   backdrop.innerHTML = `
     <div class="modal" style="max-width:480px;">
-      <h3 style="margin:0 0 6px;">Share your pack</h3>
-      <p style="margin:0 0 16px; color:var(--text-dim); font-size:0.85rem;" id="shareModalIntro">Anyone who opens this link, or pastes the code into <strong>Import a share code</strong>, gets the same ${data.m.length} mod${data.m.length===1?'':'s'} added to their Create tab.</p>
+      <h3 style="margin:0 0 6px;">${t('shareModalTitle','Share your pack')}</h3>
+      <p style="margin:0 0 16px; color:var(--text-dim); font-size:0.85rem;" id="shareModalIntro">${tPlural(data.m.length, 'shareModalIntroOne','Anyone who opens this link, or pastes the code into <strong>Import a share code</strong>, gets the same {n} mod added to their Create tab.', 'shareModalIntroOther','Anyone who opens this link, or pastes the code into <strong>Import a share code</strong>, gets the same {n} mods added to their Create tab.')}</p>
       <label style="display:block; font-weight:700; font-size:0.85rem; margin-bottom:6px;">${t('shareLinkLabel','Link')}</label>
       <div style="display:flex; gap:8px;">
-        <input type="text" readonly id="shareLinkOutput" value="${shareBackendConfigured() ? "Generating…" : escapeHtml(shareLinkFromCode(longCode))}" style="flex:1; min-width:0; padding:10px 12px; border-radius:8px; border:1px solid var(--border); background:var(--surface-2); color:var(--text); font-family:inherit; font-size:0.8rem;">
+        <input type="text" readonly id="shareLinkOutput" value="${shareBackendConfigured() ? t('shareGenerating','Generating…') : escapeHtml(shareLinkFromCode(longCode))}" style="flex:1; min-width:0; padding:10px 12px; border-radius:8px; border:1px solid var(--border); background:var(--surface-2); color:var(--text); font-family:inherit; font-size:0.8rem;">
         <button type="button" class="export-btn" id="copyShareLinkBtn" style="width:auto; margin-top:0; padding:0 14px; white-space:nowrap;">${t('copy','Copy')}</button>
       </div>
       <label style="display:block; font-weight:700; font-size:0.85rem; margin:16px 0 6px;">${t('shareCodeOnlyLabel','Code only')}</label>
       <div style="display:flex; gap:8px;">
-        <input type="text" readonly id="shareCodeOutput" value="${shareBackendConfigured() ? "Generating…" : escapeHtml(longCode)}" style="flex:1; min-width:0; padding:10px 12px; border-radius:8px; border:1px solid var(--border); background:var(--surface-2); color:var(--text); font-family:inherit; font-size:0.8rem;">
+        <input type="text" readonly id="shareCodeOutput" value="${shareBackendConfigured() ? t('shareGenerating','Generating…') : escapeHtml(longCode)}" style="flex:1; min-width:0; padding:10px 12px; border-radius:8px; border:1px solid var(--border); background:var(--surface-2); color:var(--text); font-family:inherit; font-size:0.8rem;">
         <button type="button" class="export-btn" id="copyShareCodeBtn" style="width:auto; margin-top:0; padding:0 14px; white-space:nowrap;">${t('copy','Copy')}</button>
       </div>
       <div class="modal-actions" style="justify-content:flex-end;">
@@ -3943,7 +3943,7 @@ function showShareModal(){
       }catch(e){
         console.error(e);
         const intro = backdrop.querySelector("#shareModalIntro");
-        if(intro) intro.insertAdjacentHTML("beforeend", " <em>(Couldn't reach the short-link service, so here's the full self-contained code instead, it still works the same way.)</em>");
+        if(intro) intro.insertAdjacentHTML("beforeend", " <em>"+t('shareLinkServiceFallback',"(Couldn't reach the short-link service, so here's the full self-contained code instead, it still works the same way.)")+"</em>");
       }
     }
     const link = shareLinkFromCode(code);
@@ -4265,7 +4265,7 @@ document.getElementById("exportBtn").addEventListener("click", async ()=>{
   const exportBtn = document.getElementById("exportBtn");
   const originalLabel = exportBtn.textContent;
   exportBtn.classList.add("success");
-  exportBtn.textContent = "Downloaded ✓";
+  exportBtn.textContent = t('exportDownloadedBtn','Downloaded ✓');
   fireConfetti(exportBtn);
   document.getElementById("exportImportTip").style.display = "block";
   setTimeout(()=>{
@@ -4506,7 +4506,7 @@ document.getElementById("copyShareCodeBtn2").addEventListener("click", async (e)
   if(shareBackendConfigured()){
     const original = btn.innerHTML;
     btn.disabled = true;
-    btn.innerHTML = "Creating code…";
+    btn.innerHTML = t('shareCreatingCode','Creating code…');
     try{
       const shortId = await createShortShareCode(longCode);
       code = `mb-${shortId}`;
