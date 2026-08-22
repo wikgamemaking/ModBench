@@ -1205,6 +1205,9 @@
     </div>
   </section>
 
+  <button id="packToTop" type="button" aria-label="Go to top" title="Go to top" style="position:fixed; right:24px; bottom:24px; z-index:60; width:44px; height:44px; border-radius:50%; border:1px solid var(--border); background:var(--surface-2); color:var(--text); cursor:pointer; box-shadow:0 4px 12px rgba(0,0,0,0.25); align-items:center; justify-content:center; opacity:0; visibility:hidden; transform:translateY(8px); transition:opacity .2s ease, transform .2s ease; display:flex;">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>
+  </button>
   <section id="tab-pack" style="display:none;">
     <div class="search-box" id="packSearchBar" style="display:none; margin-bottom:12px;">
       <span aria-hidden="true">🔍</span>
@@ -1610,6 +1613,25 @@ document.querySelectorAll("nav.tabs button").forEach(btn=>{
     if(state.tab === "modpacks" && state.modpackResults.length === 0 && !state.modpackSearched) runModpackSearch();
   });
 });
+
+(function(){
+  const btn = document.getElementById("packToTop");
+  const SHOW_AFTER = 500; // px scrolled before button appears
+  function updateVisibility(){
+    const shouldShow = state.tab === "pack" && window.scrollY > SHOW_AFTER;
+    btn.style.opacity = shouldShow ? "1" : "0";
+    btn.style.visibility = shouldShow ? "visible" : "hidden";
+    btn.style.transform = shouldShow ? "translateY(0)" : "translateY(8px)";
+  }
+  window.addEventListener("scroll", updateVisibility, { passive: true });
+  document.querySelectorAll("nav.tabs button").forEach(b=>{
+    b.addEventListener("click", ()=> setTimeout(updateVisibility, 0));
+  });
+  btn.addEventListener("click", ()=>{
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
+  updateVisibility();
+})();
 
 const FALLBACK_MC_VERSIONS = [
   "1.21.4","1.21.3","1.21.1","1.21","1.20.6","1.20.4","1.20.2","1.20.1","1.20",
