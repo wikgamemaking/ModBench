@@ -775,6 +775,15 @@
     cursor:pointer; white-space:nowrap;
   }
   .modlist-toggle:hover{ background:none; border:none; transform:none; color: var(--accent); }
+  /* When revealed, let the wrapped items (chips or inline text) act as direct children of
+     their normal container again instead of being boxed inside this wrapper span — matters
+     for the chip case, where .issue-mods relies on its children being direct flex items. */
+  .modlist-rest:not([hidden]){ display:contents; }
+  .modlist-toggle-chip{
+    background: var(--surface-2); border:1px dashed var(--border); cursor:pointer;
+    font-family:inherit; font-weight:700; color: var(--accent-dark);
+  }
+  .modlist-toggle-chip:hover{ border-color: var(--accent); color: var(--accent); }
   .modal-desc-full{ font-size:0.92rem; color: var(--text); line-height:1.6; }
   .modal-desc-full h1, .modal-desc-full h2, .modal-desc-full h3{ font-size:1rem; margin:16px 0 6px; }
   .modal-desc-full p{ margin:0 0 10px; }
@@ -1341,7 +1350,7 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 15000){
 
 /* --- Toast notifications --- */
 document.addEventListener("click", (e)=>{
-  const toggle = e.target.closest(".modlist-toggle");
+  const toggle = e.target.closest(".modlist-toggle, .modlist-toggle-chip, .modlist-toggle-row");
   if(!toggle) return;
   const rest = document.getElementById(toggle.dataset.target);
   if(rest){ rest.hidden = false; }
@@ -1512,7 +1521,14 @@ let state = {
   modpackTotalHits: 0,
   modpackSearched: false,
   packIcon: localStorage.getItem("modbench_pack_icon") || "",
-  autoCompatCheck: localStorage.getItem("modbench_auto_compat_check") !== "off"
+  autoCompatCheck: localStorage.getItem("modbench_auto_compat_check") !== "off",
+  // Tracks whether the person manually picked a loader/MC version on the Export tab (a real
+  // "change" event), vs. it just being an auto-fill guess. The compatibility checker should
+  // only treat the Export tab's value as an intentional target once it's actually been touched —
+  // otherwise a stale guess from before a new modpack was imported (e.g. via the Modpacks tab)
+  // keeps overriding the loader the checker derives fresh from the pack's current contents.
+  expLoaderTouched: false,
+  expMcTouched: false
 };
 
 // Wraps localStorage writes so a full/unavailable storage quota (easy to hit with large
@@ -2346,12 +2362,12 @@ async function openModal(projectId, hitLookup){
       ${truncated ? `<button class="modal-link-btn" id="modalDescToggle" style="margin:0 0 16px;">Show full description</button>` : ""}
       <h3 style="font-size:0.85rem; text-transform:uppercase; letter-spacing:.04em; color:var(--text-dim);">Versions (${versions.length})</h3>
       <div class="modal-versions">
-        ${sortByGameVersionRecency(versions).map(v=>`
+        ${versionRowsHtml(sortByGameVersionRecency(versions).map(v=>`
           <div class="version-row" data-vid="${v.id}">
             <span class="version-loaders">${loaderIconsHtml(v.loaders)}</span>
             <span class="vname">${escapeHtml(v.version_number)}</span>
             <span class="vmeta">${v.game_versions.slice(0,3).join(", ")} · ${v.loaders.join(", ")}</span>
-          </div>`).join("")}
+          </div>`))}
       </div>
       <div class="modal-actions">
         <button class="export-btn" id="modalAddBtn" style="flex:1;">
@@ -2711,6 +2727,24 @@ function modChipHtml(mod){
   return `<span class="compat-mod-chip${inPack ? " clickable" : ""}" ${inPack ? `data-jump-id="${escapeHtml(mod.id)}" role="button" tabindex="0" title="Jump to ${escapeHtml(mod.title)} in your pack"` : ""}>${mod.icon_url ? `<img src="${mod.icon_url}" alt="">` : ""}${escapeHtml(mod.title)}</span>`;
 }
 
+// Same "see more" collapsing idea as modListHtml, but for a row of pill chips instead of an
+// inline comma list — a pack with hundreds of loader-mismatched mods can otherwise turn one
+// compat issue into a wall of chips.
+function modChipsHtml(mods, limit = 12){
+  const chips = mods.map(modChipHtml);
+  if(chips.length <= limit) return chips.join("");
+  const id = `modchips-${Math.random().toString(36).slice(2, 9)}`;
+  return `${chips.slice(0, limit).join("")}<span class="modlist-rest" id="${id}" hidden>${chips.slice(limit).join("")}</span><button type="button" class="compat-mod-chip modlist-toggle-chip" data-target="${id}">+${chips.length - limit} more</button>`;
+}
+
+// Same idea again for a mod's version list — some popular mods have hundreds of versions,
+// which is a lot of DOM/scrolling for someone who almost always just wants a recent one.
+function versionRowsHtml(rows, limit = 15){
+  if(rows.length <= limit) return rows.join("");
+  const id = `versionrows-${Math.random().toString(36).slice(2, 9)}`;
+  return `${rows.slice(0, limit).join("")}<div class="modlist-rest" id="${id}" hidden>${rows.slice(limit).join("")}</div><button type="button" class="modal-link-btn modlist-toggle-row" data-target="${id}" style="width:100%; margin:2px 0;">Show ${rows.length - limit} more version${rows.length - limit === 1 ? "" : "s"}</button>`;
+}
+
 const depVersionProjectCache = new Map();
 async function resolveDepProjectId(dep){
   if(dep.project_id) return dep.project_id;
@@ -2910,7 +2944,7 @@ async function runCompatibilityCheck(){
 
   if(selected.length > 1){
     const expLoaderEl = document.getElementById("expLoader");
-    const explicitLoader = (expLoaderEl && expLoaderEl.value) ? expLoaderEl.value : dominantImportedLoader(selected);
+    const explicitLoader = (expLoaderEl && expLoaderEl.value && state.expLoaderTouched) ? expLoaderEl.value : dominantImportedLoader(selected);
     const loaderBridges = getActiveLoaderBridges(selected);
     const loaderPick = explicitLoader ? { loader: explicitLoader, runners: selected.filter(x=>modRunsOnLoader(x, explicitLoader, loaderBridges)) } : pickBestLoaderForPack(selected);
 
@@ -2940,7 +2974,7 @@ async function runCompatibilityCheck(){
     }
 
     const expMcEl = document.getElementById("expMcVersion");
-    const explicitMc = expMcEl && expMcEl.value ? expMcEl.value : null;
+    const explicitMc = (expMcEl && expMcEl.value && state.expMcTouched) ? expMcEl.value : null;
     const gvBest = explicitMc
       ? { value: explicitMc, supporters: selected.filter(x=>effectiveGameVersions(x).includes(explicitMc)) }
       : findMajoritySupport(selected, effectiveGameVersions);
@@ -2973,11 +3007,11 @@ async function runCompatibilityCheck(){
 
 function getCompatTargets(selected){
   const expLoaderEl = document.getElementById("expLoader");
-  const explicitLoader = expLoaderEl && expLoaderEl.value ? expLoaderEl.value : null;
+  const explicitLoader = (expLoaderEl && expLoaderEl.value && state.expLoaderTouched) ? expLoaderEl.value : null;
   const loaderPick = explicitLoader ? { loader: explicitLoader } : pickBestLoaderForPack(selected);
 
   const expMcEl = document.getElementById("expMcVersion");
-  const explicitMc = expMcEl && expMcEl.value ? expMcEl.value : null;
+  const explicitMc = (expMcEl && expMcEl.value && state.expMcTouched) ? expMcEl.value : null;
   const gvBest = explicitMc ? { value: explicitMc } : findMajoritySupport(selected, effectiveGameVersions);
 
   return { loader: loaderPick ? loaderPick.loader : null, mcVersion: gvBest ? gvBest.value : null };
@@ -3148,7 +3182,7 @@ async function showCompatibilityResults(fixNote){
     <div class="compat-issue">
       <div class="issue-title">${issue.icon} ${escapeHtml(issue.title)}</div>
       <div class="issue-detail">${issue.detail}</div>
-      <div class="issue-mods">${issue.mods.map(modChipHtml).join("")}</div>
+      <div class="issue-mods">${modChipsHtml(issue.mods)}</div>
       ${issue.perModNote ? `<div class="issue-detail" style="margin-top:8px; font-size:0.8rem;">${issue.perModNote.join("<br>")}</div>` : ""}
     </div>
   `).join("");
@@ -4290,6 +4324,8 @@ autoCompatToggleEl.addEventListener("change", ()=>{
   safeLocalStorageSet("modbench_auto_compat_check", state.autoCompatCheck ? "on" : "off");
   updatePackIssueHighlights();
 });
+document.getElementById("expLoader").addEventListener("change", ()=>{ state.expLoaderTouched = true; });
+document.getElementById("expMcVersion").addEventListener("change", ()=>{ state.expMcTouched = true; });
 document.getElementById("sortAlphaBtn").addEventListener("click", ()=>{
   state.packSort = state.packSort === "alpha" ? "category" : "alpha";
   document.getElementById("sortAlphaBtn").textContent = state.packSort === "alpha" ? "Group by category" : "Sort A→Z";
