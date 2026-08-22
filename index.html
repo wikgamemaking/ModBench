@@ -1206,6 +1206,7 @@
 
       <button class="export-btn" id="exportBtn">Download .mrpack</button>
       <p class="export-note" id="exportNote">Add mods to your pack first, then choose a version and loader.</p>
+      <p style="color:var(--text-dim); font-size:0.8rem; margin:8px 0 0; display:none;" id="exportImportTip">Downloaded. If the <strong>Modrinth App</strong> is installed, just double-click the <code>.mrpack</code> file (or open it from your browser's downloads list) and it'll launch straight into creating an instance from it — browsers can't hand a file to a desktop app automatically, so this is the fastest route to "importing."</p>
 
       <button type="button" class="modal-link-btn" id="copyShareCodeBtn2" style="width:100%; margin-top:10px; justify-content:center;">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px; height:16px;"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
@@ -1441,11 +1442,14 @@ function scheduleSearch(){
   searchTimer = setTimeout(runSearch, 350);
 }
 
+const CLIENT_ENVIRONMENTS = ["client_and_server","client_only","client_only_server_optional","singleplayer_only","client_or_server","client_or_server_prefers_both"];
+const SERVER_ENVIRONMENTS = ["client_and_server","server_only","server_only_client_optional","dedicated_server_only","client_or_server","client_or_server_prefers_both"];
+
 function buildFacets(){
   const facets = [];
   if(state.browseType === "mod" && state.loaders.length) facets.push(state.loaders.map(l=>`categories:${l}`));
-  if(state.browseType === "mod" && state.environments.includes("client")) facets.push(["client_side:required","client_side:optional"]);
-  if(state.browseType === "mod" && state.environments.includes("server")) facets.push(["server_side:required","server_side:optional"]);
+  if(state.browseType === "mod" && state.environments.includes("client")) facets.push(CLIENT_ENVIRONMENTS.map(e=>`environment:${e}`));
+  if(state.browseType === "mod" && state.environments.includes("server")) facets.push(SERVER_ENVIRONMENTS.map(e=>`environment:${e}`));
   if(state.categories.length){
     const set = CATEGORY_SETS[state.browseType] || CATEGORY_SETS.mod;
     const headerOf = {};
@@ -3701,6 +3705,7 @@ function renderExport(){
   const expLoader = document.getElementById("expLoader");
   const statsEl = document.getElementById("exportStats");
   const heroIcon = document.getElementById("exportHeroIcon");
+  document.getElementById("exportImportTip").style.display = "none";
   if(!expMc.value && state.mcVersion) expMc.value = state.mcVersion;
   if(!expLoader.value && state.loaders.length === 1) expLoader.value = state.loaders[0];
   if(!expMc.value || !expLoader.value){
@@ -3726,7 +3731,7 @@ function renderExport(){
     const totalSize = knownSizeMods.reduce((sum,m)=>sum + m.selectedFile.size, 0);
     const hasUnknown = unknownSizeMods.length > 0;
     const sizeDisplay = totalSize > 0
-      ? `${hasUnknown ? "≥" : "~"}${formatBytes(totalSize)}`
+      ? `${hasUnknown ? "≥" : ""}${formatBytes(totalSize)}`
       : (hasUnknown ? "Unknown" : "0 MB");
     const catCounts = {};
     state.pack.forEach(m=>(m.categories||[]).forEach(c=>{ catCounts[c] = (catCounts[c]||0) + 1; }));
@@ -3826,6 +3831,7 @@ document.getElementById("exportBtn").addEventListener("click", async ()=>{
   exportBtn.classList.add("success");
   exportBtn.textContent = "Downloaded ✓";
   fireConfetti(exportBtn);
+  document.getElementById("exportImportTip").style.display = "block";
   setTimeout(()=>{
     exportBtn.classList.remove("success");
     exportBtn.textContent = originalLabel;
