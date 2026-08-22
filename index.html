@@ -2566,14 +2566,34 @@ const LOADER_RUNS_ON = { fabric: ["fabric"], quilt: ["quilt", "fabric"], forge: 
 const LOADER_DISPLAY_NAMES = { fabric: "Fabric", quilt: "Quilt", forge: "Forge", neoforge: "NeoForge" };
 function formatLoaderName(loader){ return LOADER_DISPLAY_NAMES[loader] || formatCategoryName(loader || ""); }
 
-function modRunsOnLoader(x, loader){
+// Some mods are "loader bridges": translation layers that let mods built for one loader run
+// on a completely different one. Sinytra Connector is the big one — it lets genuine Fabric-only
+// mods (BCLib, BetterEnd/BetterNether, Embeddium, etc.) run inside a Forge/NeoForge pack, which
+// is exactly how many popular Forge megapacks (e.g. Better MC [FORGE]) include them. Without
+// knowing about the bridge, the checker has no way to see that and flags every one of those
+// mods as loader-incompatible even though the pack works fine with the bridge installed.
+const LOADER_BRIDGES = {
+  "u58R1TMW": { runs: ["fabric", "quilt"], on: ["forge", "neoforge"] } // Sinytra Connector
+};
+
+function getActiveLoaderBridges(selected){
+  return selected
+    .map(x=>LOADER_BRIDGES[x.mod.id])
+    .filter(Boolean);
+}
+
+function modRunsOnLoader(x, loader, bridges){
   if(isLoaderAgnostic(x)) return true;
-  const runnable = LOADER_RUNS_ON[loader] || [loader];
+  let runnable = LOADER_RUNS_ON[loader] || [loader];
+  if(bridges && bridges.length){
+    bridges.forEach(b=>{ if(b.on.includes(loader)) runnable = runnable.concat(b.runs); });
+  }
   return effectiveLoaders(x).some(l=>runnable.includes(l));
 }
 
 function pickBestLoaderForPack(selected){
   const candidateLoaders = ["fabric", "quilt", "forge", "neoforge"];
+  const bridges = getActiveLoaderBridges(selected);
   // Loader-agnostic entries (resource packs, datapacks, shaders, or mods with no loader info)
   // run on every loader by definition, so they shouldn't get to cast a "vote" for one loader
   // over another — otherwise a pack full of e.g. shaderpacks plus a couple Forge mods can tie
@@ -2585,9 +2605,9 @@ function pickBestLoaderForPack(selected){
   const votePool = specific.length ? specific : selected;
   let best = null;
   candidateLoaders.forEach(loader=>{
-    const votes = votePool.filter(x=>modRunsOnLoader(x, loader));
+    const votes = votePool.filter(x=>modRunsOnLoader(x, loader, bridges));
     if(votes.length && (!best || votes.length > best.votes)){
-      best = { loader, votes, runners: selected.filter(x=>modRunsOnLoader(x, loader)) };
+      best = { loader, votes, runners: selected.filter(x=>modRunsOnLoader(x, loader, bridges)) };
     }
   });
   return best;
@@ -2675,10 +2695,11 @@ async function runCompatibilityCheck(){
   if(selected.length > 1){
     const expLoaderEl = document.getElementById("expLoader");
     const explicitLoader = (expLoaderEl && expLoaderEl.value) ? expLoaderEl.value : dominantImportedLoader(selected);
-    const loaderPick = explicitLoader ? { loader: explicitLoader, runners: selected.filter(x=>modRunsOnLoader(x, explicitLoader)) } : pickBestLoaderForPack(selected);
+    const loaderBridges = getActiveLoaderBridges(selected);
+    const loaderPick = explicitLoader ? { loader: explicitLoader, runners: selected.filter(x=>modRunsOnLoader(x, explicitLoader, loaderBridges)) } : pickBestLoaderForPack(selected);
 
     if(loaderPick){
-      const missing = selected.filter(x=>!modRunsOnLoader(x, loaderPick.loader));
+      const missing = selected.filter(x=>!modRunsOnLoader(x, loaderPick.loader, loaderBridges));
       if(missing.length){
         const loaderLabel = formatLoaderName(loaderPick.loader);
         const loaderStrong = boldEsc(loaderLabel);
@@ -2801,15 +2822,18 @@ async function autoFixCompatibility(missingDepIds){
   const unresolved = [];
   const swappedVersions = []; // {mod, version} for newly-swapped mods, so we can pull in their dependencies below
   const noTarget = selected.length >= 2 && !targetLoader && !targetMc;
+  const loaderBridges = getActiveLoaderBridges(selected);
 
   if(selected.length >= 2 && !noTarget){
     for(const x of selected){
       const { mod } = x;
-      const okLoader = !targetLoader || isLoaderAgnostic(x) || modRunsOnLoader(x, targetLoader);
+      const okLoader = !targetLoader || isLoaderAgnostic(x) || modRunsOnLoader(x, targetLoader, loaderBridges);
       const okVersion = !targetMc || effectiveGameVersions(x).includes(targetMc);
       if(okLoader && okVersion) continue; // already fine, leave it alone
 
-      const runnableLoaders = targetLoader ? (LOADER_RUNS_ON[targetLoader] || [targetLoader]) : null;
+      const runnableLoaders = targetLoader ? (LOADER_RUNS_ON[targetLoader] || [targetLoader]).concat(
+        loaderBridges.filter(b=>b.on.includes(targetLoader)).flatMap(b=>b.runs)
+      ) : null;
       const candidates = sortByGameVersionRecency(mod.versions).filter(v=>{
         const loaderOk = !runnableLoaders || (v.loaders||[]).some(l=>runnableLoaders.includes(l));
         const mcOk = !targetMc || (v.game_versions||[]).includes(targetMc);
