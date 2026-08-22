@@ -44,6 +44,9 @@ window.i18n.fr = {
   browseTypeResourcePacks: "Packs de textures",
   browseSearchPlaceholder: "Rechercher des mods sur Modrinth…",
   browseSearchLabel: "Rechercher des mods",
+  browseSearching: "Recherche…",
+  browseNothingFound: "Aucun résultat. Essayez d'autres filtres.",
+  browseApiError: "Impossible de joindre l'API de Modrinth depuis cette page.",
 
   favSearchPlaceholder: "Rechercher dans vos favoris…",
   favSearchLabel: "Rechercher dans les favoris",
@@ -52,6 +55,9 @@ window.i18n.fr = {
 
   modpackSearchPlaceholder: "Rechercher des modpacks sur Modrinth…",
   modpackSearchLabel: "Rechercher des modpacks",
+  modpackSearching: "Recherche…",
+  modpackNothingFound: "Aucun modpack trouvé. Essayez une autre recherche.",
+  modpackApiError: "Impossible de joindre l'API de Modrinth depuis cette page.",
 
   createSearchPlaceholder: "Rechercher dans votre pack…",
   createSearchLabel: "Rechercher dans votre pack",
