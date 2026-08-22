@@ -755,6 +755,8 @@
   .modal-close{
     margin-left:auto; background:none; border:none; font-size:1.4rem; cursor:pointer; color: var(--text-dim);
     transition: color .15s, transform .15s; border-radius:6px;
+    display:inline-flex; align-items:center; justify-content:center;
+    line-height:1; padding:4px; min-width:28px; min-height:28px; flex-shrink:0;
   }
   .modal-close:hover{ color: var(--text); transform: rotate(90deg); }
   .modal-actions{ display:flex; gap:10px; margin-top:14px; }
@@ -767,6 +769,12 @@
     transition: background .15s, border-color .15s, transform .1s;
   }
   .modal-link-btn:hover{ background: var(--surface); border-color: var(--accent); transform: translateY(-1px); }
+  .modlist-toggle{
+    display:inline; background:none; border:none; padding:0; margin-left:2px;
+    color: var(--accent-dark); font-weight:700; font-size:inherit; text-decoration:underline;
+    cursor:pointer; white-space:nowrap;
+  }
+  .modlist-toggle:hover{ background:none; border:none; transform:none; color: var(--accent); }
   .modal-desc-full{ font-size:0.92rem; color: var(--text); line-height:1.6; }
   .modal-desc-full h1, .modal-desc-full h2, .modal-desc-full h3{ font-size:1rem; margin:16px 0 6px; }
   .modal-desc-full p{ margin:0 0 10px; }
@@ -816,7 +824,7 @@
   .page-btn{
     min-width:34px; height:34px; padding:0 8px; border-radius:7px; border:1px solid var(--border);
     background: var(--surface); color:var(--text); font-family:inherit; font-weight:700; font-size:0.88rem; cursor:pointer;
-    text-align:center;
+    text-align:center; display:inline-flex; align-items:center; justify-content:center; line-height:1.25;
     transition: border-color .15s, transform .1s;
   }
   .page-btn:hover:not(:disabled){ border-color: var(--accent); transform: translateY(-1px); }
@@ -907,9 +915,87 @@
   }
   .pack-row.jump-flash{ animation: pack-row-jump-flash 1.6s ease-out; }
   .compat-skipped{ font-size:0.8rem; color: var(--text-dim); margin-top:14px; padding-top:12px; border-top:1px solid var(--border); }
+  /* --- Button loading state (shimmer + spinner) --- */
+  .btn-loading{
+    position:relative; color:transparent !important; pointer-events:none;
+    overflow:hidden;
+  }
+  .btn-loading::before{
+    content:""; position:absolute; inset:0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent);
+    background-size: 200% 100%;
+    animation: btn-shimmer 1.15s ease-in-out infinite;
+  }
+  .page-btn.btn-loading::before{
+    background: linear-gradient(90deg, transparent, rgba(0,0,0,.08), transparent);
+  }
+  html[data-theme="dark"] .page-btn.btn-loading::before{
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,.12), transparent);
+  }
+  @keyframes btn-shimmer{
+    0%{ background-position: 150% 0; }
+    100%{ background-position: -50% 0; }
+  }
+  .btn-loading::after{
+    content:""; position:absolute; top:50%; left:50%;
+    width:15px; height:15px; transform: translate(-50%, -50%);
+    border-radius:50%;
+    border:2px solid rgba(255,255,255,.45);
+    border-top-color:#fff;
+    animation: btn-spin .7s linear infinite;
+  }
+  .page-btn.btn-loading::after{
+    border:2px solid rgba(38,36,32,.25);
+    border-top-color: var(--text);
+  }
+  html[data-theme="dark"] .page-btn.btn-loading::after{
+    border:2px solid rgba(236,233,225,.25);
+    border-top-color: var(--text);
+  }
+  @keyframes btn-spin{ to{ transform: translate(-50%, -50%) rotate(360deg); } }
+
+  /* --- Toasts --- */
+  #toastStack{
+    position:fixed; left:50%; bottom:64px; transform:translateX(-50%);
+    display:flex; flex-direction:column; gap:8px; align-items:center;
+    z-index:9999; pointer-events:none;
+    width:min(92vw, 460px);
+  }
+  .toast{
+    pointer-events:auto;
+    display:flex; align-items:center; gap:12px;
+    background: var(--text); color: var(--bg);
+    border-radius:10px; padding:14px 16px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.22);
+    font-size:0.95rem; line-height:1.4;
+    width:100%;
+    opacity:0; transform: translateY(12px) scale(.98);
+    animation: toast-in .22s cubic-bezier(.2,.9,.3,1.2) forwards;
+  }
+  html[data-theme="dark"] .toast{ background: var(--surface-2); color: var(--text); border:1px solid var(--border); }
+  .toast.leaving{ animation: toast-out .18s ease forwards; }
+  @keyframes toast-in{ from{ opacity:0; transform: translateY(12px) scale(.98); } to{ opacity:1; transform: translateY(0) scale(1); } }
+  @keyframes toast-out{ from{ opacity:1; transform: translateY(0) scale(1); } to{ opacity:0; transform: translateY(8px) scale(.98); } }
+  .toast-msg{ flex:1; }
+  .toast-msg strong{ font-weight:800; }
+  .toast-action{
+    background:none; border:none; color:#8fd6ac;
+    font-weight:700; font-family:inherit; font-size:0.9rem; cursor:pointer;
+    padding:2px 4px; white-space:nowrap; text-decoration:underline;
+  }
+  html[data-theme="dark"] .toast-action{ color: var(--accent-dark); }
+  .toast-close{
+    background:none; border:none; color:inherit; opacity:.6; cursor:pointer;
+    padding:2px; display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  }
+  .toast-close:hover{ opacity:1; }
+  @media (max-width: 640px){
+    #toastStack{ bottom:50px; width:94vw; }
+  }
 </style>
 </head>
 <body>
+<div id="toastStack" aria-live="polite" aria-atomic="true"></div>
 
 <header class="site">
   <div class="header-inner">
@@ -1250,6 +1336,91 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 15000){
     throw e;
   }finally{
     clearTimeout(timer);
+  }
+}
+
+/* --- Toast notifications --- */
+document.addEventListener("click", (e)=>{
+  const toggle = e.target.closest(".modlist-toggle");
+  if(!toggle) return;
+  const rest = document.getElementById(toggle.dataset.target);
+  if(rest){ rest.hidden = false; }
+  toggle.remove();
+});
+
+function showToast(message, opts = {}){
+  const { actionLabel, onAction, duration = 6000 } = opts;
+  const stack = document.getElementById("toastStack");
+  if(!stack) return null;
+
+  const toast = document.createElement("div");
+  toast.className = "toast";
+  toast.setAttribute("role", "status");
+
+  const msg = document.createElement("span");
+  msg.className = "toast-msg";
+  // Supports **bold** for emphasizing the key words in a toast message.
+  msg.innerHTML = escapeHtml(message).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  toast.appendChild(msg);
+
+  let dismissTimer;
+  const dismiss = ()=>{
+    if(!toast.isConnected) return;
+    clearTimeout(dismissTimer);
+    toast.classList.add("leaving");
+    toast.addEventListener("animationend", ()=>toast.remove(), { once:true });
+    setTimeout(()=>toast.remove(), 250);
+  };
+
+  if(actionLabel && onAction){
+    const actionBtn = document.createElement("button");
+    actionBtn.type = "button";
+    actionBtn.className = "toast-action";
+    actionBtn.textContent = actionLabel;
+    actionBtn.addEventListener("click", ()=>{
+      onAction();
+      dismiss();
+    });
+    toast.appendChild(actionBtn);
+  }
+
+  const closeBtn = document.createElement("button");
+  closeBtn.type = "button";
+  closeBtn.className = "toast-close";
+  closeBtn.setAttribute("aria-label", "Dismiss");
+  closeBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+  closeBtn.addEventListener("click", dismiss);
+  toast.appendChild(closeBtn);
+
+  stack.appendChild(toast);
+  dismissTimer = setTimeout(dismiss, duration);
+  return { dismiss };
+}
+
+/* --- Button loading state (shimmer + spinner + slow-load toast) --- */
+function startLoadingButton(btn, label){
+  if(!btn) return;
+  if(btn.dataset.originalLabel === undefined) btn.dataset.originalLabel = btn.textContent;
+  if(label !== undefined) btn.textContent = label;
+  btn.disabled = true;
+  btn.classList.add("btn-loading");
+  if(!btn._slowLoadTimer){
+    btn._slowLoadTimer = setTimeout(()=>{
+      showToast("**Taking more time than expected.** Modbench is still working on getting your mods added.");
+      btn._slowLoadTimer = null;
+    }, 15000);
+  }
+}
+
+function stopLoadingButton(btn, finalLabel){
+  if(!btn) return;
+  btn.disabled = false;
+  btn.classList.remove("btn-loading");
+  btn.textContent = finalLabel !== undefined ? finalLabel : (btn.dataset.originalLabel ?? btn.textContent);
+  delete btn.dataset.originalLabel;
+  if(btn._slowLoadTimer){
+    clearTimeout(btn._slowLoadTimer);
+    btn._slowLoadTimer = null;
   }
 }
 
@@ -2006,6 +2177,7 @@ async function autoAddDependencies(version, visited, hostProjectType){
     if(!depProjectId || visited.has(depProjectId)) continue;
     visited.add(depProjectId);
     if(state.pack.some(p=>p.id === depProjectId)) continue;
+    if(hasEquivalentInPack(depProjectId)) continue;
     try{
       const proj = await fetchWithTimeout(`${API}/project/${depProjectId}`).then(r=>r.ok?r.json():null);
       if(!proj) continue;
@@ -2031,6 +2203,20 @@ async function autoAddDependencies(version, visited, hostProjectType){
       updateCardButtonsEverywhere(depProjectId);
     }catch(e){ console.error("Failed to add dependency", depProjectId, e); }
   }
+}
+
+// Some mods are forks/replacements of one another and provide the same functionality —
+// e.g. Xenon is a fork of Embeddium. If a required dependency has a known fork/original
+// already in the pack, don't auto-add the dependency on top of it: the two are flagged
+// incompatible with each other on Modrinth, so doing so just creates a compatibility issue.
+const MOD_EQUIVALENTS = {
+  "aWDwN8NN": ["sk9rgfiA"], // Xenon <-> Embeddium
+  "sk9rgfiA": ["aWDwN8NN"]
+};
+function hasEquivalentInPack(projectId){
+  const equivalents = MOD_EQUIVALENTS[projectId];
+  if(!equivalents) return false;
+  return state.pack.some(p=>equivalents.includes(p.id));
 }
 
 const QUILT_API_ID = "qvIfYCYJ";
@@ -2410,9 +2596,22 @@ function renderPack(){
     btn.addEventListener("click", (e)=>{
       e.stopPropagation();
       const removedId = btn.dataset.remove;
-      state.pack = state.pack.filter(m=>m.id !== removedId);
+      const removedIdx = state.pack.findIndex(m=>m.id === removedId);
+      if(removedIdx === -1) return;
+      const [removedMod] = state.pack.splice(removedIdx, 1);
       savePack(); renderPack();
       updateCardButtonsEverywhere(removedId);
+      showToast(`Removed "${removedMod.title}" from Create.`, {
+        actionLabel: "Undo",
+        onAction: ()=>{
+          // If a mod with the same id was re-added since removal, don't clobber it.
+          if(state.pack.some(m=>m.id === removedId)) return;
+          const insertAt = Math.min(removedIdx, state.pack.length);
+          state.pack.splice(insertAt, 0, removedMod);
+          savePack(); renderPack();
+          updateCardButtonsEverywhere(removedId);
+        }
+      });
     });
   });
   listEl.querySelectorAll("[data-vselect]").forEach(sel=>{
@@ -2623,6 +2822,16 @@ function boldEsc(text){
   return `<strong>${escapeHtml(text)}</strong>`;
 }
 
+// Long unresolved-mod lists (e.g. a big pack with hundreds of loader mismatches) can make the
+// AutoSolve result note absurdly long. Show a handful of names inline and collapse the rest
+// behind a "+N more" toggle instead of dumping the whole list into the paragraph.
+function modListHtml(mods, limit = 6){
+  const names = mods.map(m=>boldEsc(m.title));
+  if(names.length <= limit) return names.join(", ");
+  const id = `modlist-${Math.random().toString(36).slice(2, 9)}`;
+  return `${names.slice(0, limit).join(", ")}, <span class="modlist-rest" id="${id}" hidden>${names.slice(limit).join(", ")}, </span><button type="button" class="modal-link-btn modlist-toggle" data-target="${id}">+${names.length - limit} more</button>`;
+}
+
 // If most of the selected mods came from the same modpack import, trust the loader that
 // import already recorded (from the pack's own manifest — see importMrpackZipIntoPack)
 // instead of re-deriving it by voting across each mod's individual Modrinth version data.
@@ -2679,6 +2888,7 @@ async function runCompatibilityCheck(){
         const depProjectId = await resolveDepProjectId(dep);
         if(!depProjectId) continue;
         if(state.pack.some(p=>p.id === depProjectId)) continue;
+        if(hasEquivalentInPack(depProjectId)) continue;
         if(!missingDeps.has(depProjectId)) missingDeps.set(depProjectId, []);
         missingDeps.get(depProjectId).push(mod);
       }
@@ -3009,13 +3219,13 @@ async function showCompatibilityResults(fixNote){
           note = {
             ok: false,
             headline: `Partially fixed: ${bits.join(", ")}`,
-            sublineHtml: `${unresolved.length ? `ModBench couldn't fix ${unresolved.map(m=>`<strong>${escapeHtml(m.title)}</strong>`).join(", ")} — none of their available versions match your pack's target loader/Minecraft version. ` : ""}${depFailNote} Take a look at the details below.`
+            sublineHtml: `${unresolved.length ? `ModBench couldn't fix ${modListHtml(unresolved)} — none of their available versions match your pack's target loader/Minecraft version. ` : ""}${depFailNote} Take a look at the details below.`
           };
         }else if(unresolved.length){
           note = {
             ok: false,
             headline: `AutoSolve couldn't fix incompatibilities`,
-            sublineHtml: `None of the available versions of ${unresolved.map(m=>`<strong>${escapeHtml(m.title)}</strong>`).join(", ")} match your pack's target loader/Minecraft version. Update ${unresolved.length===1?"it":"them"} manually below, or adjust your target on the Export tab.`
+            sublineHtml: `None of the available versions of ${modListHtml(unresolved)} match your pack's target loader/Minecraft version. Update ${unresolved.length===1?"it":"them"} manually below, or adjust your target on the Export tab.`
           };
         }else if(depsUnresolved.length){
           note = {
@@ -3386,7 +3596,7 @@ async function importMrpackZipIntoPack(zip, meta = {}){
       id: v.project_id,
       title: proj ? proj.title : v.name,
       icon_url: proj ? proj.icon_url : "",
-      author: "",
+      author: (proj && proj.team) || "",
       categories: proj ? proj.categories : [],
       projectType: (proj && proj.project_type) || "mod",
       clientSide: (proj && proj.client_side) || "required",
@@ -3448,9 +3658,8 @@ function applyImportedPackIdentity(result, wasEmptyBefore){
 }
 
 async function importModpackVersion(projectId, version, btn, fallbackMeta = {}){
-  const originalLabel = fallbackMeta.resetLabel !== undefined ? fallbackMeta.resetLabel : btn.textContent;
-  btn.textContent = "Adding…";
-  btn.disabled = true;
+  const originalLabel = fallbackMeta.resetLabel !== undefined ? fallbackMeta.resetLabel : btn.dataset.originalLabel ?? btn.textContent;
+  startLoadingButton(btn, "Adding…");
   let ok = false;
   try{
     const file = version.files.find(f=>f.primary) || version.files[0];
@@ -3474,8 +3683,7 @@ async function importModpackVersion(projectId, version, btn, fallbackMeta = {}){
     alert("Couldn't import that modpack's mods. Modrinth may be unreachable, or this modpack isn't in the standard .mrpack format.");
     return false;
   }finally{
-    btn.disabled = false;
-    btn.textContent = originalLabel;
+    stopLoadingButton(btn, originalLabel);
     if(state.tab === "pack") renderPack();
     if(state.tab === "export") renderExport();
     renderModpackResults();
@@ -3695,7 +3903,7 @@ async function importSharedPack(rawInput){
         id: v.project_id,
         title: proj ? proj.title : v.name,
         icon_url: proj ? proj.icon_url : "",
-        author: "",
+        author: (proj && proj.team) || "",
         categories: proj ? proj.categories : [],
         projectType: (proj && proj.project_type) || "mod",
         clientSide: (proj && proj.client_side) || "required",
@@ -3749,15 +3957,13 @@ async function importSharedPack(rawInput){
 async function addModpackToCreate(projectId, btn){
   if(state.pack.some(p=>p.fromModpack === projectId)) return; // already imported, nothing to do
   const originalLabel = btn.textContent;
-  btn.textContent = "Loading…";
-  btn.disabled = true;
+  startLoadingButton(btn, "Loading…");
   try{
     const versions = await fetchVersions(projectId);
     if(!versions.length) throw new Error("No versions available");
     const chosen = await pickModpackVersion(versions);
     if(!chosen){
-      btn.textContent = originalLabel;
-      btn.disabled = false;
+      stopLoadingButton(btn, originalLabel);
       return;
     }
     const hit = findHitAnywhere(projectId);
@@ -3765,8 +3971,7 @@ async function addModpackToCreate(projectId, btn){
   }catch(e){
     console.error(e);
     alert("Couldn't import that modpack's mods. Modrinth may be unreachable, or this modpack isn't in the standard .mrpack format.");
-    btn.textContent = originalLabel;
-    btn.disabled = false;
+    stopLoadingButton(btn, originalLabel);
   }
 }
 
@@ -3849,7 +4054,11 @@ function renderExport(){
   const heroIcon = document.getElementById("exportHeroIcon");
   document.getElementById("exportImportTip").style.display = "none";
   if(!expMc.value && state.mcVersion) expMc.value = state.mcVersion;
-  if(!expLoader.value && state.loaders.length === 1) expLoader.value = state.loaders[0];
+  // NOTE: don't fall back to state.loaders here — that's the Browse tab's mod-search filter
+  // checkboxes, unrelated to what loader the pack actually targets. A user filtering Browse
+  // by Fabric while working on a Forge pack would otherwise get the export/compat-check
+  // loader silently set to Fabric, flagging every Forge-only mod as a mismatch. guessPackTarget()
+  // below derives the loader from the pack's own contents instead, which is the reliable signal.
   if(!expMc.value || !expLoader.value){
     const guess = guessPackTarget();
     if(!expMc.value && guess.mcVersion) expMc.value = guess.mcVersion;
