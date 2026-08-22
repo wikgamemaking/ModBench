@@ -1466,7 +1466,15 @@ async function createShortShareCode(payload, attempts = 4){
       body: JSON.stringify({ id, data: payload })
     });
     if(res.ok) return id;
-    if(res.status !== 409) throw new Error(`Supabase insert failed (${res.status})`);
+    if(res.status === 409) continue; // short code collision, try another
+    let message = "";
+    try{ const body = await res.json(); message = (body && body.message) || ""; }catch(e){}
+    if(/rate_limit_exceeded/i.test(message)){
+      const err = new Error("share pack rate limited");
+      err.rateLimited = true;
+      throw err;
+    }
+    throw new Error(`Supabase insert failed (${res.status})`);
   }
   throw new Error("Couldn't generate a unique short code, try again.");
 }
@@ -3945,7 +3953,10 @@ function showShareModal(){
       }catch(e){
         console.error(e);
         const intro = backdrop.querySelector("#shareModalIntro");
-        if(intro) intro.insertAdjacentHTML("beforeend", " <em>"+t('shareLinkServiceFallback',"(Couldn't reach the short-link service, so here's the full self-contained code instead, it still works the same way.)")+"</em>");
+        const fallbackMsg = e && e.rateLimited
+          ? t('shareRateLimited',"(You've created a lot of short links today, so here's the full self-contained code instead, it still works the same way.)")
+          : t('shareLinkServiceFallback',"(Couldn't reach the short-link service, so here's the full self-contained code instead, it still works the same way.)");
+        if(intro) intro.insertAdjacentHTML("beforeend", " <em>"+fallbackMsg+"</em>");
       }
     }
     const link = shareLinkFromCode(code);
