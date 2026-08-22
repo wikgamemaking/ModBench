@@ -113,6 +113,10 @@ window.i18n.fr = {
   // Alerts
   alertAddModsShareLink: "Ajoutez d'abord des mods à votre pack, puis générez un lien de partage.",
   alertAddModsShareCode: "Ajoutez d'abord des mods à votre pack, puis copiez un code de partage.",
+  alertPasteShareLinkOrCode: "Collez d'abord un lien ou un code de partage.",
+
+  // Copy confirmation
+  copiedConfirm: "Copié ✓",
 
   // Onboarding / getting started modal
   introWelcomeTitle: "Bienvenue sur ModBench",
@@ -207,6 +211,29 @@ window.i18n.fr = {
   compatNoAutoFixSubline: "Aucun changement de version ne résoudrait automatiquement le problème restant. Consultez les détails ci-dessous et ajustez les versions manuellement.",
   compatAutoSolveError: "AutoSolve a rencontré un problème",
   compatAutoSolveErrorSubline: "Une erreur est survenue en contactant Modrinth. Vérifiez votre connexion et réessayez, ou corrigez les choses manuellement ci-dessous.",
+
+  // Import status messages (.mrpack file)
+  importChooseMrpackFile: "Veuillez choisir un fichier .mrpack.",
+  importReadingPack: "Lecture du pack…",
+  importNoModsMatched: "Aucun mod n'a pu être trouvé sur Modrinth pour ce fichier.",
+  importAllAlreadyInCreateOne: "Le {n} mod de ce pack est déjà dans Créer.",
+  importAllAlreadyInCreateOther: "Les {n} mods de ce pack sont déjà dans Créer.",
+  importAddedOfTotalOne: "{added} mod sur {n} ajouté à Créer.",
+  importAddedOfTotalOther: "{added} mods sur {n} ajoutés à Créer.",
+  importAlreadyThereSuffix: "({n} déjà présent(s).)",
+  importCouldntReadFile: "Impossible de lire ce fichier. Vérifiez qu'il s'agit bien d'un .mrpack valide.",
+
+  // Import status messages (share link/code)
+  importLookingUpCode: "Recherche du code court…",
+  importReadingCode: "Lecture du code…",
+  importInvalidCorrupted: "Ce lien/code semble invalide ou corrompu.",
+  importCodeNoMods: "Ce code de partage ne contient aucun mod.",
+  importResolvingMods: "Résolution des mods sur Modrinth…",
+  importAllFromPackAlreadyOne: "Le {n} mod de ce pack est déjà dans Créer.",
+  importAllFromPackAlreadyOther: "Les {n} mods de ce pack sont déjà dans Créer.",
+  importMissingFromCodeOne: "{n} mod du code n'a pas pu être trouvé sur Modrinth (peut-être supprimé).",
+  importMissingFromCodeOther: "{n} mods du code n'ont pas pu être trouvés sur Modrinth (peut-être supprimés).",
+  importCouldntResolvePack: "Impossible de résoudre ce pack. Modrinth est peut-être injoignable, ou le code est invalide.",
 
   // Share pack modal
   shareModalTitle: "Partager votre pack",
