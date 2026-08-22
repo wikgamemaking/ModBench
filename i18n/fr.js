@@ -97,7 +97,7 @@ window.i18n.fr = {
   exportCopyPackCode: "Copier le code du pack",
   exportShareCodeHint: "Copie un code court avec la liste de vos mods. Les autres le collent directement dans <strong>Importer un code de partage</strong> ci-dessus pour obtenir les mêmes mods. <button type=\"button\" id=\"shareLinkBtn\" style=\"background:none; border:none; padding:0; color:var(--accent-dark); text-decoration:underline; cursor:pointer; font:inherit;\">Plutôt un lien ?</button>",
 
-  footerText: "ModBench récupère des données en direct depuis l'API <a href=\"https://modrinth.com\" target=\"_blank\" rel=\"noopener\">Modrinth</a>. Non affilié à Modrinth ou Mojang.<div style=\"margin-top:6px; opacity:0.6;\">ModBench, 2026</div>",
+  footerText: "ModBench récupère des données en direct depuis l'API <a href=\"https://modrinth.com\" target=\"_blank\" rel=\"noopener\">Modrinth</a>. Non affilié à Modrinth ou Mojang.<div style=\"margin-top:6px; opacity:0.6;\">ModBench, 2026 - Fait avec ❤️ par Vik</div>",
 
   // Add / pack state buttons
   cardAdd: "+ Ajouter",
