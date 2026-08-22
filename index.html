@@ -1240,6 +1240,19 @@
 <script>
 const API = "https://api.modrinth.com/v2";
 
+async function fetchWithTimeout(url, options = {}, timeoutMs = 15000){
+  const controller = new AbortController();
+  const timer = setTimeout(()=>controller.abort(), timeoutMs);
+  try{
+    return await fetch(url, { ...options, signal: controller.signal });
+  }catch(e){
+    if(e.name === "AbortError") throw new Error("Request timed out.");
+    throw e;
+  }finally{
+    clearTimeout(timer);
+  }
+}
+
 const SUPABASE_URL = "https://nwshmuzkphmozilcpdti.supabase.co";
 const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im53c2htdXprcGhtb3ppbGNwZHRpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODczMzY2NTcsImV4cCI6MjEwMjkxMjY1N30.8nizLEGs7gckz3MSZvn9uznI_NqHD9fKJvMej-wyLiE";
 const SHARE_TABLE = "shared_packs";
@@ -1912,7 +1925,7 @@ async function quickAdd(projectId){
 }
 
 async function fetchVersions(projectId){
-  const res = await fetch(`${API}/project/${projectId}/version`);
+  const res = await fetchWithTimeout(`${API}/project/${projectId}/version`);
   if(!res.ok) throw new Error("version fetch failed");
   const data = await res.json();
   const filtered = data.filter(v=>!isSnapshotOnlyVersion(v));
@@ -1961,7 +1974,7 @@ async function autoAddDependencies(version, visited, hostProjectType){
     let depProjectId = dep.project_id;
     if(!depProjectId && dep.version_id){
       try{
-        const vRes = await fetch(`${API}/version/${dep.version_id}`);
+        const vRes = await fetchWithTimeout(`${API}/version/${dep.version_id}`);
         if(vRes.ok){ depProjectId = (await vRes.json()).project_id; }
       }catch(e){ }
     }
@@ -1969,7 +1982,7 @@ async function autoAddDependencies(version, visited, hostProjectType){
     visited.add(depProjectId);
     if(state.pack.some(p=>p.id === depProjectId)) continue;
     try{
-      const proj = await fetch(`${API}/project/${depProjectId}`).then(r=>r.ok?r.json():null);
+      const proj = await fetchWithTimeout(`${API}/project/${depProjectId}`).then(r=>r.ok?r.json():null);
       if(!proj) continue;
       const versions = await fetchVersions(depProjectId);
       const best = pickBestVersion(versions, version.game_versions, version.loaders);
@@ -2000,7 +2013,7 @@ const QUILT_API_ID = "qvIfYCYJ";
 async function addLoaderApiMod(apiId, hintGameVersions, requiredLoader){
   if(state.pack.some(p=>p.id === apiId)) return;
   try{
-    const proj = await fetch(`${API}/project/${apiId}`).then(r=>r.ok?r.json():null);
+    const proj = await fetchWithTimeout(`${API}/project/${apiId}`).then(r=>r.ok?r.json():null);
     if(!proj) return;
     const versions = await fetchVersions(apiId);
     if(!versions.length) return;
@@ -3250,7 +3263,7 @@ async function importMrpackZipIntoPack(zip, meta = {}){
   const hashes = (index.files || []).map(f=>f.hashes && f.hashes.sha1).filter(Boolean);
   if(hashes.length === 0) throw new Error("No mod files found in modpack.");
 
-  const versionLookupRes = await fetch(`${API}/version_files`, {
+  const versionLookupRes = await fetchWithTimeout(`${API}/version_files`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ hashes, algorithm: "sha1" })
@@ -3260,7 +3273,7 @@ async function importMrpackZipIntoPack(zip, meta = {}){
   const foundVersions = Object.values(versionMap);
   const projectIds = [...new Set(foundVersions.map(v=>v.project_id))];
 
-  const projectsRes = await fetch(`${API}/projects?ids=${encodeURIComponent(JSON.stringify(projectIds))}`);
+  const projectsRes = await fetchWithTimeout(`${API}/projects?ids=${encodeURIComponent(JSON.stringify(projectIds))}`);
   const projects = projectsRes.ok ? await projectsRes.json() : [];
   const projectById = Object.fromEntries(projects.map(p=>[p.id, p]));
 
@@ -3292,12 +3305,23 @@ async function importMrpackZipIntoPack(zip, meta = {}){
     added++;
   });
 
+  // Commit the primary mods right away so the pack count and UI reflect
+  // the import immediately, instead of waiting on the slower dependency
+  // and loader-API resolution below (which can take a while, or stall
+  // on a flaky network call).
+  savePack();
+  foundVersions.forEach(v=>updateCardButtonsEverywhere(v.project_id));
+
   const depVisited = new Set(foundVersions.map(v=>v.project_id));
   for(const v of foundVersions){
     const proj = projectById[v.project_id];
-    await autoAddDependencies(v, depVisited, (proj && proj.project_type) || "mod");
+    try{
+      await autoAddDependencies(v, depVisited, (proj && proj.project_type) || "mod");
+    }catch(e){ console.error("Dependency resolution failed for", v.project_id, e); }
   }
-  await ensureLoaderApis(gameVersions, loaders);
+  try{
+    await ensureLoaderApis(gameVersions, loaders);
+  }catch(e){ console.error("Loader API resolution failed", e); }
   savePack();
   foundVersions.forEach(v=>updateCardButtonsEverywhere(v.project_id));
 
@@ -3327,13 +3351,14 @@ function applyImportedPackIdentity(result, wasEmptyBefore){
 }
 
 async function importModpackVersion(projectId, version, btn, fallbackMeta = {}){
-  const originalLabel = btn.textContent;
+  const originalLabel = fallbackMeta.resetLabel !== undefined ? fallbackMeta.resetLabel : btn.textContent;
   btn.textContent = "Adding…";
   btn.disabled = true;
+  let ok = false;
   try{
     const file = version.files.find(f=>f.primary) || version.files[0];
     if(!file) throw new Error("No versions available");
-    const zipBuf = await fetch(file.url).then(r=>{
+    const zipBuf = await fetchWithTimeout(file.url, {}, 30000).then(r=>{
       if(!r.ok) throw new Error("Couldn't download modpack file.");
       return r.arrayBuffer();
     });
@@ -3345,17 +3370,19 @@ async function importModpackVersion(projectId, version, btn, fallbackMeta = {}){
       fallbackName: fallbackMeta.fallbackName,
       fallbackIcon: fallbackMeta.fallbackIcon
     });
-    if(state.tab === "pack") renderPack();
-    if(state.tab === "export") renderExport();
-    renderModpackResults();
+    ok = true;
     return true;
   }catch(e){
     console.error(e);
     alert("Couldn't import that modpack's mods. Modrinth may be unreachable, or this modpack isn't in the standard .mrpack format.");
-    btn.textContent = originalLabel;
     return false;
   }finally{
     btn.disabled = false;
+    btn.textContent = originalLabel;
+    if(state.tab === "pack") renderPack();
+    if(state.tab === "export") renderExport();
+    renderModpackResults();
+    updateCardButtonsEverywhere(projectId);
   }
 }
 
@@ -3636,7 +3663,7 @@ async function addModpackToCreate(projectId, btn){
       return;
     }
     const hit = findHitAnywhere(projectId);
-    await importModpackVersion(projectId, chosen, btn, { fallbackName: hit && hit.title, fallbackIcon: hit && hit.icon_url });
+    await importModpackVersion(projectId, chosen, btn, { fallbackName: hit && hit.title, fallbackIcon: hit && hit.icon_url, resetLabel: originalLabel });
   }catch(e){
     console.error(e);
     alert("Couldn't import that modpack's mods. Modrinth may be unreachable, or this modpack isn't in the standard .mrpack format.");
