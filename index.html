@@ -641,6 +641,16 @@
     background: var(--surface-2); border:1px solid var(--border); border-radius:10px;
     padding:14px; margin: 18px 0;
     display:flex; flex-direction:column; gap:8px;
+    transition: background .15s ease, border-color .15s ease;
+  }
+  .import-card.drop-target{
+    border:1px dashed var(--border);
+  }
+  .import-card.drag-over{
+    background: var(--accent-soft); border-color: var(--accent); border-style: dashed;
+  }
+  .import-drop-hint{
+    font-size:0.78rem; color: var(--text-dim); text-align:center; margin:0;
   }
   .import-card-top{ display:flex; align-items:flex-start; gap:12px; }
   .import-card-text{ flex:1; min-width:0; }
@@ -1140,7 +1150,7 @@
 
       <div class="export-stats" id="exportStats"></div>
 
-      <div class="import-card">
+      <div class="import-card drop-target" id="mrpackDropZone">
         <div class="import-card-top">
           <div class="import-card-icon">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
@@ -1156,6 +1166,7 @@
         </div>
         <label class="file-btn" for="mrpackFileInput">Choose file</label>
         <input type="file" id="mrpackFileInput" accept=".mrpack" style="display:none;">
+        <p class="import-drop-hint">or drag and drop a .mrpack file here</p>
       </div>
 
       <div class="import-card">
@@ -4004,6 +4015,33 @@ document.getElementById("mrpackFileInput").addEventListener("change", (e)=>{
   importMrpackFile(file);
   e.target.value = "";
 });
+
+(function setupMrpackDragDrop(){
+  const zone = document.getElementById("mrpackDropZone");
+  let dragDepth = 0;
+  ["dragenter","dragover","dragleave","drop"].forEach(evt=>{
+    zone.addEventListener(evt, (e)=>{ e.preventDefault(); e.stopPropagation(); });
+  });
+  zone.addEventListener("dragenter", ()=>{
+    dragDepth++;
+    zone.classList.add("drag-over");
+  });
+  zone.addEventListener("dragleave", ()=>{
+    dragDepth = Math.max(0, dragDepth - 1);
+    if(dragDepth === 0) zone.classList.remove("drag-over");
+  });
+  zone.addEventListener("drop", (e)=>{
+    dragDepth = 0;
+    zone.classList.remove("drag-over");
+    const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if(!file) return;
+    if(!file.name.toLowerCase().endsWith(".mrpack")){
+      alert("Please drop a .mrpack file.");
+      return;
+    }
+    importMrpackFile(file);
+  });
+})();
 
 document.getElementById("logoFileInput").addEventListener("change", (e)=>{
   const file = e.target.files[0];
