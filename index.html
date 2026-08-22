@@ -15,6 +15,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<!-- i18n: add a script tag per language file here -->
 <script src="i18n/fr.js"></script>
 <script>
   (function(){
@@ -496,6 +497,10 @@
     width:16px; height:16px; color: var(--danger); flex-shrink:0;
   }
   .pack-row-issue-badge svg{ width:14px; height:14px; }
+  /* `display:inline-flex` below wins over the UA [hidden] stylesheet rule
+     (author styles beat UA styles regardless of the [hidden] attribute), so
+     this badge stayed visible even when JS set `hidden`. Force it off
+     explicitly whenever the attribute is present. */
   .pack-row-issue-badge[hidden]{ display:none !important; }
   .auto-compat-toggle{ display:inline-flex; align-items:center; gap:8px; cursor:pointer; margin-right:auto; }
   .auto-compat-toggle .switch{ position:relative; display:inline-block; width:34px; height:20px; flex-shrink:0; }
@@ -858,6 +863,9 @@
     max-width: 90vw; max-height: 74vh; width:auto; height:auto; border-radius: 8px; box-shadow: 0 8px 30px rgba(0,0,0,.4);
   }
   @media (min-width: 641px){
+    /* On larger screens, low-res images shouldn't render tiny in the middle
+       of the lightbox -- give them a reasonable floor size while still
+       letting max-width/max-height cap high-res images as before. */
     .lightbox-img-wrap img{ min-width: min(60vw, 640px); min-height: min(45vh, 420px); object-fit: contain; }
   }
   .lightbox-counter{ color:#fff; font-size:0.85rem; opacity:.85; }
@@ -1368,7 +1376,6 @@ function showToast(message, opts = {}){
 
   const msg = document.createElement("span");
   msg.className = "toast-msg";
-  // Supports **bold** for emphasizing the key words in a toast message.
   msg.innerHTML = escapeHtml(message).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
   toast.appendChild(msg);
 
@@ -1591,7 +1598,6 @@ function toggleFavorite(hit){
   saveFavorites();
 }
 
-// ---- Language (i18n) ----
 const LANGUAGES = ["en", "fr"];
 state.lang = localStorage.getItem("modbench-lang") || "en";
 
@@ -1634,6 +1640,16 @@ function applyLanguage(lang){
   }
 
   localStorage.setItem("modbench-lang", lang);
+  refreshDynamicContentForLanguage();
+}
+
+function refreshDynamicContentForLanguage(){
+  if(state.tab === "browse" && state.results.length) renderResults();
+  if(state.tab === "pack") renderPack();
+  if(state.tab === "favorites") renderFavorites();
+  if(state.tab === "modpacks" && state.modpackResults.length) renderModpackResults();
+  if(state.tab === "export") renderExport();
+  document.querySelectorAll(".modal-backdrop").forEach(b=>b.remove());
 }
 
 document.getElementById("langToggle").addEventListener("click", ()=>{
@@ -2287,9 +2303,8 @@ async function autoAddDependencies(version, visited, hostProjectType){
   }
 }
 
-// Some mods are forks/replacements of one another and provide the same functionality 
 const MOD_EQUIVALENTS = {
-  "aWDwN8NN": ["sk9rgfiA"],
+  "aWDwN8NN": ["sk9rgfiA"], // Xenon <-> Embeddium
   "sk9rgfiA": ["aWDwN8NN"]
 };
 function hasEquivalentInPack(projectId){
@@ -2683,7 +2698,6 @@ function renderPack(){
       showToast(`Removed "${removedMod.title}" from Create.`, {
         actionLabel: "Undo",
         onAction: ()=>{
-          // If a mod with the same id was re-added since removal, don't clobber it.
           if(state.pack.some(m=>m.id === removedId)) return;
           const insertAt = Math.min(removedIdx, state.pack.length);
           state.pack.splice(insertAt, 0, removedMod);
@@ -2737,7 +2751,7 @@ async function updatePackIssueHighlights(){
     console.error("Background compatibility scan failed", e);
     return;
   }
-  if(runId !== packIssueScanId) return;
+  if(runId !== packIssueScanId) return; // a newer scan superseded this one
   const { issues } = result;
 
   const badModIds = new Set();
@@ -3518,12 +3532,6 @@ function renderModpackResults(){
     });
   });
   resultsEl.querySelectorAll("[data-addpack]").forEach(btn=>{
-    // Once a modpack's mods are already in Create, re-clicking would re-download and
-    // re-parse the whole .mrpack for nothing (importMrpackZipIntoPack already skips mods
-    // that are present, but that's still a wasted network round trip and CPU work, and on
-    // a flaky connection it can even resurface a spurious "couldn't import" error for a
-    // pack that's already fully added). The button is rendered disabled in that case above;
-    // this guard just makes sure a stale/re-enabled button can't trigger it either.
     if(btn.disabled) return;
     btn.addEventListener("click", (e)=>{
       e.stopPropagation();
@@ -3649,11 +3657,6 @@ async function importMrpackZipIntoPack(zip, meta = {}){
   const projectById = Object.fromEntries(projects.map(p=>[p.id, p]));
 
   const deps = index.dependencies || {};
-  // The modpack's own modrinth.index.json manifest is the spec-guaranteed source of truth
-  // for which loader/MC version it targets. Modrinth's API-reported version.loaders (passed
-  // in via meta) is sometimes empty or unreliable for modpack-type projects, so it's only a
-  // fallback — and only used when the manifest gives us nothing (an empty array is still "no
-  // data", so this checks .length rather than relying on truthiness, which treated [] as valid).
   const manifestLoaders = Object.keys(deps).filter(k=>k!=="minecraft").map(k=>k.replace("-loader",""));
   const loaders = manifestLoaders.length ? manifestLoaders : ((meta.loaders && meta.loaders.length) ? meta.loaders : []);
   const gameVersions = deps.minecraft ? [deps.minecraft] : ((meta.gameVersions && meta.gameVersions.length) ? meta.gameVersions : []);
@@ -4120,11 +4123,6 @@ function renderExport(){
   const heroIcon = document.getElementById("exportHeroIcon");
   document.getElementById("exportImportTip").style.display = "none";
   if(!expMc.value && state.mcVersion) expMc.value = state.mcVersion;
-  // NOTE: don't fall back to state.loaders here — that's the Browse tab's mod-search filter
-  // checkboxes, unrelated to what loader the pack actually targets. A user filtering Browse
-  // by Fabric while working on a Forge pack would otherwise get the export/compat-check
-  // loader silently set to Fabric, flagging every Forge-only mod as a mismatch. guessPackTarget()
-  // below derives the loader from the pack's own contents instead, which is the reliable signal.
   if(!expMc.value || !expLoader.value){
     const guess = guessPackTarget();
     if(!expMc.value && guess.mcVersion) expMc.value = guess.mcVersion;
@@ -4211,9 +4209,6 @@ document.getElementById("exportBtn").addEventListener("click", async ()=>{
       downloads: [mod.selectedFile.url],
       fileSize: mod.selectedFile.size
     })),
-    // Loader dependency versions are intentionally left as "" (any version) — that's a valid
-    // mrpack value and must be KEPT, not stripped: without a loader key present at all here,
-    // launchers (Modrinth App included) have no way to know this pack isn't vanilla.
     dependencies: { minecraft: mcVersion, ...(LOADER_DEP_KEY[loader] ? { [LOADER_DEP_KEY[loader]]: "" } : {}) }
   };
 
