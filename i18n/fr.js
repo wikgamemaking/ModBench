@@ -92,6 +92,43 @@ window.i18n.fr = {
 
   footerText: "ModBench récupère des données en direct depuis l'API <a href=\"https://modrinth.com\" target=\"_blank\" rel=\"noopener\">Modrinth</a>. Non affilié à Modrinth ou Mojang.<div style=\"margin-top:6px; opacity:0.6;\">ModBench, 2026</div>",
 
+  // Add / pack state buttons
+  cardAdd: "+ Ajouter",
+  cardAdded: "Ajouté ✓",
+  cardAddMods: "+ Ajouter des mods",
+  cardInCreate: "Dans Créer ✓",
+  addToPack: "+ Ajouter au pack",
+  openInModrinth: "Ouvrir sur Modrinth",
+  updateSelection: "Mettre à jour la sélection",
+  importModpackContents: "Importer le contenu du modpack",
+  updateModpackImport: "Mettre à jour l'import du modpack",
+  autoAddedTag: "ajouté auto.",
+
+  // Export stats
+  exportReadyToExport: "mod(s) prêt(s) à exporter.",
+  statModpackSize: "Taille du modpack",
+  statEst: "est.",
+  statFromModpacks: "Depuis les modpacks",
+
+  // Alerts
+  alertAddModsShareLink: "Ajoutez d'abord des mods à votre pack, puis générez un lien de partage.",
+  alertAddModsShareCode: "Ajoutez d'abord des mods à votre pack, puis copiez un code de partage.",
+
+  // Onboarding / getting started modal
+  introWelcomeTitle: "Bienvenue sur ModBench",
+  introWelcomeSubtitle: "Voici un petit tour avant de commencer à créer un pack.",
+  introBrowseTitle: "Parcourir",
+  introBrowseDesc: "Recherchez des mods, shaders et packs de textures en direct depuis Modrinth. Filtrez par version de Minecraft, chargeur et catégorie, puis ajoutez ce qui vous plaît.",
+  introCreateTitle: "Créer",
+  introCreateDesc: "Tout ce que vous avez ajouté se trouve ici. Choisissez un fichier précis pour chaque mod, vérifiez la compatibilité de tout votre pack, et retirez ce dont vous ne voulez plus.",
+  introModpacksTitle: "Modpacks",
+  introModpacksDesc: "Parcourez les modpacks existants sur Modrinth et importez toute leur liste de mods dans Créer en un clic — un bon point de départ pour votre propre pack.",
+  introFavoritesTitle: "Favoris",
+  introFavoritesDesc: "Aimez des mods pendant que vous parcourez pour les enregistrer pour plus tard, indépendamment du pack que vous êtes en train de créer.",
+  introExportTitle: "Exporter",
+  introExportDesc: "Nommez votre pack, définissez sa version de Minecraft et son chargeur, puis téléchargez un fichier <code>.mrpack</code> prêt à l'emploi. Vous pouvez aussi importer un <code>.mrpack</code> existant ici pour continuer à le modifier, et personnaliser l'icône du pack avant l'export.",
+  introFootnote: "Vous pouvez rouvrir ce guide à tout moment depuis le bouton <strong>?</strong> dans l'en-tête.",
+
   favAdd: "Ajouter aux favoris",
   favRemove: "Retirer des favoris",
   cancel: "Annuler",
