@@ -1539,6 +1539,10 @@ function t(key, fallback){
   return (dict && dict[key] !== undefined) ? dict[key] : fallback;
 }
 
+function escapeRegExp(str){
+  return String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
 function safeLocalStorageSet(key, value){
   try{
     localStorage.setItem(key, value);
@@ -2030,7 +2034,7 @@ function cardHtml(hit){
         <span>${DOWNLOAD_ICON} ${formatNum(hit.downloads)}</span>
         <span>${HEART_ICON_FILLED.replace('<svg ', '<svg style="width:13px;height:13px;vertical-align:-2px;" ')} ${formatNum(hit.follows)}</span>
         <button class="card-fav ${isFav?'faved':''}" data-fav="${hit.project_id}" title="${isFav?t('favRemove','Remove from favorites'):t('favAdd','Add to favorites')}" aria-label="${isFav?t('favRemove','Remove from favorites'):t('favAdd','Add to favorites')}">${isFav ? HEART_ICON_FILLED : HEART_ICON_OUTLINE}</button>
-        <button class="card-add ${inPack?'added':''}" data-add="${hit.project_id}">${inPack ? "Added ✓" : "+ Add"}</button>
+        <button class="card-add ${inPack?'added':''}" data-add="${hit.project_id}">${inPack ? t('cardAdded','Added ✓') : t('cardAdd','+ Add')}</button>
       </div>
     </div>`;
 }
@@ -2043,13 +2047,13 @@ function updateCardButtons(container, projectId){
   const addBtn = card.querySelector("[data-add], [data-addpack]");
   if(addBtn && addBtn.hasAttribute("data-add") && !addBtn.disabled){
     addBtn.classList.toggle("added", inPack);
-    addBtn.textContent = inPack ? "Added ✓" : "+ Add";
+    addBtn.textContent = inPack ? t('cardAdded','Added ✓') : t('cardAdd','+ Add');
   }
   if(addBtn && addBtn.hasAttribute("data-addpack")){
     const alreadyAdded = state.pack.some(p=>p.fromModpack === projectId);
     addBtn.classList.toggle("added", alreadyAdded);
     addBtn.disabled = alreadyAdded;
-    addBtn.textContent = alreadyAdded ? "In Create ✓" : "+ Add mods";
+    addBtn.textContent = alreadyAdded ? t('cardInCreate','In Create ✓') : t('cardAddMods','+ Add mods');
   }
   const favBtn = card.querySelector("[data-fav]");
   if(favBtn){
@@ -2449,10 +2453,10 @@ async function openModal(projectId, hitLookup){
       </div>
       <div class="modal-actions">
         <button class="export-btn" id="modalAddBtn" style="flex:1;">
-          ${isModpack ? (inPack ? "Update modpack import" : "Import modpack contents") : (inPack ? "Update selection" : "+ Add to pack")}
+          ${isModpack ? (inPack ? t('updateModpackImport','Update modpack import') : t('importModpackContents','Import modpack contents')) : (inPack ? t('updateSelection','Update selection') : t('addToPack','+ Add to pack'))}
         </button>
         <a class="modal-link-btn" href="${modrinthUrl}" target="_blank" rel="noopener noreferrer">
-          Open in Modrinth
+          ${t('openInModrinth','Open in Modrinth')}
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
         </a>
       </div>
@@ -2602,7 +2606,7 @@ function packRowHtml(mod){
     <div class="pack-row" data-id="${mod.id}" tabindex="0" role="button" aria-label="View ${escapeHtml(mod.title)}">
       ${mod.icon_url ? `<img src="${mod.icon_url}" alt="">` : `<img alt="">`}
       <div class="info">
-        <div class="name">${escapeHtml(mod.title)}${mod.isDependency ? ' <span class="tag" style="margin-left:4px;">auto-added</span>' : ''}<span class="pack-row-issue-badge" hidden title=""></span></div>
+        <div class="name">${escapeHtml(mod.title)}${mod.isDependency ? ` <span class="tag" style="margin-left:4px;">${t('autoAddedTag','auto-added')}</span>` : ''}<span class="pack-row-issue-badge" hidden title=""></span></div>
         <div class="sub">by ${escapeHtml(mod.author||"")} · ${escapeHtml(mod.selectedVersionNumber||"no version")}</div>
       </div>
       <select data-vselect="${mod.id}">
@@ -3392,7 +3396,7 @@ function renderFavorites(){
   if(state.favorites.length === 0){
     resultsEl.className = state.favView;
     resultsEl.innerHTML = ""; emptyEl.style.display = "block";
-    emptyEl.querySelector("p").innerHTML = 'No favorites yet. Tap the heart on any mod in <strong>Browse</strong> or <strong>Modpacks</strong> to save it here.';
+    emptyEl.querySelector("p").innerHTML = t('favEmptyText','No favorites yet. Tap the heart on any mod in <strong>Browse</strong> or <strong>Modpacks</strong> to save it here.');
     return;
   }
   if(filtered.length === 0){
@@ -3510,10 +3514,11 @@ function renderModpackResults(){
   resultsEl.innerHTML = state.modpackResults.map(hit=>{
     const html = cardHtml(hit);
     const alreadyAdded = state.pack.some(p=>p.fromModpack===hit.project_id);
+    const addLabelRe = new RegExp(escapeRegExp(t('cardAdd','+ Add'))+'|'+escapeRegExp(t('cardAdded','Added ✓')));
     return html
       .replace('data-add="'+hit.project_id+'"', 'data-addpack="'+hit.project_id+'"'+(alreadyAdded ? ' disabled' : ''))
       .replace(/class="card-add\s*(added)?"/, alreadyAdded ? 'class="card-add added"' : 'class="card-add "')
-      .replace(/\+ Add|Added ✓/, alreadyAdded ? "In Create ✓" : "+ Add mods");
+      .replace(addLabelRe, alreadyAdded ? t('cardInCreate','In Create ✓') : t('cardAddMods','+ Add mods'));
   }).join("");
 
   resultsEl.querySelectorAll(".card").forEach(card=>{
@@ -3878,7 +3883,7 @@ function shareLinkFromCode(code){
 function showShareModal(){
   const data = buildShareData();
   if(data.m.length === 0){
-    alert("Add mods to your pack first, then generate a share link.");
+    alert(t('alertAddModsShareLink',"Add mods to your pack first, then generate a share link."));
     return;
   }
   const longCode = encodeShareData(data);
@@ -4129,13 +4134,13 @@ function renderExport(){
     if(!expLoader.value && guess.loader) expLoader.value = guess.loader;
   }
   if(state.pack.length === 0){
-    note.textContent = "Add mods to your pack first, then choose a version and loader.";
+    note.textContent = t('exportNoteDefault',"Add mods to your pack first, then choose a version and loader.");
     btn.disabled = true;
     btn.classList.remove("success");
     heroIcon.classList.remove("ready");
     statsEl.innerHTML = "";
   }else{
-    note.innerHTML = `<strong>${state.pack.length}</strong> mod${state.pack.length===1?'':'s'} ready to export.`;
+    note.innerHTML = `<strong>${state.pack.length}</strong> ${t('exportReadyToExport','mod(s) ready to export.')}`;
     btn.disabled = false;
     btn.classList.remove("success");
     heroIcon.classList.add("ready");
@@ -4159,11 +4164,11 @@ function renderExport(){
       </div>
       <div class="export-stat" style="animation-delay:40ms;" ${hasUnknown ? `title="${unknownSizeMods.length} mod${unknownSizeMods.length===1?'':'s'} missing file size data on Modrinth. Actual unpacked size will be larger than shown"` : `title="Combined size of every mod's .jar file as unpacked from Modrinth"`}>
         <div class="stat-num">${sizeDisplay}</div>
-        <div class="stat-label">Modpack size${hasUnknown ? " est." : ""}</div>
+        <div class="stat-label">${t('statModpackSize','Modpack size')}${hasUnknown ? " "+t('statEst','est.') : ""}</div>
       </div>
       <div class="export-stat" style="animation-delay:80ms;">
         <div class="stat-num">${state.pack.filter(m=>m.fromModpack).length}</div>
-        <div class="stat-label">From modpacks</div>
+        <div class="stat-label">${t('statFromModpacks','From modpacks')}</div>
       </div>
       ${topCats.length ? `<div class="export-cats" style="grid-column:1 / -1;">${topCats.map(c=>`<span class="tag">${escapeHtml(formatCategoryName(c))}</span>`).join("")}</div>` : ""}
       ${hasUnknown ? `<div style="grid-column:1 / -1; font-size:0.82rem; color:var(--text-dim); margin-top:2px;">Size data missing for ${unknownSizeMods.length} mod${unknownSizeMods.length===1?'':'s'}. Actual download will be larger.</div>` : ""}
@@ -4470,7 +4475,7 @@ document.getElementById("shareLinkBtn").addEventListener("click", showShareModal
 document.getElementById("copyShareCodeBtn2").addEventListener("click", async (e)=>{
   const data = buildShareData();
   if(data.m.length === 0){
-    alert("Add mods to your pack first, then copy a share code.");
+    alert(t('alertAddModsShareCode',"Add mods to your pack first, then copy a share code."));
     return;
   }
   const longCode = encodeShareData(data);
@@ -4535,8 +4540,8 @@ function showGettingStarted(force){
       <div class="modal-head">
         <span class="intro-logo"><img src="icons/logo.png" alt=""></span>
         <div class="intro-head-text">
-          <div class="name">Welcome to ModBench</div>
-          <p style="margin:2px 0 0; color:var(--text-dim); font-size:0.86rem;">Here is a quick tour before you start building a pack.</p>
+          <div class="name">${t('introWelcomeTitle','Welcome to ModBench')}</div>
+          <p style="margin:2px 0 0; color:var(--text-dim); font-size:0.86rem;">${t('introWelcomeSubtitle','Here is a quick tour before you start building a pack.')}</p>
         </div>
         <button class="modal-close" aria-label="${t('close','Close')}">✕</button>
       </div>
@@ -4544,43 +4549,43 @@ function showGettingStarted(force){
         <div class="intro-step">
           <div class="intro-step-icon">🔍</div>
           <div>
-            <h4>Browse</h4>
-            <p>Search live mods, shaders, and resource packs straight from Modrinth. Filter by Minecraft version, loader, and category, then add anything you like.</p>
+            <h4>${t('introBrowseTitle','Browse')}</h4>
+            <p>${t('introBrowseDesc','Search live mods, shaders, and resource packs straight from Modrinth. Filter by Minecraft version, loader, and category, then add anything you like.')}</p>
           </div>
         </div>
         <div class="intro-step">
           <div class="intro-step-icon">🧰</div>
           <div>
-            <h4>Create</h4>
-            <p>Everything you've added lives here. Pick a specific file per mod, check compatibility across your whole pack, and remove anything you change your mind about.</p>
+            <h4>${t('introCreateTitle','Create')}</h4>
+            <p>${t('introCreateDesc',"Everything you've added lives here. Pick a specific file per mod, check compatibility across your whole pack, and remove anything you change your mind about.")}</p>
           </div>
         </div>
         <div class="intro-step">
           <div class="intro-step-icon">📦</div>
           <div>
-            <h4>Modpacks</h4>
-            <p>Browse existing modpacks on Modrinth and import their entire mod list into Create in one click, a great starting point for your own pack.</p>
+            <h4>${t('introModpacksTitle','Modpacks')}</h4>
+            <p>${t('introModpacksDesc','Browse existing modpacks on Modrinth and import their entire mod list into Create in one click, a great starting point for your own pack.')}</p>
           </div>
         </div>
         <div class="intro-step">
           <div class="intro-step-icon">⭐</div>
           <div>
-            <h4>Favorites</h4>
-            <p>Like mods while browsing to save them for later, independent of whatever pack you're currently building.</p>
+            <h4>${t('introFavoritesTitle','Favorites')}</h4>
+            <p>${t('introFavoritesDesc',"Like mods while browsing to save them for later, independent of whatever pack you're currently building.")}</p>
           </div>
         </div>
         <div class="intro-step">
           <div class="intro-step-icon">⬇️</div>
           <div>
-            <h4>Export</h4>
-            <p>Name your pack, set its Minecraft version and loader, and download a ready-to-use <code>.mrpack</code>. You can also import an existing <code>.mrpack</code> here to keep editing it, and customize the pack's icon before exporting.</p>
+            <h4>${t('introExportTitle','Export')}</h4>
+            <p>${t('introExportDesc',"Name your pack, set its Minecraft version and loader, and download a ready-to-use <code>.mrpack</code>. You can also import an existing <code>.mrpack</code> here to keep editing it, and customize the pack's icon before exporting.")}</p>
           </div>
         </div>
       </div>
       <div class="modal-actions">
         <button class="export-btn" id="introCloseBtn" style="flex:1;">${t('introGotIt',"Got it, let's go")}</button>
       </div>
-      <p class="intro-footnote">You can reopen this guide any time from the <strong>?</strong> button in the header.</p>
+      <p class="intro-footnote">${t('introFootnote','You can reopen this guide any time from the <strong>?</strong> button in the header.')}</p>
     </div>
   `;
   document.body.appendChild(backdrop);
