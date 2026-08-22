@@ -4122,15 +4122,10 @@ document.getElementById("exportBtn").addEventListener("click", async ()=>{
     return;
   }
 
-  const dependencies = { minecraft: mcVersion };
-  if(loader === "fabric") dependencies["fabric-loader"] = "";
-  if(loader === "quilt") dependencies["quilt-loader"] = "";
-  if(loader === "forge") dependencies["forge"] = "";
-  if(loader === "neoforge") dependencies["neoforge"] = "";
-  Object.keys(dependencies).forEach(k=>{ if(dependencies[k]==="") delete dependencies[k]; });
-
   const PACK_FOLDER = { mod: "mods", shader: "shaderpacks", resourcepack: "resourcepacks" };
   const folderForType = t => PACK_FOLDER[t] || "mods";
+
+  const LOADER_DEP_KEY = { fabric: "fabric-loader", quilt: "quilt-loader", forge: "forge", neoforge: "neoforge" };
 
   const manifest = {
     formatVersion: 1,
@@ -4150,9 +4145,11 @@ document.getElementById("exportBtn").addEventListener("click", async ()=>{
       downloads: [mod.selectedFile.url],
       fileSize: mod.selectedFile.size
     })),
-    dependencies: { minecraft: mcVersion, ...(loader==="fabric"?{"fabric-loader":""}:{}), ...(loader==="quilt"?{"quilt-loader":""}:{}), ...(loader==="forge"?{"forge":""}:{}), ...(loader==="neoforge"?{"neoforge":""}:{}) }
+    // Loader dependency versions are intentionally left as "" (any version) — that's a valid
+    // mrpack value and must be KEPT, not stripped: without a loader key present at all here,
+    // launchers (Modrinth App included) have no way to know this pack isn't vanilla.
+    dependencies: { minecraft: mcVersion, ...(LOADER_DEP_KEY[loader] ? { [LOADER_DEP_KEY[loader]]: "" } : {}) }
   };
-  Object.keys(manifest.dependencies).forEach(k=>{ if(manifest.dependencies[k]==="") delete manifest.dependencies[k]; });
 
   const zip = new JSZip();
   zip.file("modrinth.index.json", JSON.stringify(manifest, null, 2));
