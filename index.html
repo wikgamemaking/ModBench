@@ -15,6 +15,9 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<!-- i18n dictionaries: add a new <script src="i18n/xx.js"> here for each new language.
+     English is not loaded from a file — it's whatever text already lives in the HTML below;
+     the script caches it automatically so it can restore it when switching back to English. -->
 <script src="i18n/fr.js"></script>
 <script>
   (function(){
@@ -496,6 +499,10 @@
     width:16px; height:16px; color: var(--danger); flex-shrink:0;
   }
   .pack-row-issue-badge svg{ width:14px; height:14px; }
+  /* `display:inline-flex` below wins over the UA [hidden] stylesheet rule
+     (author styles beat UA styles regardless of the [hidden] attribute), so
+     this badge stayed visible even when JS set `hidden`. Force it off
+     explicitly whenever the attribute is present. */
   .pack-row-issue-badge[hidden]{ display:none !important; }
   .auto-compat-toggle{ display:inline-flex; align-items:center; gap:8px; cursor:pointer; margin-right:auto; }
   .auto-compat-toggle .switch{ position:relative; display:inline-block; width:34px; height:20px; flex-shrink:0; }
@@ -1333,7 +1340,7 @@
 
 </main>
 
-<footer>ModBench pulls live data from the <a href="https://modrinth.com" target="_blank" rel="noopener">Modrinth</a> API. Not affiliated with Modrinth or Mojang.<div style="margin-top:6px; opacity:0.6;">ModBench, 2026</div></footer>
+<footer data-i18n="footerText">ModBench pulls live data from the <a href="https://modrinth.com" target="_blank" rel="noopener">Modrinth</a> API. Not affiliated with Modrinth or Mojang.<div style="margin-top:6px; opacity:0.6;">ModBench, 2026</div></footer>
 
 <script>
 const API = "https://api.modrinth.com/v2";
@@ -1531,8 +1538,18 @@ let state = {
   // otherwise a stale guess from before a new modpack was imported (e.g. via the Modpacks tab)
   // keeps overriding the loader the checker derives fresh from the pack's current contents.
   expLoaderTouched: false,
-  expMcTouched: false
+  expMcTouched: false,
+  lang: localStorage.getItem("modbench-lang") || "en"
 };
+
+// Looks up a translated string for dynamically-generated (JS template literal) content —
+// modal buttons, toasts, status text, etc — that isn't part of the static HTML and so can't
+// be tagged with data-i18n. Falls back to the English text passed in if no translation
+// exists yet or the active language has no dictionary loaded.
+function t(key, fallback){
+  const dict = window.i18n && window.i18n[state.lang];
+  return (dict && dict[key] !== undefined) ? dict[key] : fallback;
+}
 
 // Wraps localStorage writes so a full/unavailable storage quota (easy to hit with large
 // modpacks, or in private-browsing modes that cap or block storage) never throws up through
@@ -2028,7 +2045,7 @@ function cardHtml(hit){
       <div class="card-stats">
         <span>${DOWNLOAD_ICON} ${formatNum(hit.downloads)}</span>
         <span>${HEART_ICON_FILLED.replace('<svg ', '<svg style="width:13px;height:13px;vertical-align:-2px;" ')} ${formatNum(hit.follows)}</span>
-        <button class="card-fav ${isFav?'faved':''}" data-fav="${hit.project_id}" title="${isFav?'Remove from favorites':'Add to favorites'}" aria-label="${isFav?'Remove from favorites':'Add to favorites'}">${isFav ? HEART_ICON_FILLED : HEART_ICON_OUTLINE}</button>
+        <button class="card-fav ${isFav?'faved':''}" data-fav="${hit.project_id}" title="${isFav?t('favRemove','Remove from favorites'):t('favAdd','Add to favorites')}" aria-label="${isFav?t('favRemove','Remove from favorites'):t('favAdd','Add to favorites')}">${isFav ? HEART_ICON_FILLED : HEART_ICON_OUTLINE}</button>
         <button class="card-add ${inPack?'added':''}" data-add="${hit.project_id}">${inPack ? "Added ✓" : "+ Add"}</button>
       </div>
     </div>`;
@@ -2054,7 +2071,7 @@ function updateCardButtons(container, projectId){
   if(favBtn){
     favBtn.classList.toggle("faved", isFav);
     favBtn.innerHTML = isFav ? HEART_ICON_FILLED : HEART_ICON_OUTLINE;
-    favBtn.title = isFav ? "Remove from favorites" : "Add to favorites";
+    favBtn.title = isFav ? t("favRemove","Remove from favorites") : t("favAdd","Add to favorites");
     favBtn.setAttribute("aria-label", favBtn.title);
   }
 }
@@ -2244,7 +2261,7 @@ function showConfirm(messageHtml, {confirmLabel = "Confirm", danger = true} = {}
       <div class="modal" style="max-width:380px;">
         <p style="margin:0 0 20px; font-size:0.95rem;">${messageHtml}</p>
         <div style="display:flex; gap:10px; justify-content:flex-end;">
-          <button class="page-btn" data-choice="cancel">Cancel</button>
+          <button class="page-btn" data-choice="cancel">${t('cancel','Cancel')}</button>
           <button class="export-btn" data-choice="confirm" style="width:auto; margin-top:0; padding:9px 16px; ${danger ? 'background:var(--danger);' : ''}">${escapeHtml(confirmLabel)}</button>
         </div>
       </div>`;
@@ -2434,13 +2451,13 @@ async function openModal(projectId, hitLookup){
           <div class="card-author">by ${escapeHtml(hit.author||"")}</div>
         </div>
         <div style="display:flex; align-items:center; gap:10px; flex-shrink:0;">
-          <button class="card-fav ${modalIsFav?'faved':''}" id="modalFavBtn" title="${modalIsFav?'Remove from favorites':'Add to favorites'}" aria-label="${modalIsFav?'Remove from favorites':'Add to favorites'}">${modalIsFav ? HEART_ICON_FILLED : HEART_ICON_OUTLINE}</button>
-          <button class="modal-close" aria-label="Close">✕</button>
+          <button class="card-fav ${modalIsFav?'faved':''}" id="modalFavBtn" title="${modalIsFav?t('favRemove','Remove from favorites'):t('favAdd','Add to favorites')}" aria-label="${modalIsFav?t('favRemove','Remove from favorites'):t('favAdd','Add to favorites')}">${modalIsFav ? HEART_ICON_FILLED : HEART_ICON_OUTLINE}</button>
+          <button class="modal-close" aria-label="${t('close','Close')}">✕</button>
         </div>
       </div>
       ${gallery.length ? `<div class="modal-gallery">${gallery.map((g,i)=>`<img src="${g.url}" alt="${escapeHtml(g.title||'')}" loading="lazy" data-index="${i}">`).join("")}</div>` : ""}
       <div class="modal-desc-full" id="modalDescBody">${shortHtml}</div>
-      ${truncated ? `<button class="modal-link-btn" id="modalDescToggle" style="margin:0 0 16px;">Show full description</button>` : ""}
+      ${truncated ? `<button class="modal-link-btn" id="modalDescToggle" style="margin:0 0 16px;">${t('showFullDesc','Show full description')}</button>` : ""}
       <h3 style="font-size:0.85rem; text-transform:uppercase; letter-spacing:.04em; color:var(--text-dim);">Versions (${versions.length})</h3>
       <div class="modal-versions">
         ${versionRowsHtml(sortByGameVersionRecency(versions).map(v=>`
@@ -2477,7 +2494,7 @@ async function openModal(projectId, hitLookup){
       const nowFav = state.favorites.some(f=>f.id === projectId);
       favBtn.classList.toggle("faved", nowFav);
       favBtn.innerHTML = nowFav ? HEART_ICON_FILLED : HEART_ICON_OUTLINE;
-      favBtn.title = nowFav ? "Remove from favorites" : "Add to favorites";
+      favBtn.title = nowFav ? t("favRemove","Remove from favorites") : t("favAdd","Add to favorites");
       favBtn.setAttribute("aria-label", favBtn.title);
       updateFavCount();
       if(state.tab === "favorites") renderFavorites();
@@ -2490,7 +2507,7 @@ async function openModal(projectId, hitLookup){
       toggleBtn.addEventListener("click", ()=>{
         expanded = !expanded;
         backdrop.querySelector("#modalDescBody").innerHTML = expanded ? fullHtml : shortHtml;
-        toggleBtn.textContent = expanded ? "Show less" : "Show full description";
+        toggleBtn.textContent = expanded ? t("showLess","Show less") : t("showFullDesc","Show full description");
       });
     }
 
@@ -2549,7 +2566,7 @@ async function openModal(projectId, hitLookup){
     });
   }catch(e){
     console.error(e);
-    backdrop.querySelector(".modal").innerHTML = `<div class="status-msg">Couldn't load this mod. <button class="modal-close">Close</button></div>`;
+    backdrop.querySelector(".modal").innerHTML = `<div class="status-msg">${t('couldntLoadMod',"Couldn't load this mod.")} <button class="modal-close">${t('close','Close')}</button></div>`;
     backdrop.querySelector(".modal-close").addEventListener("click", ()=>backdrop.remove());
   }
 }
@@ -2564,7 +2581,7 @@ function openLightbox(images, startIndex){
     lb.innerHTML = `
       ${images.length > 1 ? `<button class="lightbox-nav prev" aria-label="Previous image"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg></button>` : ""}
       <div class="lightbox-img-wrap">
-        <button class="lightbox-close" aria-label="Close">✕</button>
+        <button class="lightbox-close" aria-label="${t('close','Close')}">✕</button>
         <img src="${img.url}" alt="${escapeHtml(img.title||'')}">
         <div class="lightbox-counter">Image ${idx+1} / ${images.length}</div>
       </div>
@@ -2611,7 +2628,7 @@ function packRowHtml(mod){
       <select data-vselect="${mod.id}">
         ${displayVersions.map(v=>`<option value="${v.id}" ${v.id===mod.selectedVersionId?"selected":""}>${escapeHtml(v.version_number)} (${v.loaders.join(", ")})</option>`).join("")}
       </select>
-      <button class="remove" data-remove="${mod.id}">Remove</button>
+      <button class="remove" data-remove="${mod.id}">${t('remove','Remove')}</button>
     </div>`;
 }
 
@@ -2914,6 +2931,13 @@ function modRunsOnLoader(x, loader, bridges){
 function pickBestLoaderForPack(selected){
   const candidateLoaders = ["fabric", "quilt", "forge", "neoforge"];
   const bridges = getActiveLoaderBridges(selected);
+  // Loader-agnostic entries (resource packs, datapacks, shaders, or mods with no loader info)
+  // run on every loader by definition, so they shouldn't get to cast a "vote" for one loader
+  // over another — otherwise a pack full of e.g. shaderpacks plus a couple Forge mods can tie
+  // every candidate loader's count and fall back to whichever loader happens to be first in
+  // the list above (Fabric), even though nothing in the pack actually targets Fabric. Only
+  // count mods that give a real, loader-specific signal; agnostic ones are used only if no
+  // mod in the pack gives any specific signal at all.
   const specific = selected.filter(x=>!isLoaderAgnostic(x));
   const votePool = specific.length ? specific : selected;
   let best = null;
@@ -2930,6 +2954,9 @@ function boldEsc(text){
   return `<strong>${escapeHtml(text)}</strong>`;
 }
 
+// Long unresolved-mod lists (e.g. a big pack with hundreds of loader mismatches) can make the
+// AutoSolve result note absurdly long. Show a handful of names inline and collapse the rest
+// behind a "+N more" toggle instead of dumping the whole list into the paragraph.
 function modListHtml(mods, limit = 6){
   const names = mods.map(m=>boldEsc(m.title));
   if(names.length <= limit) return names.join(", ");
@@ -2937,6 +2964,12 @@ function modListHtml(mods, limit = 6){
   return `${names.slice(0, limit).join(", ")}, <span class="modlist-rest" id="${id}" hidden>${names.slice(limit).join(", ")}, </span><button type="button" class="modal-link-btn modlist-toggle" data-target="${id}">+${names.length - limit} more</button>`;
 }
 
+// If most of the selected mods came from the same modpack import, trust the loader that
+// import already recorded (from the pack's own manifest — see importMrpackZipIntoPack)
+// instead of re-deriving it by voting across each mod's individual Modrinth version data.
+// Per-mod version metadata is often missing or unreliable (especially for older mods or
+// ones bridged over from CurseForge), so a majority-share import signal is much stronger
+// than a per-mod vote and should win outright rather than just add one more vote to the mix.
 function dominantImportedLoader(selected){
   const counts = new Map();
   selected.forEach(x=>{
@@ -3193,7 +3226,7 @@ function showCompatCheckError(){
     <div class="modal" style="max-width:420px;">
       <div class="modal-head" style="margin-bottom:14px;">
         <div class="name" style="font-size:1.1rem;">Compatibility check</div>
-        <button class="modal-close" aria-label="Close">✕</button>
+        <button class="modal-close" aria-label="${t('close','Close')}">✕</button>
       </div>
       <div class="compat-summary bad">
         <span class="icon">${COMPAT_ICON_WARN}</span>
@@ -3202,7 +3235,7 @@ function showCompatCheckError(){
           <div class="subline">Modrinth may be unreachable right now. Check your connection and try again.</div>
         </div>
       </div>
-      <button class="page-btn" data-choice="close" style="margin-top:18px; width:100%; padding:9px 16px;">Close</button>
+      <button class="page-btn" data-choice="close" style="margin-top:18px; width:100%; padding:9px 16px;">${t('close','Close')}</button>
     </div>`;
   backdrop.addEventListener("click", (e)=>{ if(e.target === backdrop) backdrop.remove(); });
   backdrop.querySelector(".modal-close").addEventListener("click", ()=>backdrop.remove());
@@ -3266,14 +3299,14 @@ async function showCompatibilityResults(fixNote){
     <div class="modal" style="max-width:480px;">
       <div class="modal-head" style="margin-bottom:14px;">
         <div class="name" style="font-size:1.1rem;">Compatibility check</div>
-        <button class="modal-close" aria-label="Close">✕</button>
+        <button class="modal-close" aria-label="${t('close','Close')}">✕</button>
       </div>
       ${fixNoteHtml}
       ${summaryHtml}
-      ${fixableIssues ? `<button class="export-btn" id="autoFixCompatBtn" style="margin-top:12px; width:100%;">Let AutoSolve fix incompatibilities</button>` : ""}
+      ${fixableIssues ? `<button class="export-btn" id="autoFixCompatBtn" style="margin-top:12px; width:100%;">${t('autoSolveFix','Let AutoSolve fix incompatibilities')}</button>` : ""}
       <div style="margin-top:16px;">${issuesHtml}</div>
       ${skipped > 0 ? `<div class="compat-skipped">${skipped} mod${skipped===1?"":"s"} skipped: no version selected yet.</div>` : ""}
-      <button class="page-btn" data-choice="close" style="margin-top:18px; width:100%; padding:9px 16px;">Close</button>
+      <button class="page-btn" data-choice="close" style="margin-top:18px; width:100%; padding:9px 16px;">${t('close','Close')}</button>
     </div>`;
   backdrop.addEventListener("click", (e)=>{ if(e.target === backdrop) backdrop.remove(); });
   backdrop.querySelector(".modal-close").addEventListener("click", ()=>backdrop.remove());
@@ -3547,6 +3580,12 @@ function renderModpackResults(){
     });
   });
   resultsEl.querySelectorAll("[data-addpack]").forEach(btn=>{
+    // Once a modpack's mods are already in Create, re-clicking would re-download and
+    // re-parse the whole .mrpack for nothing (importMrpackZipIntoPack already skips mods
+    // that are present, but that's still a wasted network round trip and CPU work, and on
+    // a flaky connection it can even resurface a spurious "couldn't import" error for a
+    // pack that's already fully added). The button is rendered disabled in that case above;
+    // this guard just makes sure a stale/re-enabled button can't trigger it either.
     if(btn.disabled) return;
     btn.addEventListener("click", (e)=>{
       e.stopPropagation();
@@ -3614,7 +3653,7 @@ async function pickModpackVersion(versions){
       <div class="modal" style="max-width:400px;">
         <div class="modal-head" style="margin-bottom:14px;">
           <div class="name" style="font-size:1.05rem;">Pick a Minecraft version</div>
-          <button class="modal-close" aria-label="Close">✕</button>
+          <button class="modal-close" aria-label="${t('close','Close')}">✕</button>
         </div>
         <p style="margin:0 0 14px; font-size:0.85rem; color:var(--text-dim);">This modpack has releases for more than one Minecraft version. Choose which build to import into Create.</p>
         <div class="modal-versions">
@@ -3705,6 +3744,10 @@ async function importMrpackZipIntoPack(zip, meta = {}){
     added++;
   });
 
+  // Commit the primary mods right away so the pack count and UI reflect
+  // the import immediately, instead of waiting on the slower dependency
+  // and loader-API resolution below (which can take a while, or stall
+  // on a flaky network call).
   savePack();
   foundVersions.forEach(v=>updateCardButtonsEverywhere(v.project_id));
 
@@ -3908,18 +3951,18 @@ function showShareModal(){
     <div class="modal" style="max-width:480px;">
       <h3 style="margin:0 0 6px;">Share your pack</h3>
       <p style="margin:0 0 16px; color:var(--text-dim); font-size:0.85rem;" id="shareModalIntro">Anyone who opens this link, or pastes the code into <strong>Import a share code</strong>, gets the same ${data.m.length} mod${data.m.length===1?'':'s'} added to their Create tab.</p>
-      <label style="display:block; font-weight:700; font-size:0.85rem; margin-bottom:6px;">Link</label>
+      <label style="display:block; font-weight:700; font-size:0.85rem; margin-bottom:6px;">${t('shareLinkLabel','Link')}</label>
       <div style="display:flex; gap:8px;">
         <input type="text" readonly id="shareLinkOutput" value="${shareBackendConfigured() ? "Generating…" : escapeHtml(shareLinkFromCode(longCode))}" style="flex:1; min-width:0; padding:10px 12px; border-radius:8px; border:1px solid var(--border); background:var(--surface-2); color:var(--text); font-family:inherit; font-size:0.8rem;">
-        <button type="button" class="export-btn" id="copyShareLinkBtn" style="width:auto; margin-top:0; padding:0 14px; white-space:nowrap;">Copy</button>
+        <button type="button" class="export-btn" id="copyShareLinkBtn" style="width:auto; margin-top:0; padding:0 14px; white-space:nowrap;">${t('copy','Copy')}</button>
       </div>
-      <label style="display:block; font-weight:700; font-size:0.85rem; margin:16px 0 6px;">Code only</label>
+      <label style="display:block; font-weight:700; font-size:0.85rem; margin:16px 0 6px;">${t('shareCodeOnlyLabel','Code only')}</label>
       <div style="display:flex; gap:8px;">
         <input type="text" readonly id="shareCodeOutput" value="${shareBackendConfigured() ? "Generating…" : escapeHtml(longCode)}" style="flex:1; min-width:0; padding:10px 12px; border-radius:8px; border:1px solid var(--border); background:var(--surface-2); color:var(--text); font-family:inherit; font-size:0.8rem;">
-        <button type="button" class="export-btn" id="copyShareCodeBtn" style="width:auto; margin-top:0; padding:0 14px; white-space:nowrap;">Copy</button>
+        <button type="button" class="export-btn" id="copyShareCodeBtn" style="width:auto; margin-top:0; padding:0 14px; white-space:nowrap;">${t('copy','Copy')}</button>
       </div>
       <div class="modal-actions" style="justify-content:flex-end;">
-        <button class="page-btn" id="shareModalCloseBtn">Close</button>
+        <button class="page-btn" id="shareModalCloseBtn">${t('close','Close')}</button>
       </div>
     </div>`;
   function close(){ backdrop.remove(); }
@@ -4143,6 +4186,11 @@ function renderExport(){
   const heroIcon = document.getElementById("exportHeroIcon");
   document.getElementById("exportImportTip").style.display = "none";
   if(!expMc.value && state.mcVersion) expMc.value = state.mcVersion;
+  // NOTE: don't fall back to state.loaders here — that's the Browse tab's mod-search filter
+  // checkboxes, unrelated to what loader the pack actually targets. A user filtering Browse
+  // by Fabric while working on a Forge pack would otherwise get the export/compat-check
+  // loader silently set to Fabric, flagging every Forge-only mod as a mismatch. guessPackTarget()
+  // below derives the loader from the pack's own contents instead, which is the reliable signal.
   if(!expMc.value || !expLoader.value){
     const guess = guessPackTarget();
     if(!expMc.value && guess.mcVersion) expMc.value = guess.mcVersion;
@@ -4229,6 +4277,9 @@ document.getElementById("exportBtn").addEventListener("click", async ()=>{
       downloads: [mod.selectedFile.url],
       fileSize: mod.selectedFile.size
     })),
+    // Loader dependency versions are intentionally left as "" (any version) — that's a valid
+    // mrpack value and must be KEPT, not stripped: without a loader key present at all here,
+    // launchers (Modrinth App included) have no way to know this pack isn't vanilla.
     dependencies: { minecraft: mcVersion, ...(LOADER_DEP_KEY[loader] ? { [LOADER_DEP_KEY[loader]]: "" } : {}) }
   };
 
@@ -4558,7 +4609,7 @@ function showGettingStarted(force){
           <div class="name">Welcome to ModBench</div>
           <p style="margin:2px 0 0; color:var(--text-dim); font-size:0.86rem;">Here is a quick tour before you start building a pack.</p>
         </div>
-        <button class="modal-close" aria-label="Close">✕</button>
+        <button class="modal-close" aria-label="${t('close','Close')}">✕</button>
       </div>
       <div class="intro-steps">
         <div class="intro-step">
@@ -4598,7 +4649,7 @@ function showGettingStarted(force){
         </div>
       </div>
       <div class="modal-actions">
-        <button class="export-btn" id="introCloseBtn" style="flex:1;">Got it, let's go</button>
+        <button class="export-btn" id="introCloseBtn" style="flex:1;">${t('introGotIt',"Got it, let's go")}</button>
       </div>
       <p class="intro-footnote">You can reopen this guide any time from the <strong>?</strong> button in the header.</p>
     </div>
