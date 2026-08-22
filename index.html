@@ -3806,10 +3806,10 @@ function setImportStatus(kind, text, prefix = "mrpack"){
 async function importMrpackFile(file){
   if(!file) return;
   if(!file.name.toLowerCase().endsWith(".mrpack")){
-    setImportStatus("error", "Please choose a .mrpack file.");
+    setImportStatus("error", t("importChooseMrpackFile","Please choose a .mrpack file."));
     return;
   }
-  setImportStatus("loading", "Reading pack…");
+  setImportStatus("loading", t("importReadingPack","Reading pack…"));
   try{
     const buf = await file.arrayBuffer();
     const zip = await JSZip.loadAsync(buf);
@@ -3820,16 +3820,18 @@ async function importMrpackFile(file){
     if(state.tab === "pack") renderPack();
     if(state.tab === "export") renderExport();
     if(result.total === 0){
-      setImportStatus("error", "No mods could be matched on Modrinth for that file.");
+      setImportStatus("error", t("importNoModsMatched","No mods could be matched on Modrinth for that file."));
     } else if(result.added === 0){
-      setImportStatus("success", `All ${result.total} mod${result.total===1?'':'s'} in that pack are already in Create.`);
+      setImportStatus("success", tPlural(result.total, "importAllAlreadyInCreateOne", "All {n} mod in that pack is already in Create.", "importAllAlreadyInCreateOther", "All {n} mods in that pack are already in Create."));
     } else {
       const skipped = result.total - result.added;
-      setImportStatus("success", `Added ${result.added} of ${result.total} mod${result.total===1?'':'s'} to Create.` + (skipped ? ` (${skipped} already there.)` : ""));
+      let msg = tPlural(result.total, "importAddedOfTotalOne", "Added {added} of {n} mod to Create.", "importAddedOfTotalOther", "Added {added} of {n} mods to Create.", {added: result.added});
+      if(skipped) msg += " " + tf("importAlreadyThereSuffix", "({n} already there.)", {n: skipped});
+      setImportStatus("success", msg);
     }
   }catch(e){
     console.error(e);
-    setImportStatus("error", "Couldn't read that file. Make sure it's a valid .mrpack.");
+    setImportStatus("error", t("importCouldntReadFile","Couldn't read that file. Make sure it's a valid .mrpack."));
   }
 }
 
@@ -3877,7 +3879,7 @@ function copyTextToClipboard(text, btn){
     if(!btn) return;
     const original = btn.dataset.originalHtml !== undefined ? btn.dataset.originalHtml : btn.innerHTML;
     btn.dataset.originalHtml = original;
-    btn.innerHTML = "Copied ✓";
+    btn.innerHTML = t("copiedConfirm","Copied ✓");
     clearTimeout(btn._copyResetTimer);
     btn._copyResetTimer = setTimeout(()=>{ btn.innerHTML = original; }, 1400);
   };
@@ -3961,24 +3963,24 @@ function showShareModal(){
 async function importSharedPack(rawInput){
   const code = extractShareCode(rawInput);
   if(!code){
-    setImportStatus("error", "Paste a share link or code first.", "share");
+    setImportStatus("error", t("alertPasteShareLinkOrCode","Paste a share link or code first."), "share");
     return;
   }
   let data;
   try{
-    setImportStatus("loading", code.startsWith("mb-") ? "Looking up short code…" : "Reading code…", "share");
+    setImportStatus("loading", code.startsWith("mb-") ? t("importLookingUpCode","Looking up short code…") : t("importReadingCode","Reading code…"), "share");
     data = await resolveShareCode(code);
     if(!data || !Array.isArray(data.m)) throw new Error("bad shape");
   }catch(e){
     console.error(e);
-    setImportStatus("error", e && e.userMessage ? e.userMessage : "That link/code looks invalid or corrupted.", "share");
+    setImportStatus("error", e && e.userMessage ? e.userMessage : t("importInvalidCorrupted","That link/code looks invalid or corrupted."), "share");
     return;
   }
   if(data.m.length === 0){
-    setImportStatus("error", "That share code doesn't contain any mods.", "share");
+    setImportStatus("error", t("importCodeNoMods","That share code doesn't contain any mods."), "share");
     return;
   }
-  setImportStatus("loading", "Resolving mods on Modrinth…", "share");
+  setImportStatus("loading", t("importResolvingMods","Resolving mods on Modrinth…"), "share");
   try{
     const versionIds = [...new Set(data.m.filter(Boolean))];
     const versionsRes = await fetch(`${API}/versions?ids=${encodeURIComponent(JSON.stringify(versionIds))}`);
@@ -4035,18 +4037,18 @@ async function importSharedPack(rawInput){
     const totalRequested = data.m.length;
     const totalResolved = versions.length;
     if(added === 0){
-      setImportStatus("success", `All ${totalResolved} mod${totalResolved===1?'':'s'} from that pack are already in Create.`, "share");
+      setImportStatus("success", tPlural(totalResolved, "importAllFromPackAlreadyOne", "All {n} mod from that pack is already in Create.", "importAllFromPackAlreadyOther", "All {n} mods from that pack are already in Create."), "share");
     } else {
       const skipped = totalResolved - added;
       const missing = totalRequested - totalResolved;
-      let msg = `Added ${added} of ${totalResolved} mod${totalResolved===1?'':'s'} to Create.`;
-      if(skipped) msg += ` (${skipped} already there.)`;
-      if(missing) msg += ` ${missing} mod${missing===1?'':'s'} from the code couldn't be found on Modrinth (maybe removed).`;
+      let msg = tPlural(totalResolved, "importAddedOfTotalOne", "Added {added} of {n} mod to Create.", "importAddedOfTotalOther", "Added {added} of {n} mods to Create.", {added});
+      if(skipped) msg += " " + tf("importAlreadyThereSuffix", "({n} already there.)", {n: skipped});
+      if(missing) msg += " " + tPlural(missing, "importMissingFromCodeOne", "{n} mod from the code couldn't be found on Modrinth (maybe removed).", "importMissingFromCodeOther", "{n} mods from the code couldn't be found on Modrinth (maybe removed).");
       setImportStatus("success", msg, "share");
     }
   }catch(e){
     console.error(e);
-    setImportStatus("error", "Couldn't resolve that pack. Modrinth may be unreachable, or the code is invalid.", "share");
+    setImportStatus("error", t("importCouldntResolvePack","Couldn't resolve that pack. Modrinth may be unreachable, or the code is invalid."), "share");
   }
 }
 
@@ -4492,7 +4494,9 @@ document.getElementById("logoResetBtn").addEventListener("click", ()=>{
   renderLogoPicker();
 });
 
-document.getElementById("shareLinkBtn").addEventListener("click", showShareModal);
+document.addEventListener("click", (e)=>{
+  if(e.target.closest && e.target.closest("#shareLinkBtn")) showShareModal();
+});
 document.getElementById("copyShareCodeBtn2").addEventListener("click", async (e)=>{
   const data = buildShareData();
   if(data.m.length === 0){
