@@ -15,8 +15,9 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<!-- i18n dictionaries: add a new <script src="i18n/xx.js"> here for each new language -->
-<script src="i18n/en.js"></script>
+<!-- i18n dictionaries: add a new <script src="i18n/xx.js"> here for each new language.
+     English is not loaded from a file — it's whatever text already lives in the HTML below;
+     the script caches it automatically so it can restore it when switching back to English. -->
 <script src="i18n/fr.js"></script>
 <script>
   (function(){
@@ -498,10 +499,6 @@
     width:16px; height:16px; color: var(--danger); flex-shrink:0;
   }
   .pack-row-issue-badge svg{ width:14px; height:14px; }
-  /* `display:inline-flex` below wins over the UA [hidden] stylesheet rule
-     (author styles beat UA styles regardless of the [hidden] attribute), so
-     this badge stayed visible even when JS set `hidden`. Force it off
-     explicitly whenever the attribute is present. */
   .pack-row-issue-badge[hidden]{ display:none !important; }
   .auto-compat-toggle{ display:inline-flex; align-items:center; gap:8px; cursor:pointer; margin-right:auto; }
   .auto-compat-toggle .switch{ position:relative; display:inline-block; width:34px; height:20px; flex-shrink:0; }
@@ -1045,58 +1042,58 @@
     <div class="layout">
       <aside class="filters">
         <div class="filter-group">
-          <h3>Content type</h3>
+          <h3 data-i18n="browseContentType">Content type</h3>
           <div class="type-toggle" id="browseTypeToggle" role="tablist" aria-label="Content type">
             <button type="button" class="type-btn active" data-type="mod" role="tab" aria-selected="true">
               <svg class="type-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>
-              Mods
+              <span data-i18n="browseTypeMods">Mods</span>
             </button>
             <button type="button" class="type-btn" data-type="shader" role="tab" aria-selected="false">
               <svg class="type-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
-              Shaders
+              <span data-i18n="browseTypeShaders">Shaders</span>
             </button>
             <button type="button" class="type-btn" data-type="resourcepack" role="tab" aria-selected="false">
               <svg class="type-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
-              Resource Packs
+              <span data-i18n="browseTypeResourcePacks">Resource Packs</span>
             </button>
           </div>
         </div>
         <div class="filter-group">
-          <h3>Minecraft version</h3>
-          <select id="mcVersion"><option value="">Any version</option></select>
+          <h3 data-i18n="browseMcVersion">Minecraft version</h3>
+          <select id="mcVersion"><option value="" data-i18n="browseAnyVersion">Any version</option></select>
         </div>
         <div class="filter-group" id="loaderFilterGroup">
-          <h3>Modloader</h3>
-          <label><input type="checkbox" value="fabric" class="loaderCheck"> <img class="loader-icon" src="icons/fabric.png" alt="Fabric" loading="lazy"> Fabric</label>
-          <label><input type="checkbox" value="forge" class="loaderCheck"> <img class="loader-icon" src="icons/forge.png" alt="Forge" loading="lazy"> Forge</label>
-          <label><input type="checkbox" value="quilt" class="loaderCheck"> <img class="loader-icon" src="icons/quilt.png" alt="Quilt" loading="lazy"> Quilt</label>
-          <label><input type="checkbox" value="neoforge" class="loaderCheck"> <img class="loader-icon" src="icons/neoforge.png" alt="NeoForge" loading="lazy"> NeoForge</label>
+          <h3 data-i18n="browseModloader">Modloader</h3>
+          <label><input type="checkbox" value="fabric" class="loaderCheck"> <img class="loader-icon" src="icons/fabric.png" alt="Fabric" loading="lazy"> <span data-i18n="loaderFabric">Fabric</span></label>
+          <label><input type="checkbox" value="forge" class="loaderCheck"> <img class="loader-icon" src="icons/forge.png" alt="Forge" loading="lazy"> <span data-i18n="loaderForge">Forge</span></label>
+          <label><input type="checkbox" value="quilt" class="loaderCheck"> <img class="loader-icon" src="icons/quilt.png" alt="Quilt" loading="lazy"> <span data-i18n="loaderQuilt">Quilt</span></label>
+          <label><input type="checkbox" value="neoforge" class="loaderCheck"> <img class="loader-icon" src="icons/neoforge.png" alt="NeoForge" loading="lazy"> <span data-i18n="loaderNeoForge">NeoForge</span></label>
         </div>
         <hr class="filter-sep">
         <div class="filter-group">
           <button type="button" class="cat-toggle" id="catToggleBrowse" aria-expanded="false">
-            <h3 style="margin:0;">Category</h3>
+            <h3 style="margin:0;" data-i18n="browseCategory">Category</h3>
             <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
           </button>
           <div class="cat-body" id="catBodyBrowse" hidden>
-            <label><input type="checkbox" value="technology" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.6V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.6 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.6 1z"/></svg> Technology</label>
-            <label><input type="checkbox" value="magic" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.9L19 9l-5.1 1.9L12 16l-1.9-5.1L5 9l5.1-1.1L12 3z"/><path d="M19 17l.9 2.1L22 20l-2.1.9L19 23l-.9-2.1L16 20l2.1-.9L19 17z"/></svg> Magic</label>
-            <label><input type="checkbox" value="adventure" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg> Adventure</label>
-            <label><input type="checkbox" value="decoration" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.06 11.9l8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08"/><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 0 0-3-3.02z"/></svg> Decoration</label>
-            <label><input type="checkbox" value="optimization" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Optimization</label>
-            <label><input type="checkbox" value="utility" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg> Utility</label>
-            <label><input type="checkbox" value="library" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg> Library</label>
+            <label><input type="checkbox" value="technology" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.6V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.6 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.6 1z"/></svg> <span data-i18n="catTechnology">Technology</span></label>
+            <label><input type="checkbox" value="magic" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.9L19 9l-5.1 1.9L12 16l-1.9-5.1L5 9l5.1-1.1L12 3z"/><path d="M19 17l.9 2.1L22 20l-2.1.9L19 23l-.9-2.1L16 20l2.1-.9L19 17z"/></svg> <span data-i18n="catMagic">Magic</span></label>
+            <label><input type="checkbox" value="adventure" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg> <span data-i18n="catAdventure">Adventure</span></label>
+            <label><input type="checkbox" value="decoration" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.06 11.9l8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08"/><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 0 0-3-3.02z"/></svg> <span data-i18n="catDecoration">Decoration</span></label>
+            <label><input type="checkbox" value="optimization" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> <span data-i18n="catOptimization">Optimization</span></label>
+            <label><input type="checkbox" value="utility" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg> <span data-i18n="catUtility">Utility</span></label>
+            <label><input type="checkbox" value="library" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg> <span data-i18n="catLibrary">Library</span></label>
           </div>
         </div>
         <hr class="filter-sep" id="envSepBrowse">
         <div class="filter-group" id="envFilterGroup">
           <button type="button" class="cat-toggle" id="catToggleEnv" aria-expanded="false">
-            <h3 style="margin:0;">Side</h3>
+            <h3 style="margin:0;" data-i18n="browseSide">Side</h3>
             <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
           </button>
           <div class="cat-body" id="catBodyEnv" hidden>
-            <label><input type="checkbox" value="client" class="envCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> Client-side</label>
-            <label><input type="checkbox" value="server" class="envCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg> Server-side</label>
+            <label><input type="checkbox" value="client" class="envCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> <span data-i18n="sideClient">Client-side</span></label>
+            <label><input type="checkbox" value="server" class="envCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg> <span data-i18n="sideServer">Server-side</span></label>
           </div>
         </div>
       </aside>
@@ -1105,22 +1102,22 @@
         <div class="toolbar">
           <div class="search-box">
             <span aria-hidden="true">🔍</span>
-            <input type="text" id="searchInput" placeholder="Search mods on Modrinth…" aria-label="Search mods">
+            <input type="text" id="searchInput" placeholder="Search mods on Modrinth…" aria-label="Search mods" data-i18n-attr="placeholder:browseSearchPlaceholder,aria-label:browseSearchLabel">
           </div>
           <select id="sortSelect">
-            <option value="relevance">Relevance</option>
-            <option value="downloads">Most downloads</option>
-            <option value="downloads_asc">Fewest downloads</option>
-            <option value="follows">Most followed</option>
-            <option value="newest">Newest</option>
-            <option value="oldest">Oldest</option>
-            <option value="updated">Recently updated</option>
+            <option value="relevance" data-i18n="sortRelevance">Relevance</option>
+            <option value="downloads" data-i18n="sortMostDownloads">Most downloads</option>
+            <option value="downloads_asc" data-i18n="sortFewestDownloads">Fewest downloads</option>
+            <option value="follows" data-i18n="sortMostFollowed">Most followed</option>
+            <option value="newest" data-i18n="sortNewest">Newest</option>
+            <option value="oldest" data-i18n="sortOldest">Oldest</option>
+            <option value="updated" data-i18n="sortUpdated">Recently updated</option>
           </select>
           <div class="view-toggle">
-            <button id="gridBtn" class="active" aria-label="Grid view" title="Grid view">
+            <button id="gridBtn" class="active" aria-label="Grid view" title="Grid view" data-i18n-attr="aria-label:viewGrid,title:viewGrid">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/></svg>
             </button>
-            <button id="listBtn" aria-label="List view" title="List view">
+            <button id="listBtn" aria-label="List view" title="List view" data-i18n-attr="aria-label:viewList,title:viewList">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
             </button>
           </div>
@@ -1137,14 +1134,14 @@
     <div class="toolbar">
       <div class="search-box">
         <span aria-hidden="true">🔍</span>
-        <input type="text" id="favSearchInput" placeholder="Search your favorites…" aria-label="Search favorites">
+        <input type="text" id="favSearchInput" placeholder="Search your favorites…" aria-label="Search favorites" data-i18n-attr="placeholder:favSearchPlaceholder,aria-label:favSearchLabel">
       </div>
-      <button class="page-btn" id="favSortBtn" style="display:none;">Sort A→Z</button>
+      <button class="page-btn" id="favSortBtn" style="display:none;" data-i18n="favSortAZ">Sort A→Z</button>
       <div class="view-toggle">
-        <button id="favGridBtn" class="active" aria-label="Grid view" title="Grid view">
+        <button id="favGridBtn" class="active" aria-label="Grid view" title="Grid view" data-i18n-attr="aria-label:viewGrid,title:viewGrid">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/></svg>
         </button>
-        <button id="favListBtn" aria-label="List view" title="List view">
+        <button id="favListBtn" aria-label="List view" title="List view" data-i18n-attr="aria-label:viewList,title:viewList">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
         </button>
       </div>
@@ -1152,7 +1149,7 @@
     <div id="favResults" class="grid"></div>
     <div id="favEmpty" class="empty-state" style="display:none;">
       <div class="big">⭐</div>
-      <p>No favorites yet. Tap the heart on any mod in <strong>Browse</strong> or <strong>Modpacks</strong> to save it here.</p>
+      <p data-i18n="favEmptyText">No favorites yet. Tap the heart on any mod in <strong>Browse</strong> or <strong>Modpacks</strong> to save it here.</p>
     </div>
   </section>
 
@@ -1160,30 +1157,30 @@
     <div class="layout">
       <aside class="filters">
         <div class="filter-group">
-          <h3>Minecraft version</h3>
-          <select id="modpackMcVersion"><option value="">Any version</option></select>
+          <h3 data-i18n="browseMcVersion">Minecraft version</h3>
+          <select id="modpackMcVersion"><option value="" data-i18n="browseAnyVersion">Any version</option></select>
         </div>
         <div class="filter-group">
-          <h3>Modloader</h3>
-          <label><input type="checkbox" value="fabric" class="modpackLoaderCheck"> <img class="loader-icon" src="icons/fabric.png" alt="Fabric" loading="lazy"> Fabric</label>
-          <label><input type="checkbox" value="forge" class="modpackLoaderCheck"> <img class="loader-icon" src="icons/forge.png" alt="Forge" loading="lazy"> Forge</label>
-          <label><input type="checkbox" value="quilt" class="modpackLoaderCheck"> <img class="loader-icon" src="icons/quilt.png" alt="Quilt" loading="lazy"> Quilt</label>
-          <label><input type="checkbox" value="neoforge" class="modpackLoaderCheck"> <img class="loader-icon" src="icons/neoforge.png" alt="NeoForge" loading="lazy"> NeoForge</label>
+          <h3 data-i18n="browseModloader">Modloader</h3>
+          <label><input type="checkbox" value="fabric" class="modpackLoaderCheck"> <img class="loader-icon" src="icons/fabric.png" alt="Fabric" loading="lazy"> <span data-i18n="loaderFabric">Fabric</span></label>
+          <label><input type="checkbox" value="forge" class="modpackLoaderCheck"> <img class="loader-icon" src="icons/forge.png" alt="Forge" loading="lazy"> <span data-i18n="loaderForge">Forge</span></label>
+          <label><input type="checkbox" value="quilt" class="modpackLoaderCheck"> <img class="loader-icon" src="icons/quilt.png" alt="Quilt" loading="lazy"> <span data-i18n="loaderQuilt">Quilt</span></label>
+          <label><input type="checkbox" value="neoforge" class="modpackLoaderCheck"> <img class="loader-icon" src="icons/neoforge.png" alt="NeoForge" loading="lazy"> <span data-i18n="loaderNeoForge">NeoForge</span></label>
         </div>
         <hr class="filter-sep">
         <div class="filter-group">
           <button type="button" class="cat-toggle" id="catToggleModpacks" aria-expanded="false">
-            <h3 style="margin:0;">Category</h3>
+            <h3 style="margin:0;" data-i18n="browseCategory">Category</h3>
             <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
           </button>
           <div class="cat-body" id="catBodyModpacks" hidden>
-            <label><input type="checkbox" value="technology" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.6V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.6 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.6 1z"/></svg> Technology</label>
-            <label><input type="checkbox" value="magic" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.9L19 9l-5.1 1.9L12 16l-1.9-5.1L5 9l5.1-1.1L12 3z"/><path d="M19 17l.9 2.1L22 20l-2.1.9L19 23l-.9-2.1L16 20l2.1-.9L19 17z"/></svg> Magic</label>
-            <label><input type="checkbox" value="adventure" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg> Adventure</label>
-            <label><input type="checkbox" value="decoration" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.06 11.9l8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08"/><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 0 0-3-3.02z"/></svg> Decoration</label>
-            <label><input type="checkbox" value="optimization" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> Optimization</label>
-            <label><input type="checkbox" value="utility" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg> Utility</label>
-            <label><input type="checkbox" value="library" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg> Library</label>
+            <label><input type="checkbox" value="technology" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.6V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.6 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.6 1z"/></svg> <span data-i18n="catTechnology">Technology</span></label>
+            <label><input type="checkbox" value="magic" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.9L19 9l-5.1 1.9L12 16l-1.9-5.1L5 9l5.1-1.1L12 3z"/><path d="M19 17l.9 2.1L22 20l-2.1.9L19 23l-.9-2.1L16 20l2.1-.9L19 17z"/></svg> <span data-i18n="catMagic">Magic</span></label>
+            <label><input type="checkbox" value="adventure" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg> <span data-i18n="catAdventure">Adventure</span></label>
+            <label><input type="checkbox" value="decoration" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.06 11.9l8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08"/><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 0 0-3-3.02z"/></svg> <span data-i18n="catDecoration">Decoration</span></label>
+            <label><input type="checkbox" value="optimization" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> <span data-i18n="catOptimization">Optimization</span></label>
+            <label><input type="checkbox" value="utility" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg> <span data-i18n="catUtility">Utility</span></label>
+            <label><input type="checkbox" value="library" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg> <span data-i18n="catLibrary">Library</span></label>
           </div>
         </div>
       </aside>
@@ -1192,16 +1189,16 @@
         <div class="toolbar">
           <div class="search-box">
             <span aria-hidden="true">🔍</span>
-            <input type="text" id="modpackSearchInput" placeholder="Search modpacks on Modrinth…" aria-label="Search modpacks">
+            <input type="text" id="modpackSearchInput" placeholder="Search modpacks on Modrinth…" aria-label="Search modpacks" data-i18n-attr="placeholder:modpackSearchPlaceholder,aria-label:modpackSearchLabel">
           </div>
           <select id="modpackSortSelect">
-            <option value="relevance">Relevance</option>
-            <option value="downloads">Most downloads</option>
-            <option value="downloads_asc">Fewest downloads</option>
-            <option value="follows">Most followed</option>
-            <option value="newest">Newest</option>
-            <option value="oldest">Oldest</option>
-            <option value="updated">Recently updated</option>
+            <option value="relevance" data-i18n="sortRelevance">Relevance</option>
+            <option value="downloads" data-i18n="sortMostDownloads">Most downloads</option>
+            <option value="downloads_asc" data-i18n="sortFewestDownloads">Fewest downloads</option>
+            <option value="follows" data-i18n="sortMostFollowed">Most followed</option>
+            <option value="newest" data-i18n="sortNewest">Newest</option>
+            <option value="oldest" data-i18n="sortOldest">Oldest</option>
+            <option value="updated" data-i18n="sortUpdated">Recently updated</option>
           </select>
         </div>
         <div id="modpackResults" class="grid"></div>
@@ -1220,7 +1217,7 @@
       <input type="text" id="packSearchInput" placeholder="Search your pack…" aria-label="Search your pack" data-i18n-attr="placeholder:createSearchPlaceholder,aria-label:createSearchLabel">
     </div>
     <div class="toolbar" id="createToolbar" style="display:none; justify-content:flex-end; align-items:center; flex-wrap:wrap; gap:10px;">
-      <label class="auto-compat-toggle" id="autoCompatToggleWrap" title="Automatically scan for compatibility issues as you edit your pack">
+      <label class="auto-compat-toggle" id="autoCompatToggleWrap" title="Automatically scan for compatibility issues as you edit your pack" data-i18n-attr="title:createAutoFlagTitle">
         <span class="switch">
           <input type="checkbox" id="autoCompatToggle">
           <span class="switch-track"><span class="switch-thumb"></span></span>
@@ -1247,8 +1244,8 @@
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
         </div>
         <div>
-          <h2 style="margin:0;">Export your pack</h2>
-          <p style="color:var(--text-dim); font-size:0.9rem; margin:4px 0 0;">Generates a <code>.mrpack</code> file, importable straight into the Modrinth App, Prism Launcher, or ATLauncher.</p>
+          <h2 style="margin:0;" data-i18n="exportTitle">Export your pack</h2>
+          <p style="color:var(--text-dim); font-size:0.9rem; margin:4px 0 0;" data-i18n="exportSubtitle">Generates a <code>.mrpack</code> file, importable straight into the Modrinth App, Prism Launcher, or ATLauncher.</p>
         </div>
       </div>
 
@@ -1260,17 +1257,17 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
           </div>
           <div class="import-card-text">
-            <strong>Import a .mrpack</strong>
-            <p style="margin:2px 0 0; color:var(--text-dim); font-size:0.82rem;">Load an existing modpack file. Its mods are resolved on Modrinth and added to <strong>Create</strong>.</p>
+            <strong data-i18n="exportImportMrpack">Import a .mrpack</strong>
+            <p style="margin:2px 0 0; color:var(--text-dim); font-size:0.82rem;" data-i18n="exportImportMrpackDesc">Load an existing modpack file. Its mods are resolved on Modrinth and added to <strong>Create</strong>.</p>
           </div>
         </div>
         <div class="import-status" id="mrpackImportStatus" style="display:none;">
           <span class="import-status-icon" id="mrpackImportStatusIcon"></span>
           <span id="mrpackImportStatusText"></span>
         </div>
-        <label class="file-btn" for="mrpackFileInput">Choose file</label>
+        <label class="file-btn" for="mrpackFileInput" data-i18n="exportChooseFile">Choose file</label>
         <input type="file" id="mrpackFileInput" accept=".mrpack" style="display:none;">
-        <p class="import-drop-hint">or drag and drop a .mrpack file here</p>
+        <p class="import-drop-hint" data-i18n="exportDropHint">or drag and drop a .mrpack file here</p>
       </div>
 
       <div class="import-card">
@@ -1279,8 +1276,8 @@
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
           </div>
           <div class="import-card-text">
-            <strong>Import a share code</strong>
-            <p style="margin:2px 0 0; color:var(--text-dim); font-size:0.82rem;">Paste a code someone shared from their ModBench pack.</p>
+            <strong data-i18n="exportImportShareCode">Import a share code</strong>
+            <p style="margin:2px 0 0; color:var(--text-dim); font-size:0.82rem;" data-i18n="exportImportShareCodeDesc">Paste a code someone shared from their ModBench pack.</p>
           </div>
         </div>
         <div class="import-status" id="shareImportStatus" style="display:none;">
@@ -1288,52 +1285,52 @@
           <span id="shareImportStatusText"></span>
         </div>
         <div style="display:flex; gap:8px;">
-          <input type="text" id="shareImportInput" placeholder="Paste share code" style="flex:1; min-width:0;">
-          <button type="button" class="export-btn" id="shareImportBtn" style="width:auto; margin-top:0; padding:0 16px; white-space:nowrap;">Import</button>
+          <input type="text" id="shareImportInput" placeholder="Paste share code" style="flex:1; min-width:0;" data-i18n-attr="placeholder:exportPasteShareCode">
+          <button type="button" class="export-btn" id="shareImportBtn" style="width:auto; margin-top:0; padding:0 16px; white-space:nowrap;" data-i18n="exportImportBtn">Import</button>
         </div>
       </div>
 
-      <label for="packName">Pack name</label>
-      <input type="text" id="packName" placeholder="My Modpack" value="My Modpack (via ModBench)">
+      <label for="packName" data-i18n="exportPackName">Pack name</label>
+      <input type="text" id="packName" placeholder="My Modpack" value="My Modpack (via ModBench)" data-i18n-attr="placeholder:exportPackNamePlaceholder">
 
-      <label for="packVersion">Pack version</label>
+      <label for="packVersion" data-i18n="exportPackVersion">Pack version</label>
       <input type="text" id="packVersion" placeholder="1.0.0" value="1.0.0">
 
-      <label>Modpack icon</label>
+      <label data-i18n="exportModpackIcon">Modpack icon</label>
       <div class="logo-picker">
         <div class="logo-preview" id="logoPreview">
           <img id="logoPreviewImg" src="icons/logo.png" alt="Modpack icon preview">
         </div>
         <div class="logo-picker-actions">
-          <label class="file-btn" for="logoFileInput">Change logo</label>
+          <label class="file-btn" for="logoFileInput" data-i18n="exportChangeLogo">Change logo</label>
           <input type="file" id="logoFileInput" accept="image/png,image/jpeg,image/webp" style="display:none;">
-          <button type="button" class="modal-link-btn" id="logoResetBtn" style="display:none;">Reset to default</button>
+          <button type="button" class="modal-link-btn" id="logoResetBtn" style="display:none;" data-i18n="exportResetLogo">Reset to default</button>
         </div>
       </div>
-      <p style="color:var(--text-dim); font-size:0.8rem; margin:6px 0 0;">Square image recommended, max 2 MB. Bundled into the <code>.mrpack</code> as its icon.</p>
+      <p style="color:var(--text-dim); font-size:0.8rem; margin:6px 0 0;" data-i18n="exportLogoHint">Square image recommended, max 2 MB. Bundled into the <code>.mrpack</code> as its icon.</p>
 
-      <label for="expMcVersion">Minecraft version</label>
-      <select id="expMcVersion"><option value="">Select a version</option></select>
+      <label for="expMcVersion" data-i18n="browseMcVersion">Minecraft version</label>
+      <select id="expMcVersion"><option value="" data-i18n="exportSelectVersion">Select a version</option></select>
 
-      <label for="expLoader">Modloader</label>
+      <label for="expLoader" data-i18n="browseModloader">Modloader</label>
       <select id="expLoader">
-        <option value="">Select a loader</option>
-        <option value="fabric">Fabric</option>
-        <option value="forge">Forge</option>
-        <option value="quilt">Quilt</option>
-        <option value="neoforge">NeoForge</option>
+        <option value="" data-i18n="exportSelectLoader">Select a loader</option>
+        <option value="fabric" data-i18n="loaderFabric">Fabric</option>
+        <option value="forge" data-i18n="loaderForge">Forge</option>
+        <option value="quilt" data-i18n="loaderQuilt">Quilt</option>
+        <option value="neoforge" data-i18n="loaderNeoForge">NeoForge</option>
       </select>
-      <p style="color:var(--text-dim); font-size:0.8rem; margin:8px 0 0;">This is the target your pack declares to launchers, separate from the file you picked per mod in Create. If you already filtered by version/loader while browsing, it's pre-filled here.</p>
+      <p style="color:var(--text-dim); font-size:0.8rem; margin:8px 0 0;" data-i18n="exportTargetHint">This is the target your pack declares to launchers, separate from the file you picked per mod in Create. If you already filtered by version/loader while browsing, it's pre-filled here.</p>
 
-      <button class="export-btn" id="exportBtn">Download .mrpack</button>
-      <p class="export-note" id="exportNote">Add mods to your pack first, then choose a version and loader.</p>
-      <p style="color:var(--text-dim); font-size:0.8rem; margin:8px 0 0; display:none;" id="exportImportTip">Downloaded. If <strong>Modrinth</strong> is installed, just double-click the <code>.mrpack</code> file (or open it from your browser's downloads list) and it'll launch straight into creating an instance from it.</p>
+      <button class="export-btn" id="exportBtn" data-i18n="exportDownloadBtn">Download .mrpack</button>
+      <p class="export-note" id="exportNote" data-i18n="exportNoteDefault">Add mods to your pack first, then choose a version and loader.</p>
+      <p style="color:var(--text-dim); font-size:0.8rem; margin:8px 0 0; display:none;" id="exportImportTip" data-i18n="exportImportTip">Downloaded. If <strong>Modrinth</strong> is installed, just double-click the <code>.mrpack</code> file (or open it from your browser's downloads list) and it'll launch straight into creating an instance from it.</p>
 
       <button type="button" class="modal-link-btn" id="copyShareCodeBtn2" style="width:100%; margin-top:10px; justify-content:center;">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px; height:16px;"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
-        Copy pack code
+        <span data-i18n="exportCopyPackCode">Copy pack code</span>
       </button>
-      <p style="color:var(--text-dim); font-size:0.8rem; margin:6px 0 0;">Copies a short code with your mod list. Others paste it straight into <strong>Import a share code</strong> above to get the same mods. <button type="button" id="shareLinkBtn" style="background:none; border:none; padding:0; color:var(--accent-dark); text-decoration:underline; cursor:pointer; font:inherit;">Prefer a link?</button></p>
+      <p style="color:var(--text-dim); font-size:0.8rem; margin:6px 0 0;" data-i18n="exportShareCodeHint">Copies a short code with your mod list. Others paste it straight into <strong>Import a share code</strong> above to get the same mods. <button type="button" id="shareLinkBtn" style="background:none; border:none; padding:0; color:var(--accent-dark); text-decoration:underline; cursor:pointer; font:inherit;">Prefer a link?</button></p>
     </div>
   </section>
 
@@ -1606,27 +1603,45 @@ function toggleFavorite(hit){
 }
 
 // ---- Language (i18n) ----
+// English is the source language: it's the text already written in the HTML,
+// captured automatically below — there's no i18n/en.js to maintain.
 // To add a new language: create i18n/xx.js (copy i18n/fr.js as a template),
 // add its <script src="i18n/xx.js"> tag near the top of the HTML, and add
 // "xx" to the LANGUAGES list below.
 const LANGUAGES = ["en", "fr"];
 state.lang = localStorage.getItem("modbench-lang") || "en";
 
+// Snapshot the original English text/attributes straight from the DOM before
+// any translation is applied, so switching back to English needs no data file.
+const englishSnapshot = { html: new Map(), attrs: new Map() };
+document.querySelectorAll("[data-i18n]").forEach(el=>{
+  englishSnapshot.html.set(el, el.innerHTML);
+});
+document.querySelectorAll("[data-i18n-attr]").forEach(el=>{
+  const pairs = el.dataset.i18nAttr.split(",").map(p=>p.split(":"));
+  const orig = {};
+  pairs.forEach(([attr])=>{ orig[attr] = el.getAttribute(attr); });
+  englishSnapshot.attrs.set(el, orig);
+});
+
 function applyLanguage(lang){
-  if(!window.i18n || !window.i18n[lang]) lang = "en";
+  if(lang !== "en" && (!window.i18n || !window.i18n[lang])) lang = "en";
   state.lang = lang;
-  const dict = window.i18n[lang];
+  const dict = lang === "en" ? null : window.i18n[lang];
   document.documentElement.setAttribute("lang", lang);
 
   document.querySelectorAll("[data-i18n]").forEach(el=>{
     const key = el.dataset.i18n;
-    if(dict[key] !== undefined) el.innerHTML = dict[key];
+    if(dict && dict[key] !== undefined) el.innerHTML = dict[key];
+    else el.innerHTML = englishSnapshot.html.get(el);
   });
 
   document.querySelectorAll("[data-i18n-attr]").forEach(el=>{
+    const orig = englishSnapshot.attrs.get(el);
     el.dataset.i18nAttr.split(",").forEach(pair=>{
       const [attr, key] = pair.split(":");
-      if(dict[key] !== undefined) el.setAttribute(attr, dict[key]);
+      if(dict && dict[key] !== undefined) el.setAttribute(attr, dict[key]);
+      else if(orig && orig[attr] !== undefined) el.setAttribute(attr, orig[attr]);
     });
   });
 
@@ -2902,13 +2917,6 @@ function modRunsOnLoader(x, loader, bridges){
 function pickBestLoaderForPack(selected){
   const candidateLoaders = ["fabric", "quilt", "forge", "neoforge"];
   const bridges = getActiveLoaderBridges(selected);
-  // Loader-agnostic entries (resource packs, datapacks, shaders, or mods with no loader info)
-  // run on every loader by definition, so they shouldn't get to cast a "vote" for one loader
-  // over another — otherwise a pack full of e.g. shaderpacks plus a couple Forge mods can tie
-  // every candidate loader's count and fall back to whichever loader happens to be first in
-  // the list above (Fabric), even though nothing in the pack actually targets Fabric. Only
-  // count mods that give a real, loader-specific signal; agnostic ones are used only if no
-  // mod in the pack gives any specific signal at all.
   const specific = selected.filter(x=>!isLoaderAgnostic(x));
   const votePool = specific.length ? specific : selected;
   let best = null;
@@ -2925,9 +2933,6 @@ function boldEsc(text){
   return `<strong>${escapeHtml(text)}</strong>`;
 }
 
-// Long unresolved-mod lists (e.g. a big pack with hundreds of loader mismatches) can make the
-// AutoSolve result note absurdly long. Show a handful of names inline and collapse the rest
-// behind a "+N more" toggle instead of dumping the whole list into the paragraph.
 function modListHtml(mods, limit = 6){
   const names = mods.map(m=>boldEsc(m.title));
   if(names.length <= limit) return names.join(", ");
@@ -2935,12 +2940,6 @@ function modListHtml(mods, limit = 6){
   return `${names.slice(0, limit).join(", ")}, <span class="modlist-rest" id="${id}" hidden>${names.slice(limit).join(", ")}, </span><button type="button" class="modal-link-btn modlist-toggle" data-target="${id}">+${names.length - limit} more</button>`;
 }
 
-// If most of the selected mods came from the same modpack import, trust the loader that
-// import already recorded (from the pack's own manifest — see importMrpackZipIntoPack)
-// instead of re-deriving it by voting across each mod's individual Modrinth version data.
-// Per-mod version metadata is often missing or unreliable (especially for older mods or
-// ones bridged over from CurseForge), so a majority-share import signal is much stronger
-// than a per-mod vote and should win outright rather than just add one more vote to the mix.
 function dominantImportedLoader(selected){
   const counts = new Map();
   selected.forEach(x=>{
@@ -3551,12 +3550,6 @@ function renderModpackResults(){
     });
   });
   resultsEl.querySelectorAll("[data-addpack]").forEach(btn=>{
-    // Once a modpack's mods are already in Create, re-clicking would re-download and
-    // re-parse the whole .mrpack for nothing (importMrpackZipIntoPack already skips mods
-    // that are present, but that's still a wasted network round trip and CPU work, and on
-    // a flaky connection it can even resurface a spurious "couldn't import" error for a
-    // pack that's already fully added). The button is rendered disabled in that case above;
-    // this guard just makes sure a stale/re-enabled button can't trigger it either.
     if(btn.disabled) return;
     btn.addEventListener("click", (e)=>{
       e.stopPropagation();
@@ -3715,10 +3708,6 @@ async function importMrpackZipIntoPack(zip, meta = {}){
     added++;
   });
 
-  // Commit the primary mods right away so the pack count and UI reflect
-  // the import immediately, instead of waiting on the slower dependency
-  // and loader-API resolution below (which can take a while, or stall
-  // on a flaky network call).
   savePack();
   foundVersions.forEach(v=>updateCardButtonsEverywhere(v.project_id));
 
@@ -4157,11 +4146,6 @@ function renderExport(){
   const heroIcon = document.getElementById("exportHeroIcon");
   document.getElementById("exportImportTip").style.display = "none";
   if(!expMc.value && state.mcVersion) expMc.value = state.mcVersion;
-  // NOTE: don't fall back to state.loaders here — that's the Browse tab's mod-search filter
-  // checkboxes, unrelated to what loader the pack actually targets. A user filtering Browse
-  // by Fabric while working on a Forge pack would otherwise get the export/compat-check
-  // loader silently set to Fabric, flagging every Forge-only mod as a mismatch. guessPackTarget()
-  // below derives the loader from the pack's own contents instead, which is the reliable signal.
   if(!expMc.value || !expLoader.value){
     const guess = guessPackTarget();
     if(!expMc.value && guess.mcVersion) expMc.value = guess.mcVersion;
@@ -4248,9 +4232,6 @@ document.getElementById("exportBtn").addEventListener("click", async ()=>{
       downloads: [mod.selectedFile.url],
       fileSize: mod.selectedFile.size
     })),
-    // Loader dependency versions are intentionally left as "" (any version) — that's a valid
-    // mrpack value and must be KEPT, not stripped: without a loader key present at all here,
-    // launchers (Modrinth App included) have no way to know this pack isn't vanilla.
     dependencies: { minecraft: mcVersion, ...(LOADER_DEP_KEY[loader] ? { [LOADER_DEP_KEY[loader]]: "" } : {}) }
   };
 
