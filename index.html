@@ -15,9 +15,6 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
-<!-- i18n dictionaries: add a new <script src="i18n/xx.js"> here for each new language.
-     English is not loaded from a file — it's whatever text already lives in the HTML below;
-     the script caches it automatically so it can restore it when switching back to English. -->
 <script src="i18n/fr.js"></script>
 <script>
   (function(){
@@ -499,10 +496,6 @@
     width:16px; height:16px; color: var(--danger); flex-shrink:0;
   }
   .pack-row-issue-badge svg{ width:14px; height:14px; }
-  /* `display:inline-flex` below wins over the UA [hidden] stylesheet rule
-     (author styles beat UA styles regardless of the [hidden] attribute), so
-     this badge stayed visible even when JS set `hidden`. Force it off
-     explicitly whenever the attribute is present. */
   .pack-row-issue-badge[hidden]{ display:none !important; }
   .auto-compat-toggle{ display:inline-flex; align-items:center; gap:8px; cursor:pointer; margin-right:auto; }
   .auto-compat-toggle .switch{ position:relative; display:inline-block; width:34px; height:20px; flex-shrink:0; }
@@ -865,9 +858,6 @@
     max-width: 90vw; max-height: 74vh; width:auto; height:auto; border-radius: 8px; box-shadow: 0 8px 30px rgba(0,0,0,.4);
   }
   @media (min-width: 641px){
-    /* On larger screens, low-res images shouldn't render tiny in the middle
-       of the lightbox -- give them a reasonable floor size while still
-       letting max-width/max-height cap high-res images as before. */
     .lightbox-img-wrap img{ min-width: min(60vw, 640px); min-height: min(45vh, 420px); object-fit: contain; }
   }
   .lightbox-counter{ color:#fff; font-size:0.85rem; opacity:.85; }
@@ -1532,31 +1522,16 @@ let state = {
   modpackSearched: false,
   packIcon: localStorage.getItem("modbench_pack_icon") || "",
   autoCompatCheck: localStorage.getItem("modbench_auto_compat_check") !== "off",
-  // Tracks whether the person manually picked a loader/MC version on the Export tab (a real
-  // "change" event), vs. it just being an auto-fill guess. The compatibility checker should
-  // only treat the Export tab's value as an intentional target once it's actually been touched —
-  // otherwise a stale guess from before a new modpack was imported (e.g. via the Modpacks tab)
-  // keeps overriding the loader the checker derives fresh from the pack's current contents.
   expLoaderTouched: false,
   expMcTouched: false,
   lang: localStorage.getItem("modbench-lang") || "en"
 };
 
-// Looks up a translated string for dynamically-generated (JS template literal) content —
-// modal buttons, toasts, status text, etc — that isn't part of the static HTML and so can't
-// be tagged with data-i18n. Falls back to the English text passed in if no translation
-// exists yet or the active language has no dictionary loaded.
 function t(key, fallback){
   const dict = window.i18n && window.i18n[state.lang];
   return (dict && dict[key] !== undefined) ? dict[key] : fallback;
 }
 
-// Wraps localStorage writes so a full/unavailable storage quota (easy to hit with large
-// modpacks, or in private-browsing modes that cap or block storage) never throws up through
-// whatever called savePack/savePackIcon. Without this, an import can fully succeed in memory
-// and on screen while the persistence step throws, and callers upstream (like the modpack
-// import flow) end up showing a spurious "couldn't import" error for a pack that actually
-// imported fine.
 function safeLocalStorageSet(key, value){
   try{
     localStorage.setItem(key, value);
@@ -1617,16 +1592,9 @@ function toggleFavorite(hit){
 }
 
 // ---- Language (i18n) ----
-// English is the source language: it's the text already written in the HTML,
-// captured automatically below — there's no i18n/en.js to maintain.
-// To add a new language: create i18n/xx.js (copy i18n/fr.js as a template),
-// add its <script src="i18n/xx.js"> tag near the top of the HTML, and add
-// "xx" to the LANGUAGES list below.
 const LANGUAGES = ["en", "fr"];
 state.lang = localStorage.getItem("modbench-lang") || "en";
 
-// Snapshot the original English text/attributes straight from the DOM before
-// any translation is applied, so switching back to English needs no data file.
 const englishSnapshot = { html: new Map(), attrs: new Map() };
 document.querySelectorAll("[data-i18n]").forEach(el=>{
   englishSnapshot.html.set(el, el.innerHTML);
@@ -2319,12 +2287,9 @@ async function autoAddDependencies(version, visited, hostProjectType){
   }
 }
 
-// Some mods are forks/replacements of one another and provide the same functionality —
-// e.g. Xenon is a fork of Embeddium. If a required dependency has a known fork/original
-// already in the pack, don't auto-add the dependency on top of it: the two are flagged
-// incompatible with each other on Modrinth, so doing so just creates a compatibility issue.
+// Some mods are forks/replacements of one another and provide the same functionality 
 const MOD_EQUIVALENTS = {
-  "aWDwN8NN": ["sk9rgfiA"], // Xenon <-> Embeddium
+  "aWDwN8NN": ["sk9rgfiA"],
   "sk9rgfiA": ["aWDwN8NN"]
 };
 function hasEquivalentInPack(projectId){
@@ -2772,7 +2737,7 @@ async function updatePackIssueHighlights(){
     console.error("Background compatibility scan failed", e);
     return;
   }
-  if(runId !== packIssueScanId) return; // a newer scan superseded this one
+  if(runId !== packIssueScanId) return;
   const { issues } = result;
 
   const badModIds = new Set();
@@ -2825,9 +2790,6 @@ function modChipHtml(mod){
   return `<span class="compat-mod-chip${inPack ? " clickable" : ""}" ${inPack ? `data-jump-id="${escapeHtml(mod.id)}" role="button" tabindex="0" title="Jump to ${escapeHtml(mod.title)} in your pack"` : ""}>${mod.icon_url ? `<img src="${mod.icon_url}" alt="">` : ""}${escapeHtml(mod.title)}</span>`;
 }
 
-// Same "see more" collapsing idea as modListHtml, but for a row of pill chips instead of an
-// inline comma list — a pack with hundreds of loader-mismatched mods can otherwise turn one
-// compat issue into a wall of chips.
 function modChipsHtml(mods, limit = 12){
   const chips = mods.map(modChipHtml);
   if(chips.length <= limit) return chips.join("");
@@ -2835,8 +2797,6 @@ function modChipsHtml(mods, limit = 12){
   return `${chips.slice(0, limit).join("")}<span class="modlist-rest" id="${id}" hidden>${chips.slice(limit).join("")}</span><button type="button" class="compat-mod-chip modlist-toggle-chip" data-target="${id}">+${chips.length - limit} more</button>`;
 }
 
-// Same idea again for a mod's version list — some popular mods have hundreds of versions,
-// which is a lot of DOM/scrolling for someone who almost always just wants a recent one.
 function versionRowsHtml(rows, limit = 15){
   if(rows.length <= limit) return rows.join("");
   const id = `versionrows-${Math.random().toString(36).slice(2, 9)}`;
@@ -2903,12 +2863,6 @@ const LOADER_RUNS_ON = { fabric: ["fabric"], quilt: ["quilt", "fabric"], forge: 
 const LOADER_DISPLAY_NAMES = { fabric: "Fabric", quilt: "Quilt", forge: "Forge", neoforge: "NeoForge" };
 function formatLoaderName(loader){ return LOADER_DISPLAY_NAMES[loader] || formatCategoryName(loader || ""); }
 
-// Some mods are "loader bridges": translation layers that let mods built for one loader run
-// on a completely different one. Sinytra Connector is the big one — it lets genuine Fabric-only
-// mods (BCLib, BetterEnd/BetterNether, Embeddium, etc.) run inside a Forge/NeoForge pack, which
-// is exactly how many popular Forge megapacks (e.g. Better MC [FORGE]) include them. Without
-// knowing about the bridge, the checker has no way to see that and flags every one of those
-// mods as loader-incompatible even though the pack works fine with the bridge installed.
 const LOADER_BRIDGES = {
   "u58R1TMW": { runs: ["fabric", "quilt"], on: ["forge", "neoforge"] } // Sinytra Connector
 };
@@ -2931,13 +2885,6 @@ function modRunsOnLoader(x, loader, bridges){
 function pickBestLoaderForPack(selected){
   const candidateLoaders = ["fabric", "quilt", "forge", "neoforge"];
   const bridges = getActiveLoaderBridges(selected);
-  // Loader-agnostic entries (resource packs, datapacks, shaders, or mods with no loader info)
-  // run on every loader by definition, so they shouldn't get to cast a "vote" for one loader
-  // over another — otherwise a pack full of e.g. shaderpacks plus a couple Forge mods can tie
-  // every candidate loader's count and fall back to whichever loader happens to be first in
-  // the list above (Fabric), even though nothing in the pack actually targets Fabric. Only
-  // count mods that give a real, loader-specific signal; agnostic ones are used only if no
-  // mod in the pack gives any specific signal at all.
   const specific = selected.filter(x=>!isLoaderAgnostic(x));
   const votePool = specific.length ? specific : selected;
   let best = null;
@@ -2954,9 +2901,6 @@ function boldEsc(text){
   return `<strong>${escapeHtml(text)}</strong>`;
 }
 
-// Long unresolved-mod lists (e.g. a big pack with hundreds of loader mismatches) can make the
-// AutoSolve result note absurdly long. Show a handful of names inline and collapse the rest
-// behind a "+N more" toggle instead of dumping the whole list into the paragraph.
 function modListHtml(mods, limit = 6){
   const names = mods.map(m=>boldEsc(m.title));
   if(names.length <= limit) return names.join(", ");
@@ -2964,12 +2908,6 @@ function modListHtml(mods, limit = 6){
   return `${names.slice(0, limit).join(", ")}, <span class="modlist-rest" id="${id}" hidden>${names.slice(limit).join(", ")}, </span><button type="button" class="modal-link-btn modlist-toggle" data-target="${id}">+${names.length - limit} more</button>`;
 }
 
-// If most of the selected mods came from the same modpack import, trust the loader that
-// import already recorded (from the pack's own manifest — see importMrpackZipIntoPack)
-// instead of re-deriving it by voting across each mod's individual Modrinth version data.
-// Per-mod version metadata is often missing or unreliable (especially for older mods or
-// ones bridged over from CurseForge), so a majority-share import signal is much stronger
-// than a per-mod vote and should win outright rather than just add one more vote to the mix.
 function dominantImportedLoader(selected){
   const counts = new Map();
   selected.forEach(x=>{
@@ -3744,10 +3682,6 @@ async function importMrpackZipIntoPack(zip, meta = {}){
     added++;
   });
 
-  // Commit the primary mods right away so the pack count and UI reflect
-  // the import immediately, instead of waiting on the slower dependency
-  // and loader-API resolution below (which can take a while, or stall
-  // on a flaky network call).
   savePack();
   foundVersions.forEach(v=>updateCardButtonsEverywhere(v.project_id));
 
