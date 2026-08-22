@@ -1,19 +1,15 @@
-// French strings for ModBench.
 window.i18n = window.i18n || {};
 window.i18n.fr = {
-  // Nav
   navBrowse: "Parcourir",
   navCreate: "Créer",
   navModpacks: "Modpacks",
   navFavorites: "Favoris",
   navExport: "Exporter",
 
-  // Header buttons
   helpToggleLabel: "Guide de démarrage",
   themeToggleLabel: "Basculer le mode sombre",
   langToggleLabel: "Changer de langue",
 
-  // Shared: version / loader / category / side / sort labels
   browseMcVersion: "Version de Minecraft",
   browseAnyVersion: "Toute version",
   browseModloader: "Chargeur de mods",
@@ -42,7 +38,6 @@ window.i18n.fr = {
   viewGrid: "Vue grille",
   viewList: "Vue liste",
 
-  // Browse tab
   browseContentType: "Type de contenu",
   browseTypeMods: "Mods",
   browseTypeShaders: "Shaders",
@@ -50,17 +45,14 @@ window.i18n.fr = {
   browseSearchPlaceholder: "Rechercher des mods sur Modrinth…",
   browseSearchLabel: "Rechercher des mods",
 
-  // Favorites tab
   favSearchPlaceholder: "Rechercher dans vos favoris…",
   favSearchLabel: "Rechercher dans les favoris",
   favSortAZ: "Trier A→Z",
   favEmptyText: "Aucun favori pour l'instant. Appuyez sur le cœur d'un mod dans <strong>Parcourir</strong> ou <strong>Modpacks</strong> pour l'enregistrer ici.",
 
-  // Modpacks tab
   modpackSearchPlaceholder: "Rechercher des modpacks sur Modrinth…",
   modpackSearchLabel: "Rechercher des modpacks",
 
-  // Create tab
   createSearchPlaceholder: "Rechercher dans votre pack…",
   createSearchLabel: "Rechercher dans votre pack",
   createAutoFlag: "Signaler auto. les incompatibilités",
@@ -72,7 +64,6 @@ window.i18n.fr = {
   createEmptyBrowseBtn: "Parcourir les mods",
   createGoToTop: "Retour en haut",
 
-  // Export tab
   exportTitle: "Exporter votre pack",
   exportSubtitle: "Génère un fichier <code>.mrpack</code>, importable directement dans l'appli Modrinth, Prism Launcher ou ATLauncher.",
   exportImportMrpack: "Importer un .mrpack",
@@ -99,10 +90,8 @@ window.i18n.fr = {
   exportCopyPackCode: "Copier le code du pack",
   exportShareCodeHint: "Copie un code court avec la liste de vos mods. Les autres le collent directement dans <strong>Importer un code de partage</strong> ci-dessus pour obtenir les mêmes mods. <button type=\"button\" id=\"shareLinkBtn\" style=\"background:none; border:none; padding:0; color:var(--accent-dark); text-decoration:underline; cursor:pointer; font:inherit;\">Plutôt un lien ?</button>",
 
-  // Footer
   footerText: "ModBench récupère des données en direct depuis l'API <a href=\"https://modrinth.com\" target=\"_blank\" rel=\"noopener\">Modrinth</a>. Non affilié à Modrinth ou Mojang.<div style=\"margin-top:6px; opacity:0.6;\">ModBench, 2026</div>",
 
-  // Dynamic UI text (modals, toasts, buttons rendered from JS)
   favAdd: "Ajouter aux favoris",
   favRemove: "Retirer des favoris",
   cancel: "Annuler",
