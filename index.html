@@ -657,6 +657,7 @@
   .export-btn:hover{ background: var(--accent-dark); transform: translateY(-1px); }
   .export-btn:active{ transform: translateY(0) scale(.98); }
   .export-btn:disabled{ background:var(--surface-2); color:var(--text-dim); cursor:not-allowed; }
+  .export-btn.btn-loading:disabled{ background: var(--accent); cursor:not-allowed; }
   .export-btn.success{ background: var(--accent-dark); }
   .export-note{ font-size:0.8rem; color:var(--text-dim); margin-top:10px; }
   .export-note.error{ color: var(--danger); }
@@ -3638,7 +3639,7 @@ async function showUpdateResults(){
   `).join("");
 
   backdrop.innerHTML = `
-    <div class="modal" style="max-width:480px;">
+    <div class="modal" style="max-width:560px;">
       <div class="modal-head" style="margin-bottom:14px;">
         <div class="name" style="font-size:1.1rem;">${t('updateModalTitle','Check for updates')}</div>
         <button class="modal-close" aria-label="${t('close','Close')}">✕</button>
@@ -3660,7 +3661,7 @@ async function showUpdateResults(){
     const row = backdrop.querySelector(`[data-update-row="${CSS.escape(r.mod.id)}"]`);
     if(row){
       row.className = "compat-issue update-done";
-      row.innerHTML = `<div class="issue-detail"><span class="update-done-check">${COMPAT_ICON_CHECK}</span>${tf('updateDoneNote','Updated <strong>{name}</strong> to <strong>{version}</strong>.', {name: escapeHtml(r.mod.title), version: escapeHtml(r.best.version_number)})}</div>`;
+      row.innerHTML = `<div class="issue-detail"><span class="update-done-check">${COMPAT_ICON_CHECK}</span><span>${tf('updateDoneNote','Updated <strong>{name}</strong> to <strong>{version}</strong>.', {name: escapeHtml(r.mod.title), version: escapeHtml(r.best.version_number)})}</span></div>`;
     }
   }
 
