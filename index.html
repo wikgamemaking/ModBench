@@ -2065,7 +2065,7 @@ async function runSearch(){
   const statusEl = document.getElementById("statusMsg");
   const pageEl = document.getElementById("pagination");
   statusEl.style.display = "block";
-  statusEl.textContent = "Searching…";
+  statusEl.textContent = t('browseSearching','Searching…');
   resultsEl.innerHTML = "";
   pageEl.innerHTML = "";
 
@@ -2075,7 +2075,7 @@ async function runSearch(){
     state.results = filteredHits;
     state.totalHits = Math.max(0, totalHits - (hits.length - filteredHits.length));
     if(state.results.length === 0){
-      statusEl.textContent = "Nothing found. Try different filters.";
+      statusEl.textContent = t('browseNothingFound','Nothing found. Try different filters.');
       return;
     }
     statusEl.style.display = "none";
@@ -2083,7 +2083,7 @@ async function runSearch(){
     renderPagination();
   }catch(e){
     console.error(e);
-    statusEl.textContent = "Couldn't reach Modrinth's API from this page.";
+    statusEl.textContent = t('browseApiError',"Couldn't reach Modrinth's API from this page.");
   }
 }
 
@@ -3794,7 +3794,7 @@ async function runModpackSearch(){
   const statusEl = document.getElementById("modpackStatusMsg");
   const pageEl = document.getElementById("modpackPagination");
   statusEl.style.display = "block";
-  statusEl.textContent = "Searching…";
+  statusEl.textContent = t('modpackSearching','Searching…');
   resultsEl.innerHTML = "";
   pageEl.innerHTML = "";
 
@@ -3820,7 +3820,7 @@ async function runModpackSearch(){
     }
 
     if(state.modpackResults.length === 0){
-      statusEl.textContent = "No modpacks found. Try a different search.";
+      statusEl.textContent = t('modpackNothingFound','No modpacks found. Try a different search.');
       return;
     }
     statusEl.style.display = "none";
@@ -3828,7 +3828,7 @@ async function runModpackSearch(){
     renderModpackPagination();
   }catch(e){
     console.error(e);
-    statusEl.textContent = "Couldn't reach Modrinth's API from this page.";
+    statusEl.textContent = t('modpackApiError',"Couldn't reach Modrinth's API from this page.");
   }
 }
 
