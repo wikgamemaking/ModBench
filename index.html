@@ -1344,13 +1344,32 @@ let state = {
   autoCompatCheck: localStorage.getItem("modbench_auto_compat_check") !== "off"
 };
 
+// Wraps localStorage writes so a full/unavailable storage quota (easy to hit with large
+// modpacks, or in private-browsing modes that cap or block storage) never throws up through
+// whatever called savePack/savePackIcon. Without this, an import can fully succeed in memory
+// and on screen while the persistence step throws, and callers upstream (like the modpack
+// import flow) end up showing a spurious "couldn't import" error for a pack that actually
+// imported fine.
+function safeLocalStorageSet(key, value){
+  try{
+    localStorage.setItem(key, value);
+    return true;
+  }catch(e){
+    console.warn(`Couldn't save "${key}" to local storage (it may be full):`, e);
+    return false;
+  }
+}
+function safeLocalStorageRemove(key){
+  try{ localStorage.removeItem(key); }catch(e){ console.warn(`Couldn't remove "${key}" from local storage:`, e); }
+}
+
 function savePackIcon(){
-  if(state.packIcon) localStorage.setItem("modbench_pack_icon", state.packIcon);
-  else localStorage.removeItem("modbench_pack_icon");
+  if(state.packIcon) safeLocalStorageSet("modbench_pack_icon", state.packIcon);
+  else safeLocalStorageRemove("modbench_pack_icon");
 }
 
 function savePack(){
-  localStorage.setItem("packsmith_pack", JSON.stringify(state.pack));
+  safeLocalStorageSet("packsmith_pack", JSON.stringify(state.pack));
   updatePackCount();
 }
 function updatePackCount(){
@@ -1364,7 +1383,7 @@ function updatePackCount(){
   }
 }
 function saveFavorites(){
-  localStorage.setItem("packsmith_favorites", JSON.stringify(state.favorites));
+  safeLocalStorageSet("packsmith_favorites", JSON.stringify(state.favorites));
   updateFavCount();
 }
 function updateFavCount(){
@@ -2555,11 +2574,20 @@ function modRunsOnLoader(x, loader){
 
 function pickBestLoaderForPack(selected){
   const candidateLoaders = ["fabric", "quilt", "forge", "neoforge"];
+  // Loader-agnostic entries (resource packs, datapacks, shaders, or mods with no loader info)
+  // run on every loader by definition, so they shouldn't get to cast a "vote" for one loader
+  // over another — otherwise a pack full of e.g. shaderpacks plus a couple Forge mods can tie
+  // every candidate loader's count and fall back to whichever loader happens to be first in
+  // the list above (Fabric), even though nothing in the pack actually targets Fabric. Only
+  // count mods that give a real, loader-specific signal; agnostic ones are used only if no
+  // mod in the pack gives any specific signal at all.
+  const specific = selected.filter(x=>!isLoaderAgnostic(x));
+  const votePool = specific.length ? specific : selected;
   let best = null;
   candidateLoaders.forEach(loader=>{
-    const runners = selected.filter(x=>modRunsOnLoader(x, loader));
-    if(runners.length && (!best || runners.length > best.runners.length)){
-      best = { loader, runners };
+    const votes = votePool.filter(x=>modRunsOnLoader(x, loader));
+    if(votes.length && (!best || votes.length > best.votes)){
+      best = { loader, votes, runners: selected.filter(x=>modRunsOnLoader(x, loader)) };
     }
   });
   return best;
@@ -3278,8 +3306,14 @@ async function importMrpackZipIntoPack(zip, meta = {}){
   const projectById = Object.fromEntries(projects.map(p=>[p.id, p]));
 
   const deps = index.dependencies || {};
-  const gameVersions = meta.gameVersions || (deps.minecraft ? [deps.minecraft] : []);
-  const loaders = meta.loaders || Object.keys(deps).filter(k=>k!=="minecraft").map(k=>k.replace("-loader",""));
+  // The modpack's own modrinth.index.json manifest is the spec-guaranteed source of truth
+  // for which loader/MC version it targets. Modrinth's API-reported version.loaders (passed
+  // in via meta) is sometimes empty or unreliable for modpack-type projects, so it's only a
+  // fallback — and only used when the manifest gives us nothing (an empty array is still "no
+  // data", so this checks .length rather than relying on truthiness, which treated [] as valid).
+  const manifestLoaders = Object.keys(deps).filter(k=>k!=="minecraft").map(k=>k.replace("-loader",""));
+  const loaders = manifestLoaders.length ? manifestLoaders : ((meta.loaders && meta.loaders.length) ? meta.loaders : []);
+  const gameVersions = deps.minecraft ? [deps.minecraft] : ((meta.gameVersions && meta.gameVersions.length) ? meta.gameVersions : []);
 
   let added = 0;
   foundVersions.forEach(v=>{
@@ -3983,7 +4017,7 @@ const autoCompatToggleEl = document.getElementById("autoCompatToggle");
 autoCompatToggleEl.checked = state.autoCompatCheck;
 autoCompatToggleEl.addEventListener("change", ()=>{
   state.autoCompatCheck = autoCompatToggleEl.checked;
-  localStorage.setItem("modbench_auto_compat_check", state.autoCompatCheck ? "on" : "off");
+  safeLocalStorageSet("modbench_auto_compat_check", state.autoCompatCheck ? "on" : "off");
   updatePackIssueHighlights();
 });
 document.getElementById("sortAlphaBtn").addEventListener("click", ()=>{
@@ -4218,7 +4252,7 @@ function showGettingStarted(force){
   `;
   document.body.appendChild(backdrop);
   function close(){
-    localStorage.setItem("modbench_intro_seen", "1");
+    safeLocalStorageSet("modbench_intro_seen", "1");
     backdrop.remove();
   }
   backdrop.querySelector(".modal-close").addEventListener("click", close);
@@ -4231,10 +4265,10 @@ document.getElementById("themeToggle").addEventListener("click", ()=>{
   const isDark = document.documentElement.getAttribute("data-theme") === "dark";
   if(isDark){
     document.documentElement.removeAttribute("data-theme");
-    localStorage.setItem("modbench-theme", "light");
+    safeLocalStorageSet("modbench-theme", "light");
   } else {
     document.documentElement.setAttribute("data-theme", "dark");
-    localStorage.setItem("modbench-theme", "dark");
+    safeLocalStorageSet("modbench-theme", "dark");
   }
 });
 
