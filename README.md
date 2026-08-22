@@ -2,7 +2,6 @@
 
 [![Live Demo](https://img.shields.io/badge/Website-modbench.net-green?style=for-the-badge)](https://modbench.net)
 [![Powered by](https://img.shields.io/badge/Powered%20by-555555?style=for-the-badge)](https://modrinth.com)[![Modrinth](https://img.shields.io/badge/Modrinth-00AF5C?style=for-the-badge&logo=modrinth&logoColor=white)](https://modrinth.com)
-[![Architecture](https://img.shields.io/badge/Architecture-100%25%20Client--Side-blue?style=for-the-badge)](#tech-stack)
 
 **ModBench** is a fast, lightweight, and browser-based **Minecraft modpack builder and editor**. It allows you to search mods, automatically resolve dependencies, import existing `.mrpack` files, and export custom modpacks ready for launchers—processed entirely in your browser with zero server dependencies.
 
