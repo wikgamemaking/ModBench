@@ -1,4 +1,4 @@
-# ModBench
+# <img src="icons/logo.png" width="32" valign="middle"> ModBench
 
 [![Live Demo](https://img.shields.io/badge/Website-modbench.net-green?style=for-the-badge)](https://modbench.net)
 [![Powered by](https://img.shields.io/badge/Powered%20by-555555?style=for-the-badge)](https://modrinth.com)[![Modrinth](https://img.shields.io/badge/Modrinth-00AF5C?style=for-the-badge&logo=modrinth&logoColor=white)](https://modrinth.com)
