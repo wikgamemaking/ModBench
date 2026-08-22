@@ -1491,7 +1491,7 @@ async function resolveShareCode(code){
     const longCode = await fetchShortShareCode(code.slice(3));
     if(!longCode){
       const err = new Error("code not found");
-      err.userMessage = "That code wasn't found — it may be mistyped, or no longer exists.";
+      err.userMessage = "That code wasn't found, it may be mistyped, or no longer exists.";
       throw err;
     }
     return decodeShareCode(longCode);
@@ -2265,7 +2265,7 @@ function showConfirm(messageHtml, {confirmLabel = "Confirm", danger = true} = {}
       <div class="modal" style="max-width:380px;">
         <p style="margin:0 0 20px; font-size:0.95rem;">${messageHtml}</p>
         <div style="display:flex; gap:10px; justify-content:flex-end;">
-          <button class="page-btn" data-choice="cancel">${t('cancel','Cancel')}</button>
+          <button class="page-btn" data-choice="cancel" style="height:auto; padding:9px 16px; font-size:1rem;">${t('cancel','Cancel')}</button>
           <button class="export-btn" data-choice="confirm" style="width:auto; margin-top:0; padding:9px 16px; ${danger ? 'background:var(--danger);' : ''}">${escapeHtml(confirmLabel)}</button>
         </div>
       </div>`;
@@ -3329,7 +3329,7 @@ async function showCompatibilityResults(fixNote){
           note = {
             ok: false,
             headline: tf('compatPartiallyFixed','Partially fixed: {bits}', { bits: bits.join(", ") }),
-            sublineHtml: `${unresolved.length ? tf('compatCouldntFixMods',"ModBench couldn't fix {mods} — none of their available versions match your pack's target loader/Minecraft version. ", {mods: modListHtml(unresolved)}) : ""}${depFailNote} ${t('compatSeeDetails','Take a look at the details below.')}`
+            sublineHtml: `${unresolved.length ? tf('compatCouldntFixMods',"ModBench couldn't fix {mods}, none of their available versions match your pack's target loader/Minecraft version. ", {mods: modListHtml(unresolved)}) : ""}${depFailNote} ${t('compatSeeDetails','Take a look at the details below.')}`
           };
         }else if(unresolved.length){
           note = {
@@ -4354,10 +4354,9 @@ wireCatToggle("catToggleEnv", "catBodyEnv");
 document.getElementById("removeAllBtn").addEventListener("click", async ()=>{
   if(state.pack.length === 0) return;
   const count = state.pack.length;
-  const itemWord = count===1 ? "item" : "items";
   const ok = await showConfirm(
-    `Remove all <strong>${count}</strong> ${itemWord} (mods, shaders, and resource packs) from Create? <strong>This action is permanent and cannot be undone.</strong>`,
-    {confirmLabel:"Remove all"}
+    tPlural(count, 'removeAllConfirmOne','Remove all <strong>{n}</strong> item (mods, shaders, and resource packs) from Create? <strong>This action is permanent and cannot be undone.</strong>', 'removeAllConfirmOther','Remove all <strong>{n}</strong> items (mods, shaders, and resource packs) from Create? <strong>This action is permanent and cannot be undone.</strong>'),
+    {confirmLabel: t('removeAllConfirmBtn','Remove all')}
   );
   if(ok){
     state.pack = [];
@@ -4542,8 +4541,10 @@ async function checkIncomingShareLink(){
     return;
   }
   const ok = await showConfirm(
-    `Import the shared pack${data.n ? ` "<strong>${escapeHtml(data.n)}</strong>"` : ""} with <strong>${data.m.length}</strong> mod${data.m.length===1?'':'s'} into Create?`,
-    {confirmLabel:"Import", danger:false}
+    tPlural(data.m.length, 'importSharedPackConfirmOne','Import the shared pack{name} with <strong>{n}</strong> mod into Create?', 'importSharedPackConfirmOther','Import the shared pack{name} with <strong>{n}</strong> mods into Create?', {
+      name: data.n ? ` "<strong>${escapeHtml(data.n)}</strong>"` : ""
+    }),
+    {confirmLabel: t('importConfirmBtn','Import'), danger:false}
   );
   if(ok){
     const exportTabBtn = document.querySelector('nav.tabs button[data-tab="export"]');
