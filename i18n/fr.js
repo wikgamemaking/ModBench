@@ -13,7 +13,7 @@ window.i18n.fr = {
   themeToggleLabel: "Basculer le mode sombre",
   langToggleLabel: "Changer de langue",
 
-  // Shared: version / loader / category / side / sort labels (used across Browse, Modpacks, Export)
+  // Shared: version / loader / category / side / sort labels
   browseMcVersion: "Version de Minecraft",
   browseAnyVersion: "Toute version",
   browseModloader: "Chargeur de mods",
@@ -46,7 +46,7 @@ window.i18n.fr = {
   browseContentType: "Type de contenu",
   browseTypeMods: "Mods",
   browseTypeShaders: "Shaders",
-  browseTypeResourcePacks: "Packs de ressources",
+  browseTypeResourcePacks: "Packs de textures",
   browseSearchPlaceholder: "Rechercher des mods sur Modrinth…",
   browseSearchLabel: "Rechercher des mods",
 
@@ -97,5 +97,23 @@ window.i18n.fr = {
   exportNoteDefault: "Ajoutez d'abord des mods à votre pack, puis choisissez une version et un chargeur.",
   exportImportTip: "Téléchargé. Si <strong>Modrinth</strong> est installé, double-cliquez simplement sur le fichier <code>.mrpack</code> (ou ouvrez-le depuis vos téléchargements) et il lancera directement la création d'une instance à partir de celui-ci.",
   exportCopyPackCode: "Copier le code du pack",
-  exportShareCodeHint: "Copie un code court avec la liste de vos mods. Les autres le collent directement dans <strong>Importer un code de partage</strong> ci-dessus pour obtenir les mêmes mods. <button type=\"button\" id=\"shareLinkBtn\" style=\"background:none; border:none; padding:0; color:var(--accent-dark); text-decoration:underline; cursor:pointer; font:inherit;\">Préférer un lien ?</button>"
+  exportShareCodeHint: "Copie un code court avec la liste de vos mods. Les autres le collent directement dans <strong>Importer un code de partage</strong> ci-dessus pour obtenir les mêmes mods. <button type=\"button\" id=\"shareLinkBtn\" style=\"background:none; border:none; padding:0; color:var(--accent-dark); text-decoration:underline; cursor:pointer; font:inherit;\">Plutôt un lien ?</button>",
+
+  // Footer
+  footerText: "ModBench récupère des données en direct depuis l'API <a href=\"https://modrinth.com\" target=\"_blank\" rel=\"noopener\">Modrinth</a>. Non affilié à Modrinth ou Mojang.<div style=\"margin-top:6px; opacity:0.6;\">ModBench, 2026</div>",
+
+  // Dynamic UI text (modals, toasts, buttons rendered from JS)
+  favAdd: "Ajouter aux favoris",
+  favRemove: "Retirer des favoris",
+  cancel: "Annuler",
+  close: "Fermer",
+  showFullDesc: "Voir la description complète",
+  showLess: "Réduire",
+  couldntLoadMod: "Impossible de charger ce mod.",
+  remove: "Retirer",
+  autoSolveFix: "Laisser AutoSolve corriger les incompatibilités",
+  shareLinkLabel: "Lien",
+  shareCodeOnlyLabel: "Code seul",
+  copy: "Copier",
+  introGotIt: "Compris, on y va"
 };
