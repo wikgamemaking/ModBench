@@ -1356,6 +1356,26 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = 15000){
   }
 }
 
+const projectAuthorCache = new Map();
+async function resolveProjectAuthor(projectId){
+  if(!projectId) return "";
+  if(!projectAuthorCache.has(projectId)){
+    projectAuthorCache.set(projectId, (async ()=>{
+      try{
+        const res = await fetchWithTimeout(`${API}/project/${projectId}/members`);
+        if(!res.ok) return "";
+        const members = await res.json();
+        if(!Array.isArray(members) || !members.length) return "";
+        const owner = members.find(m=>m.role === "Owner") || members[0];
+        return (owner && owner.user && owner.user.username) || "";
+      }catch(e){
+        return "";
+      }
+    })());
+  }
+  return projectAuthorCache.get(projectId);
+}
+
 /* --- Toast notifications --- */
 document.addEventListener("click", (e)=>{
   const toggle = e.target.closest(".modlist-toggle, .modlist-toggle-chip, .modlist-toggle-row");
@@ -2314,7 +2334,7 @@ async function autoAddDependencies(version, visited, hostProjectType){
         id: depProjectId,
         title: proj.title,
         icon_url: proj.icon_url,
-        author: proj.team || "",
+        author: await resolveProjectAuthor(depProjectId),
         categories: proj.categories || [],
         projectType: proj.project_type || "mod",
         clientSide: proj.client_side || "required",
@@ -2358,7 +2378,7 @@ async function addLoaderApiMod(apiId, hintGameVersions, requiredLoader){
       id: apiId,
       title: proj.title,
       icon_url: proj.icon_url,
-      author: proj.team || "",
+      author: await resolveProjectAuthor(apiId),
       categories: proj.categories || [],
       projectType: "mod",
       clientSide: proj.client_side || "required",
@@ -3119,7 +3139,7 @@ async function autoAddMissingDependency(depProjectId, targetLoader, targetMc){
       id: depProjectId,
       title: proj.title,
       icon_url: proj.icon_url,
-      author: proj.team || "",
+      author: await resolveProjectAuthor(depProjectId),
       categories: proj.categories || [],
       projectType: proj.project_type || "mod",
       clientSide: proj.client_side || "required",
@@ -3478,11 +3498,13 @@ async function getPinnedModpacks(){
   const results = await Promise.all(PINNED_MODPACK_SLUGS.map(slug=>
     fetch(`${API}/project/${slug}`).then(r=>r.ok ? r.json() : null).catch(()=>null)
   ));
-  pinnedModpacksCache = results.filter(Boolean).map(p=>({
+  const projects = results.filter(Boolean);
+  const authors = await Promise.all(projects.map(p=>resolveProjectAuthor(p.id)));
+  pinnedModpacksCache = projects.map((p, i)=>({
     project_id: p.id,
     title: p.title,
     icon_url: p.icon_url,
-    author: p.team || "",
+    author: authors[i],
     description: p.description,
     categories: p.categories || [],
     game_versions: p.game_versions || [],
@@ -3696,6 +3718,10 @@ async function importMrpackZipIntoPack(zip, meta = {}){
   const loaders = manifestLoaders.length ? manifestLoaders : ((meta.loaders && meta.loaders.length) ? meta.loaders : []);
   const gameVersions = deps.minecraft ? [deps.minecraft] : ((meta.gameVersions && meta.gameVersions.length) ? meta.gameVersions : []);
 
+  const authorById = Object.fromEntries(await Promise.all(
+    projectIds.map(async id=>[id, await resolveProjectAuthor(id)])
+  ));
+
   let added = 0;
   foundVersions.forEach(v=>{
     if(state.pack.some(p=>p.id === v.project_id)) return;
@@ -3704,7 +3730,7 @@ async function importMrpackZipIntoPack(zip, meta = {}){
       id: v.project_id,
       title: proj ? proj.title : v.name,
       icon_url: proj ? proj.icon_url : "",
-      author: (proj && proj.team) || "",
+      author: authorById[v.project_id] || "",
       categories: proj ? proj.categories : [],
       projectType: (proj && proj.project_type) || "mod",
       clientSide: (proj && proj.client_side) || "required",
@@ -4003,6 +4029,10 @@ async function importSharedPack(rawInput){
     const projects = projectsRes.ok ? await projectsRes.json() : [];
     const projectById = Object.fromEntries(projects.map(p=>[p.id, p]));
 
+    const authorById = Object.fromEntries(await Promise.all(
+      projectIds.map(async id=>[id, await resolveProjectAuthor(id)])
+    ));
+
     const wasEmptyBefore = state.pack.length === 0;
     let added = 0;
     versions.forEach(v=>{
@@ -4012,7 +4042,7 @@ async function importSharedPack(rawInput){
         id: v.project_id,
         title: proj ? proj.title : v.name,
         icon_url: proj ? proj.icon_url : "",
-        author: (proj && proj.team) || "",
+        author: authorById[v.project_id] || "",
         categories: proj ? proj.categories : [],
         projectType: (proj && proj.project_type) || "mod",
         clientSide: (proj && proj.client_side) || "required",
