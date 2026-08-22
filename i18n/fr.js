@@ -7,7 +7,7 @@ window.i18n.fr = {
   navExport: "Exporter",
 
   helpToggleLabel: "Guide de démarrage",
-  themeToggleLabel: "Basculer le mode sombre",
+  themeToggleLabel: "Basculer en mode sombre",
   langToggleLabel: "Changer de langue",
 
   browseMcVersion: "Version de Minecraft",
@@ -67,7 +67,7 @@ window.i18n.fr = {
   exportTitle: "Exporter votre pack",
   exportSubtitle: "Génère un fichier <code>.mrpack</code>, importable directement dans l'appli Modrinth, Prism Launcher ou ATLauncher.",
   exportImportMrpack: "Importer un .mrpack",
-  exportImportMrpackDesc: "Charge un fichier de modpack existant. Ses mods sont résolus sur Modrinth et ajoutés à <strong>Créer</strong>.",
+  exportImportMrpackDesc: "Charge un fichier de modpack existant. Ses mods sont identifiés sur Modrinth et ajoutés à <strong>Créer</strong>.",
   exportChooseFile: "Choisir un fichier",
   exportDropHint: "ou glissez-déposez un fichier .mrpack ici",
   exportImportShareCode: "Importer un code de partage",
@@ -83,7 +83,7 @@ window.i18n.fr = {
   exportLogoHint: "Image carrée recommandée, 2 Mo max. Intégrée au <code>.mrpack</code> comme icône.",
   exportSelectVersion: "Choisir une version",
   exportSelectLoader: "Choisir un modloader",
-  exportTargetHint: "C'est la cible que votre pack déclare aux launchers, différente du fichier choisi par mod dans Créer. Si vous avez déjà filtré par version/modloader en parcourant, c'est pré-rempli ici.",
+  exportTargetHint: "C'est la cible que votre pack envoie aux launchers, différente du fichier choisi par mod dans Créer. Si vous avez déjà filtré par version/modloader en parcourant, c'est pré-rempli ici.",
   exportDownloadBtn: "Télécharger le .mrpack",
   exportNoteDefault: "Ajoutez d'abord des mods à votre pack, puis choisissez une version et un modloader.",
   exportImportTip: "Téléchargé. Si <strong>Modrinth</strong> est installé, double-cliquez simplement sur le fichier <code>.mrpack</code> (ou ouvrez-le depuis vos téléchargements) et il lancera directement la création d'une instance à partir de celui-ci.",
@@ -134,8 +134,8 @@ window.i18n.fr = {
   introFootnote: "Vous pouvez rouvrir ce guide à tout moment depuis le bouton <strong>?</strong> dans l'en-tête.",
 
   // Compatibility checker
-  compatModalTitle: "Vérification de compatibilité",
-  compatCouldntRun: "Impossible d'effectuer la vérification de compatibilité",
+  compatModalTitle: "Vérification de la compatibilité",
+  compatCouldntRun: "Impossible d'effectuer la vérification de la compatibilité",
   compatModrinthUnreachable: "Modrinth est peut-être injoignable pour le moment. Vérifiez votre connexion et réessayez.",
   compatBannerSubline: "Les mods concernés sont surlignés en rouge ci-dessous, appuyez ici pour plus de détails",
   compatIssuesFoundOne: "{n} problème de compatibilité détecté",
@@ -247,8 +247,8 @@ window.i18n.fr = {
   exportDownloadedBtn: "Téléchargé ✓",
 
   // Remove all / import confirmations
-  removeAllConfirmOne: "Retirer <strong>{n}</strong> élément (mods, shaders et packs de textures) de Créer ? <strong>Cette action est définitive et ne peut pas être annulée.</strong>",
-  removeAllConfirmOther: "Retirer les <strong>{n}</strong> éléments (mods, shaders et packs de textures) de Créer ? <strong>Cette action est définitive et ne peut pas être annulée.</strong>",
+  removeAllConfirmOne: "Retirer <strong>{n}</strong> élément (mods, shaders et packs de textures) de Créer ? <strong>Cette action est définitive et irréversible.</strong>",
+  removeAllConfirmOther: "Retirer les <strong>{n}</strong> éléments (mods, shaders et packs de textures) de Créer ? <strong>Cette action est définitive et irréversible.</strong>",
   removeAllConfirmBtn: "Tout retirer",
   importSharedPackConfirmOne: "Importer le pack partagé{name} avec <strong>{n}</strong> mod dans Créer ?",
   importSharedPackConfirmOther: "Importer le pack partagé{name} avec <strong>{n}</strong> mods dans Créer ?",
