@@ -1543,6 +1543,22 @@ function escapeRegExp(str){
   return String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+// tf: like t(), but substitutes {varName} tokens in the resolved string.
+function tf(key, fallback, vars){
+  let str = t(key, fallback);
+  if(vars){
+    Object.keys(vars).forEach(k=>{ str = str.split("{"+k+"}").join(vars[k]); });
+  }
+  return str;
+}
+
+// tPlural: picks a singular/plural key pair based on n, then runs tf() on the result.
+// vars is optional and always receives {n} automatically.
+function tPlural(n, oneKey, oneFallback, otherKey, otherFallback, vars){
+  const isOne = n === 1;
+  return tf(isOne ? oneKey : otherKey, isOne ? oneFallback : otherFallback, Object.assign({ n }, vars || {}));
+}
+
 function safeLocalStorageSet(key, value){
   try{
     localStorage.setItem(key, value);
@@ -2788,8 +2804,8 @@ async function updatePackIssueHighlights(){
       bannerEl.innerHTML = `
         <span class="icon">${COMPAT_ICON_WARN}</span>
         <div>
-          <div class="headline">${issues.length} compatibility issue${issues.length===1?"":"s"} found</div>
-          <div class="subline">Affected mods are highlighted in red below - tap here for details</div>
+          <div class="headline">${tPlural(issues.length, 'compatIssuesFoundOne','{n} compatibility issue found', 'compatIssuesFoundOther','{n} compatibility issues found')}</div>
+          <div class="subline">${t('compatBannerSubline','Affected mods are highlighted in red below - tap here for details')}</div>
         </div>`;
     }else{
       bannerEl.style.display = "none";
@@ -2805,14 +2821,14 @@ const COMPAT_ICON_BLOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentC
 
 function modChipHtml(mod){
   const inPack = state.pack.some(m=>m.id === mod.id);
-  return `<span class="compat-mod-chip${inPack ? " clickable" : ""}" ${inPack ? `data-jump-id="${escapeHtml(mod.id)}" role="button" tabindex="0" title="Jump to ${escapeHtml(mod.title)} in your pack"` : ""}>${mod.icon_url ? `<img src="${mod.icon_url}" alt="">` : ""}${escapeHtml(mod.title)}</span>`;
+  return `<span class="compat-mod-chip${inPack ? " clickable" : ""}" ${inPack ? `data-jump-id="${escapeHtml(mod.id)}" role="button" tabindex="0" title="${tf('compatJumpTo','Jump to {name} in your pack', {name: escapeHtml(mod.title)})}"` : ""}>${mod.icon_url ? `<img src="${mod.icon_url}" alt="">` : ""}${escapeHtml(mod.title)}</span>`;
 }
 
 function modChipsHtml(mods, limit = 12){
   const chips = mods.map(modChipHtml);
   if(chips.length <= limit) return chips.join("");
   const id = `modchips-${Math.random().toString(36).slice(2, 9)}`;
-  return `${chips.slice(0, limit).join("")}<span class="modlist-rest" id="${id}" hidden>${chips.slice(limit).join("")}</span><button type="button" class="compat-mod-chip modlist-toggle-chip" data-target="${id}">+${chips.length - limit} more</button>`;
+  return `${chips.slice(0, limit).join("")}<span class="modlist-rest" id="${id}" hidden>${chips.slice(limit).join("")}</span><button type="button" class="compat-mod-chip modlist-toggle-chip" data-target="${id}">${tf('compatMoreBtn','+{n} more', {n: chips.length - limit})}</button>`;
 }
 
 function versionRowsHtml(rows, limit = 15){
@@ -2923,7 +2939,7 @@ function modListHtml(mods, limit = 6){
   const names = mods.map(m=>boldEsc(m.title));
   if(names.length <= limit) return names.join(", ");
   const id = `modlist-${Math.random().toString(36).slice(2, 9)}`;
-  return `${names.slice(0, limit).join(", ")}, <span class="modlist-rest" id="${id}" hidden>${names.slice(limit).join(", ")}, </span><button type="button" class="modal-link-btn modlist-toggle" data-target="${id}">+${names.length - limit} more</button>`;
+  return `${names.slice(0, limit).join(", ")}, <span class="modlist-rest" id="${id}" hidden>${names.slice(limit).join(", ")}, </span><button type="button" class="modal-link-btn modlist-toggle" data-target="${id}">${tf('compatMoreBtn','+{n} more', {n: names.length - limit})}</button>`;
 }
 
 function dominantImportedLoader(selected){
@@ -2965,8 +2981,8 @@ async function runCompatibilityCheck(){
           issues.push({
             type: "incompatible",
             icon: COMPAT_ICON_X,
-            title: "Marked incompatible with each other",
-            detail: `The mod authors have explicitly flagged these two as incompatible when used together. Remove one, or check if either has an alternative version that drops the conflict.`,
+            title: t('compatTitleIncompatible','Marked incompatible with each other'),
+            detail: t('compatDetailIncompatible',`The mod authors have explicitly flagged these two as incompatible when used together. Remove one, or check if either has an alternative version that drops the conflict.`),
             mods: [mod, other.mod]
           });
         }
@@ -2985,12 +3001,15 @@ async function runCompatibilityCheck(){
 
   for(const [depProjectId, requiredBy] of missingDeps){
     const info = await getProjectInfoCached(depProjectId);
-    const depTitle = info ? info.title : "an unknown mod";
+    const depTitle = info ? info.title : t('compatUnknownMod','an unknown mod');
     issues.push({
       type: "missing-dependency",
       icon: COMPAT_ICON_X,
-      title: `Missing required dependency: ${depTitle}`,
-      detail: `${requiredBy.map(m=>boldEsc(m.title)).join(", ")} require${requiredBy.length===1?"s":""} this to work, but it isn't in your pack. Add it, or AutoSolve can add it for you.`,
+      title: tf('compatTitleMissingDep','Missing required dependency: {name}', { name: depTitle }),
+      detail: tf('compatDetailMissingDep',"{mods} {verb} this to work, but it isn't in your pack. Add it, or AutoSolve can add it for you.", {
+        mods: requiredBy.map(m=>boldEsc(m.title)).join(", "),
+        verb: t(requiredBy.length===1?'compatVerbRequires':'compatVerbRequire', requiredBy.length===1?'requires':'require')
+      }),
       mods: [...requiredBy, ...(info ? [{id: depProjectId, title: info.title, icon_url: info.icon_url}] : [])],
       missingDepProjectId: depProjectId
     });
@@ -3010,20 +3029,20 @@ async function runCompatibilityCheck(){
         issues.push({
           type: "loader",
           icon: COMPAT_ICON_LOADER,
-          title: "No shared mod loader",
-          detail: `${explicitLoader ? `Your pack targets ${loaderStrong}` : `Most of your selected mods can run on ${loaderStrong}`}${loaderPick.loader === "quilt" ? " (Quilt also runs Fabric-only mods)" : ""}, but these don't have a compatible version. Open each one below and pick a version for ${loaderStrong} instead.`,
+          title: t('compatTitleNoLoader','No shared mod loader'),
+          detail: `${explicitLoader ? tf('compatLoaderTargets','Your pack targets {loader}', {loader: loaderStrong}) : tf('compatLoaderMostRun','Most of your selected mods can run on {loader}', {loader: loaderStrong})}${loaderPick.loader === "quilt" ? " "+t('compatQuiltNote','(Quilt also runs Fabric-only mods)') : ""}${tf('compatLoaderRest',", but these don't have a compatible version. Open each one below and pick a version for {loader} instead.", {loader: loaderStrong})}`,
           mods: missing.map(x=>x.mod),
-          perModNote: missing.map(x=>`${escapeHtml(x.mod.title)}: ${boldEsc(effectiveLoaders(x).join(", ") || "unknown")}`)
+          perModNote: missing.map(x=>`${escapeHtml(x.mod.title)}: ${boldEsc(effectiveLoaders(x).join(", ") || t('compatUnknown','unknown'))}`)
         });
       }
     }else{
       issues.push({
         type: "loader",
         icon: COMPAT_ICON_LOADER,
-        title: "No shared mod loader",
-        detail: `None of your selected mod versions report a loader, so compatibility can't be confirmed. Open each mod below and check it has a proper loader-specific version selected.`,
+        title: t('compatTitleNoLoader','No shared mod loader'),
+        detail: t('compatLoaderNoneReported',`None of your selected mod versions report a loader, so compatibility can't be confirmed. Open each mod below and check it has a proper loader-specific version selected.`),
         mods: selected.map(x=>x.mod),
-        perModNote: selected.map(x=>`${escapeHtml(x.mod.title)}: ${boldEsc((x.version.loaders||[]).join(", ") || "unknown")}`)
+        perModNote: selected.map(x=>`${escapeHtml(x.mod.title)}: ${boldEsc((x.version.loaders||[]).join(", ") || t('compatUnknown','unknown'))}`)
       });
     }
 
@@ -3038,19 +3057,19 @@ async function runCompatibilityCheck(){
       issues.push({
         type: "version",
         icon: COMPAT_ICON_BLOCK,
-        title: "No shared Minecraft version",
-        detail: `${explicitMc ? `Your pack targets ${mcStrong}` : `Most of your selected mods support ${mcStrong}`}, but these don't have a version for it. Pick versions of each mod below that target that release instead.`,
+        title: t('compatTitleNoVersion','No shared Minecraft version'),
+        detail: `${explicitMc ? tf('compatVersionTargets','Your pack targets {version}', {version: mcStrong}) : tf('compatVersionMostSupport','Most of your selected mods support {version}', {version: mcStrong})}${t('compatVersionRest',", but these don't have a version for it. Pick versions of each mod below that target that release instead.")}`,
         mods: missing.map(x=>x.mod),
-        perModNote: missing.map(x=>`${escapeHtml(x.mod.title)}: ${boldEsc(effectiveGameVersions(x).slice(-3).join(", ") || "unknown")}`)
+        perModNote: missing.map(x=>`${escapeHtml(x.mod.title)}: ${boldEsc(effectiveGameVersions(x).slice(-3).join(", ") || t('compatUnknown','unknown'))}`)
       });
     }else if(!gvBest){
       issues.push({
         type: "version",
         icon: COMPAT_ICON_BLOCK,
-        title: "No shared Minecraft version",
-        detail: `None of your selected mod versions report a Minecraft version, so compatibility can't be confirmed. Open each mod below and check its selected version.`,
+        title: t('compatTitleNoVersion','No shared Minecraft version'),
+        detail: t('compatVersionNoneReported',`None of your selected mod versions report a Minecraft version, so compatibility can't be confirmed. Open each mod below and check its selected version.`),
         mods: selected.map(x=>x.mod),
-        perModNote: selected.map(x=>`${escapeHtml(x.mod.title)}: ${boldEsc((x.version.game_versions||[]).slice(-3).join(", ") || "unknown")}`)
+        perModNote: selected.map(x=>`${escapeHtml(x.mod.title)}: ${boldEsc((x.version.game_versions||[]).slice(-3).join(", ") || t('compatUnknown','unknown'))}`)
       });
     }
   }
@@ -3181,14 +3200,14 @@ function showCompatCheckError(){
   backdrop.innerHTML = `
     <div class="modal" style="max-width:420px;">
       <div class="modal-head" style="margin-bottom:14px;">
-        <div class="name" style="font-size:1.1rem;">Compatibility check</div>
+        <div class="name" style="font-size:1.1rem;">${t('compatModalTitle','Compatibility check')}</div>
         <button class="modal-close" aria-label="${t('close','Close')}">✕</button>
       </div>
       <div class="compat-summary bad">
         <span class="icon">${COMPAT_ICON_WARN}</span>
         <div>
-          <div class="headline">Couldn't run the compatibility check</div>
-          <div class="subline">Modrinth may be unreachable right now. Check your connection and try again.</div>
+          <div class="headline">${t('compatCouldntRun',"Couldn't run the compatibility check")}</div>
+          <div class="subline">${t('compatModrinthUnreachable','Modrinth may be unreachable right now. Check your connection and try again.')}</div>
         </div>
       </div>
       <button class="page-btn" data-choice="close" style="margin-top:18px; width:100%; padding:9px 16px;">${t('close','Close')}</button>
@@ -3220,15 +3239,15 @@ async function showCompatibilityResults(fixNote){
     ? `<div class="compat-summary bad">
          <span class="icon">${COMPAT_ICON_WARN}</span>
          <div>
-           <div class="headline">${issues.length} compatibility issue${issues.length===1?"":"s"} found</div>
-           <div class="subline">Checked ${checked} mod${checked===1?"":"s"} with a selected version</div>
+           <div class="headline">${tPlural(issues.length, 'compatIssuesFoundOne','{n} compatibility issue found', 'compatIssuesFoundOther','{n} compatibility issues found')}</div>
+           <div class="subline">${tPlural(checked, 'compatCheckedOne','Checked {n} mod with a selected version', 'compatCheckedOther','Checked {n} mods with a selected version')}</div>
          </div>
        </div>`
     : `<div class="compat-summary ok">
          <span class="icon">${COMPAT_ICON_CHECK}</span>
          <div>
-           <div class="headline">No conflicts found</div>
-           <div class="subline">${checked} mod${checked===1?"":"s"} checked share a Minecraft version and mod loader, with no flagged incompatibilities</div>
+           <div class="headline">${t('compatNoConflicts','No conflicts found')}</div>
+           <div class="subline">${tPlural(checked, 'compatOkSublineOne','{n} mod checked share a Minecraft version and mod loader, with no flagged incompatibilities', 'compatOkSublineOther','{n} mods checked share a Minecraft version and mod loader, with no flagged incompatibilities')}</div>
          </div>
        </div>`;
 
@@ -3254,14 +3273,14 @@ async function showCompatibilityResults(fixNote){
   backdrop.innerHTML = `
     <div class="modal" style="max-width:480px;">
       <div class="modal-head" style="margin-bottom:14px;">
-        <div class="name" style="font-size:1.1rem;">Compatibility check</div>
+        <div class="name" style="font-size:1.1rem;">${t('compatModalTitle','Compatibility check')}</div>
         <button class="modal-close" aria-label="${t('close','Close')}">✕</button>
       </div>
       ${fixNoteHtml}
       ${summaryHtml}
       ${fixableIssues ? `<button class="export-btn" id="autoFixCompatBtn" style="margin-top:12px; width:100%;">${t('autoSolveFix','Let AutoSolve fix incompatibilities')}</button>` : ""}
       <div style="margin-top:16px;">${issuesHtml}</div>
-      ${skipped > 0 ? `<div class="compat-skipped">${skipped} mod${skipped===1?"":"s"} skipped: no version selected yet.</div>` : ""}
+      ${skipped > 0 ? `<div class="compat-skipped">${tPlural(skipped, 'compatSkippedOne','{n} mod skipped: no version selected yet.', 'compatSkippedOther','{n} mods skipped: no version selected yet.')}</div>` : ""}
       <button class="page-btn" data-choice="close" style="margin-top:18px; width:100%; padding:9px 16px;">${t('close','Close')}</button>
     </div>`;
   backdrop.addEventListener("click", (e)=>{ if(e.target === backdrop) backdrop.remove(); });
@@ -3271,69 +3290,72 @@ async function showCompatibilityResults(fixNote){
   if(fixBtn){
     fixBtn.addEventListener("click", async ()=>{
       fixBtn.disabled = true;
-      fixBtn.textContent = "Fixing…";
+      fixBtn.textContent = t('compatFixing','Fixing…');
       let note;
       try{
         const { fixedCount, unresolved, depsAdded, depsUnresolved, noTarget } = await autoFixCompatibility(missingDepIds);
         const versionIssueCount = fixedCount + unresolved.length;
         const depParts = [];
-        if(depsAdded) depParts.push(`added ${depsAdded} missing dependenc${depsAdded===1?"y":"ies"}`);
+        if(depsAdded) depParts.push(tPlural(depsAdded, 'compatAddedDepsFragmentOne','added {n} missing dependency', 'compatAddedDepsFragmentOther','added {n} missing dependencies'));
         const depFailNote = depsUnresolved.length
-          ? ` Couldn't fetch ${depsUnresolved.length===1 ? "one dependency" : `${depsUnresolved.length} dependencies`} from Modrinth - try again in a moment.`
+          ? " " + tPlural(depsUnresolved.length, 'compatFetchFailOne',"Couldn't fetch one dependency from Modrinth - try again in a moment.", 'compatFetchFailOther',"Couldn't fetch {n} dependencies from Modrinth - try again in a moment.")
           : "";
 
         if(noTarget && versionIssueCount){
           note = {
             ok: depsAdded > 0 && !depsUnresolved.length,
-            headline: depsAdded ? `Added ${depsAdded} dependenc${depsAdded===1?"y":"ies"}, but couldn't fix versions` : `AutoSolve couldn't fix incompatibilities`,
-            sublineHtml: `None of the selected mods' versions report a loader or Minecraft version to target, so there's nothing to match toward. Open each mod below and pick a version that lists a loader and Minecraft version.${depFailNote}`
+            headline: depsAdded ? tPlural(depsAdded, 'compatAddedDepsFixHeadlineOne','Added {n} dependency, but could not fix versions', 'compatAddedDepsFixHeadlineOther','Added {n} dependencies, but could not fix versions') : t('compatAutoSolveFailed',"AutoSolve couldn't fix incompatibilities"),
+            sublineHtml: t('compatNoTargetSubline',"None of the selected mods' versions report a loader or Minecraft version to target, so there's nothing to match toward. Open each mod below and pick a version that lists a loader and Minecraft version.") + depFailNote
           };
         }else if(fixedCount && !unresolved.length && !depsUnresolved.length){
           note = {
             ok: true,
-            headline: depsAdded ? `Fixed ${fixedCount} mod${fixedCount===1?"":"s"} and ${depParts[0]}` : `Fixed ${fixedCount} mod${fixedCount===1?"":"s"}`,
-            sublineHtml: `Switched to versions matching your pack's loader/Minecraft version.`
+            headline: depsAdded ? tf('compatFixedModsAndDeps','Fixed {count} and {deps}', { count: tPlural(fixedCount,'compatFixedModsFragmentOne','{n} mod','compatFixedModsFragmentOther','{n} mods'), deps: depParts[0] }) : tPlural(fixedCount, 'compatFixedModsOne','Fixed {n} mod', 'compatFixedModsOther','Fixed {n} mods'),
+            sublineHtml: t('compatFixedSubline',"Switched to versions matching your pack's loader/Minecraft version.")
           };
         }else if(!versionIssueCount && depsAdded && !depsUnresolved.length){
           note = {
             ok: true,
-            headline: `Added ${depsAdded} missing dependenc${depsAdded===1?"y":"ies"}`,
-            sublineHtml: `Fetched from Modrinth and added to your pack.`
+            headline: tPlural(depsAdded, 'compatAddedDepsHeadlineOne','Added {n} missing dependency', 'compatAddedDepsHeadlineOther','Added {n} missing dependencies'),
+            sublineHtml: t('compatAddedDepsSubline','Fetched from Modrinth and added to your pack.')
           };
         }else if((fixedCount || depsAdded) && (unresolved.length || depsUnresolved.length)){
           const bits = [];
-          if(fixedCount || unresolved.length) bits.push(`${fixedCount} of ${versionIssueCount} version mismatch${versionIssueCount===1?"":"es"}`);
-          if(depsAdded || depsUnresolved.length) bits.push(`${depsAdded} of ${depsAdded + depsUnresolved.length} missing dependenc${(depsAdded+depsUnresolved.length)===1?"y":"ies"}`);
+          if(fixedCount || unresolved.length) bits.push(tPlural(versionIssueCount, 'compatMismatchBitOne','{fixed} of {n} version mismatch', 'compatMismatchBitOther','{fixed} of {n} version mismatches', {fixed: fixedCount}));
+          if(depsAdded || depsUnresolved.length){
+            const totalDeps = depsAdded + depsUnresolved.length;
+            bits.push(tPlural(totalDeps, 'compatMissingDepBitOne','{added} of {n} missing dependency', 'compatMissingDepBitOther','{added} of {n} missing dependencies', {added: depsAdded}));
+          }
           note = {
             ok: false,
-            headline: `Partially fixed: ${bits.join(", ")}`,
-            sublineHtml: `${unresolved.length ? `ModBench couldn't fix ${modListHtml(unresolved)} — none of their available versions match your pack's target loader/Minecraft version. ` : ""}${depFailNote} Take a look at the details below.`
+            headline: tf('compatPartiallyFixed','Partially fixed: {bits}', { bits: bits.join(", ") }),
+            sublineHtml: `${unresolved.length ? tf('compatCouldntFixMods',"ModBench couldn't fix {mods} — none of their available versions match your pack's target loader/Minecraft version. ", {mods: modListHtml(unresolved)}) : ""}${depFailNote} ${t('compatSeeDetails','Take a look at the details below.')}`
           };
         }else if(unresolved.length){
           note = {
             ok: false,
-            headline: `AutoSolve couldn't fix incompatibilities`,
-            sublineHtml: `None of the available versions of ${modListHtml(unresolved)} match your pack's target loader/Minecraft version. Update ${unresolved.length===1?"it":"them"} manually below, or adjust your target on the Export tab.`
+            headline: t('compatAutoSolveFailed',"AutoSolve couldn't fix incompatibilities"),
+            sublineHtml: tf('compatUnresolvedSubline','None of the available versions of {mods} match your pack\'s target loader/Minecraft version. Update {itThem} manually below, or adjust your target on the Export tab.', { mods: modListHtml(unresolved), itThem: t(unresolved.length===1?'compatItObj':'compatThemObj', unresolved.length===1?'it':'them') })
           };
         }else if(depsUnresolved.length){
           note = {
             ok: false,
-            headline: `AutoSolve couldn't add the missing dependenc${depsUnresolved.length===1?"y":"ies"}`,
-            sublineHtml: `Modrinth didn't return a usable version for ${depsUnresolved.length===1?"it":"them"}. Try again, or add ${depsUnresolved.length===1?"it":"them"} manually from Browse.`
+            headline: tPlural(depsUnresolved.length, 'compatCouldntAddDepOne',"AutoSolve couldn't add the missing dependency", 'compatCouldntAddDepOther',"AutoSolve couldn't add the missing dependencies"),
+            sublineHtml: tf('compatDepsUnresolvedSubline',"Modrinth didn't return a usable version for {itThem}. Try again, or add {itThemObj} manually from Browse.", { itThem: t(depsUnresolved.length===1?'compatItPrep':'compatThemPrep', depsUnresolved.length===1?'it':'them'), itThemObj: t(depsUnresolved.length===1?'compatAddItSuffix':'compatAddThemSuffix', depsUnresolved.length===1?'it':'them') })
           };
         }else{
           note = {
             ok: false,
-            headline: `AutoSolve couldn't fix incompatibilities`,
-            sublineHtml: `No version change would resolve the remaining issue automatically. Take a look at the details below and adjust versions manually.`
+            headline: t('compatAutoSolveFailed',"AutoSolve couldn't fix incompatibilities"),
+            sublineHtml: t('compatNoAutoFixSubline','No version change would resolve the remaining issue automatically. Take a look at the details below and adjust versions manually.')
           };
         }
       }catch(e){
         console.error("AutoSolve failed", e);
         note = {
           ok: false,
-          headline: `AutoSolve hit a problem`,
-          sublineHtml: `Something went wrong talking to Modrinth. Check your connection and try again, or fix things manually below.`
+          headline: t('compatAutoSolveError','AutoSolve hit a problem'),
+          sublineHtml: t('compatAutoSolveErrorSubline','Something went wrong talking to Modrinth. Check your connection and try again, or fix things manually below.')
         };
       }
       backdrop.remove();
@@ -3390,7 +3412,7 @@ function renderFavorites(){
     : state.favorites.slice();
 
   sortBtn.style.display = state.favorites.length ? "inline-flex" : "none";
-  sortBtn.textContent = state.favSort === "alpha" ? "Group by category" : "Sort A→Z";
+  sortBtn.textContent = state.favSort === "alpha" ? t('sortGroupByCategory','Group by category') : t('favSortAZ','Sort A→Z');
   sortBtn.classList.toggle("active", state.favSort === "alpha");
 
   if(state.favorites.length === 0){
@@ -4360,7 +4382,7 @@ document.getElementById("expLoader").addEventListener("change", ()=>{ state.expL
 document.getElementById("expMcVersion").addEventListener("change", ()=>{ state.expMcTouched = true; });
 document.getElementById("sortAlphaBtn").addEventListener("click", ()=>{
   state.packSort = state.packSort === "alpha" ? "category" : "alpha";
-  document.getElementById("sortAlphaBtn").textContent = state.packSort === "alpha" ? "Group by category" : "Sort A→Z";
+  document.getElementById("sortAlphaBtn").textContent = state.packSort === "alpha" ? t('sortGroupByCategory','Group by category') : t('createSortAZ','Sort A→Z');
   document.getElementById("sortAlphaBtn").classList.toggle("active", state.packSort === "alpha");
   renderPack();
 });
