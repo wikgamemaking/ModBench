@@ -242,6 +242,7 @@ window.i18n.fr = {
   shareGenerating: "Génération…",
   shareCreatingCode: "Création du code…",
   shareLinkServiceFallback: "(Impossible de joindre le service de liens courts, voici donc le code autonome complet à la place, il fonctionne de la même façon.)",
+  shareRateLimited: "(Vous avez créé beaucoup de liens courts aujourd'hui, voici donc le code autonome complet à la place, il fonctionne de la même façon.)",
 
   // Export download
   exportDownloadedBtn: "Téléchargé ✓",
