@@ -308,5 +308,16 @@ window.i18n.fr = {
   shareLinkLabel: "Lien",
   shareCodeOnlyLabel: "Code seul",
   copy: "Copier",
-  introGotIt: "Compris, on y va"
+  introGotIt: "Compris, on y va",
+
+  historyUndo: "Annuler",
+  historyUndoToHere: "Annuler jusqu'ici",
+  historyRedo: "Rétablir",
+  historyRecentActions: "Actions récentes",
+  historyEmpty: "Aucune action récente",
+  historyRemovedLabel: "\"{title}\" retiré",
+  toastRemovedFromCreate: "\"{title}\" retiré de Créer.",
+  toastDismiss: "Fermer",
+  toastSlowLoad: "**Ça prend plus de temps que prévu.** ModBench travaille toujours à l'ajout de vos mods.",
+  latestUploadTitle: "Dernière version mise en ligne"
 };
