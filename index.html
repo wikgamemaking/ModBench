@@ -1499,13 +1499,8 @@ function showToast(message, opts = {}){
 /* --- Button loading state (shimmer + spinner + slow-load toast) --- */
 function startLoadingButton(btn, label){
   if(!btn) return;
-  // NOTE: intentionally do NOT set the native `disabled` attribute here.
-  // Disabled form controls don't reliably run CSS animations on their
-  // ::before/::after pseudo-elements in every browser (Firefox in particular
-  // freezes animations on :disabled buttons), which made the shimmer/spinner
-  // flaky or invisible. Using aria-disabled + pointer-events:none (see
-  // .btn-loading in CSS) blocks interaction just as well while keeping the
-  // element enabled so the animation actually plays everywhere.
+  // Use aria-disabled (not disabled) so the loading animation actually plays
+  // in browsers (e.g. Firefox) that freeze CSS animations on :disabled controls.
   if(btn.dataset.originalLabel === undefined) btn.dataset.originalLabel = btn.textContent;
   if(label !== undefined) btn.textContent = label;
   btn.setAttribute("aria-disabled", "true");
@@ -1530,8 +1525,7 @@ function stopLoadingButton(btn, finalLabel){
   }
 }
 
-// Guard against double-activation (e.g. keyboard Enter/Space) while a
-// btn-loading button is mid-flight, since it's no longer truly `disabled`.
+// Guard against double-activation (keyboard etc.) while btn-loading is active.
 function isLoadingButton(btn){
   return !!btn && btn.classList.contains("btn-loading");
 }
@@ -2135,6 +2129,10 @@ const HEART_ICON_OUTLINE = '<svg viewBox="0 0 24 24" fill="none" stroke="current
 const HEART_ICON_FILLED = '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
 const DOWNLOAD_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>';
 
+// Builds a map of projectId -> [{id,title}] pack mods whose selected version
+// explicitly flags that project as incompatible. Only looks at data already
+// cached on pack items (no extra network calls), so it's cheap to call on
+// every card render.
 let conflictMapCache = null;
 let conflictMapCacheKey = null;
 function getConflictMap(){
@@ -2428,7 +2426,7 @@ function showConfirm(messageHtml, {confirmLabel = "Confirm", danger = true} = {}
   });
 }
 
-async function autoAddDependencies(version, visited, hostProjectType){
+async function autoAddDependencies(version, visited, hostProjectType, packTarget){
   if(!version || !Array.isArray(version.dependencies)) return;
   const includeOptional = hostProjectType && hostProjectType !== "mod";
   for(const dep of version.dependencies){
@@ -2448,7 +2446,9 @@ async function autoAddDependencies(version, visited, hostProjectType){
       const proj = await fetchWithTimeout(`${API}/project/${depProjectId}`).then(r=>r.ok?r.json():null);
       if(!proj) continue;
       const versions = await fetchVersions(depProjectId);
-      const best = pickBestVersion(versions, version.game_versions, version.loaders);
+      const best = packTarget
+        ? pickBestVersionForPackTarget(versions, packTarget.loader, packTarget.mcVersion, version.game_versions, version.loaders)
+        : pickBestVersion(versions, version.game_versions, version.loaders);
       if(!best) continue;
       state.pack.push({
         id: depProjectId,
@@ -2465,7 +2465,7 @@ async function autoAddDependencies(version, visited, hostProjectType){
         selectedFile: best.files.find(f=>f.primary) || best.files[0],
         versions
       });
-      await autoAddDependencies(best, visited, proj.project_type);
+      await autoAddDependencies(best, visited, proj.project_type, packTarget);
       updateCardButtonsEverywhere(depProjectId);
     }catch(e){ console.error("Failed to add dependency", depProjectId, e); }
   }
@@ -2563,11 +2563,8 @@ function pickBestVersion(versions, hintGameVersions, hintLoaders){
   return (candidates.length ? candidates : versions)[0];
 }
 
-// Like pickBestVersion, but ranks candidates against the pack's actual
-// export target (loader/Minecraft version, as resolved by getCompatTargets)
-// instead of the unrelated Browse-tab search filters. Used by the update
-// checker so it doesn't pick a "newest" version that breaks whatever the
-// compatibility checker just fixed.
+// Like pickBestVersion, but ranks against the pack's actual export target
+// (from getCompatTargets) instead of the unrelated Browse-tab filters.
 function pickBestVersionForPackTarget(versions, targetLoader, targetMc, hintGameVersions, hintLoaders){
   if(!versions.length) return null;
   let candidates = versions;
@@ -3574,6 +3571,8 @@ async function showCompatibilityResults(fixNote){
 async function runUpdateCheck(){
   const candidates = state.pack.filter(m=>m.selectedVersionId);
 
+  // Use the same target loader/MC version as the compatibility checker
+  // (getCompatTargets), so updates don't undo a compatibility fix.
   const compatSelected = candidates
     .filter(m=>Array.isArray(m.versions))
     .map(m=>({ mod: m, version: m.versions.find(v=>v.id === m.selectedVersionId) }))
@@ -3602,7 +3601,7 @@ async function runUpdateCheck(){
   return results;
 }
 
-async function applyModUpdate(result){
+async function applyModUpdate(result, packTarget){
   const { mod, best, fresh } = result;
   mod.versions = fresh;
   mod.selectedVersionId = best.id;
@@ -3611,7 +3610,7 @@ async function applyModUpdate(result){
   syncModpackSnapshot(mod, best);
   savePack();
   if(state.tab === "pack") renderPack();
-  await autoAddDependencies(best, new Set([mod.id]), mod.projectType);
+  await autoAddDependencies(best, new Set([mod.id]), mod.projectType, packTarget);
   await ensureLoaderApis(best.game_versions, best.loaders);
   savePack();
   if(state.tab === "pack") renderPack();
@@ -3690,7 +3689,8 @@ async function showUpdateResults(){
         <button class="modal-close" aria-label="${t('close','Close')}">✕</button>
       </div>
       ${summaryHtml}
-      ${outdated.length ? `<button class="export-btn" id="updateAllBtn" style="margin-top:12px; width:100%;">${tPlural(outdated.length, 'updateAllOne','Update {n} mod', 'updateAllOther','Update {n} mods')}</button>` : ""}
+      ${outdated.length ? `<button class="export-btn" id="updateAllBtn" style="margin-top:12px; width:100%;">${tPlural(outdated.length, 'updateAllOne','Update {n} mod', 'updateAllOther','Update {n} mods')}</button>
+      <div id="updateAllProgress" class="export-note" style="display:none; text-align:center; margin-top:6px;"></div>` : ""}
       <div style="margin-top:16px;">${rowsHtml}</div>
       ${errored.length ? `<div class="compat-skipped">${tPlural(errored.length, 'updatesSkippedOne',"{n} mod skipped: couldn't check for updates.", 'updatesSkippedOther',"{n} mods skipped: couldn't check for updates.")}</div>` : ""}
       <button class="page-btn" data-choice="close" style="margin-top:18px; width:100%; padding:9px 16px;">${t('close','Close')}</button>
@@ -3699,14 +3699,33 @@ async function showUpdateResults(){
   backdrop.querySelector(".modal-close").addEventListener("click", ()=>backdrop.remove());
   backdrop.querySelector('[data-choice="close"]').addEventListener("click", ()=>backdrop.remove());
 
+  // Same target loader/MC version the compatibility checker resolves to,
+  // used so dependencies added during bulk updates don't reintroduce issues.
+  const compatSelected = results.filter(r=>r.current).map(r=>({ mod: r.mod, version: r.current }));
+  const { loader: packTargetLoader, mcVersion: packTargetMc } = getCompatTargets(compatSelected);
+  const packTarget = { loader: packTargetLoader, mcVersion: packTargetMc };
+
   async function updateOne(r, btn){
     if(btn){ btn.disabled = true; btn.textContent = t('updating','Updating…'); }
-    await applyModUpdate(r);
-    if(btn && btn._slowLoadTimer){ clearTimeout(btn._slowLoadTimer); btn._slowLoadTimer = null; }
-    const row = backdrop.querySelector(`[data-update-row="${CSS.escape(r.mod.id)}"]`);
-    if(row){
-      row.className = "compat-issue update-done";
-      row.innerHTML = `<div class="issue-detail"><span class="update-done-check">${COMPAT_ICON_CHECK}</span><span>${tf('updateDoneNote','Updated <strong>{name}</strong> to <strong>{version}</strong>.', {name: escapeHtml(r.mod.title), version: escapeHtml(r.best.version_number)})}</span></div>`;
+    try{
+      await applyModUpdate(r, packTarget);
+      if(btn && btn._slowLoadTimer){ clearTimeout(btn._slowLoadTimer); btn._slowLoadTimer = null; }
+      const row = backdrop.querySelector(`[data-update-row="${CSS.escape(r.mod.id)}"]`);
+      if(row){
+        row.className = "compat-issue update-done";
+        row.innerHTML = `<div class="issue-detail"><span class="update-done-check">${COMPAT_ICON_CHECK}</span><span>${tf('updateDoneNote','Updated <strong>{name}</strong> to <strong>{version}</strong>.', {name: escapeHtml(r.mod.title), version: escapeHtml(r.best.version_number)})}</span></div>`;
+      }
+      return true;
+    }catch(e){
+      console.error("Failed to update", r.mod.id, e);
+      if(btn && btn._slowLoadTimer){ clearTimeout(btn._slowLoadTimer); btn._slowLoadTimer = null; }
+      const row = backdrop.querySelector(`[data-update-row="${CSS.escape(r.mod.id)}"]`);
+      if(row){
+        if(btn){ btn.disabled = false; btn.textContent = `${UPDATE_ICON} ${t('updateThisMod','Update')}`; }
+        const detail = row.querySelector(".issue-detail");
+        if(detail) detail.insertAdjacentHTML("beforeend", `<div style="color:var(--danger-text); margin-top:4px;">${t('updateCouldntRun',"Couldn't check for updates")}</div>`);
+      }
+      return false;
     }
   }
 
@@ -3717,15 +3736,31 @@ async function showUpdateResults(){
     });
   });
   const allBtn = backdrop.querySelector("#updateAllBtn");
+  const progressEl = backdrop.querySelector("#updateAllProgress");
   if(allBtn){
     allBtn.addEventListener("click", async ()=>{
       if(isLoadingButton(allBtn)) return;
       startLoadingButton(allBtn, t('updating','Updating…'));
-      for(const r of outdated){
-        await updateOne(r, backdrop.querySelector(`.update-mod-btn[data-update="${CSS.escape(r.mod.id)}"]`));
+      if(progressEl){
+        progressEl.style.display = "block";
+        progressEl.textContent = `0 / ${outdated.length}`;
       }
-      stopLoadingButton(allBtn, t('updateAllDone','All updated'));
-      allBtn.disabled = true;
+      // Let the browser paint the loading state before the (possibly heavy,
+      // mostly-synchronous) update work begins, or the button can look frozen.
+      await new Promise(res=>requestAnimationFrame(()=>requestAnimationFrame(res)));
+      let done = 0, failed = 0;
+      try{
+        for(const r of outdated){
+          const ok = await updateOne(r, backdrop.querySelector(`.update-mod-btn[data-update="${CSS.escape(r.mod.id)}"]`));
+          done++;
+          if(!ok) failed++;
+          if(progressEl) progressEl.textContent = `${done} / ${outdated.length}`;
+        }
+      } finally {
+        stopLoadingButton(allBtn, failed ? tf('updatesSkippedOne',"{n} mod skipped: couldn't check for updates.", {n: failed}) : t('updateAllDone','All updated'));
+        allBtn.disabled = true;
+        if(progressEl && !failed) progressEl.style.display = "none";
+      }
     });
   }
   document.body.appendChild(backdrop);
