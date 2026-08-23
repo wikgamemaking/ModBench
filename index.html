@@ -730,8 +730,39 @@
   .import-status-icon svg{ width:16px; height:16px; }
   .import-status:not(.success):not(.error) .import-status-icon svg{ animation: import-spin 0.9s linear infinite; }
   @keyframes import-spin{ from{ transform:rotate(0deg); } to{ transform:rotate(360deg); } }
+  .import-status.pop{ animation: import-status-pop .35s cubic-bezier(.3,1.6,.4,1); }
+  @keyframes import-status-pop{ 0%{ transform: scale(.96); } 55%{ transform: scale(1.02); } 100%{ transform: scale(1); } }
   @media (prefers-reduced-motion: reduce){
     .import-status:not(.success):not(.error) .import-status-icon svg{ animation: none; }
+    .import-status.pop{ animation: none; }
+  }
+
+  /* --- Tab panel switch animation --- */
+  .tab-panel-enter{ animation: tab-fade-in .28s cubic-bezier(.2,.9,.3,1) both; }
+  @keyframes tab-fade-in{ from{ opacity:0; transform: translateY(6px); } to{ opacity:1; transform: translateY(0); } }
+  @media (prefers-reduced-motion: reduce){ .tab-panel-enter{ animation: none; } }
+
+  /* --- Create-tab import lock (shown while mods are still importing) --- */
+  .tab-pack-section{ position: relative; }
+  .import-lock-overlay{
+    position:absolute; inset:0; z-index:20;
+    display:none; align-items:center; justify-content:center;
+    flex-direction:column; gap:12px; text-align:center; padding:24px;
+    background: color-mix(in srgb, var(--bg) 85%, transparent);
+    backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+    border-radius: var(--radius);
+    opacity:0; transition: opacity .25s ease;
+  }
+  .import-lock-overlay.visible{ opacity:1; }
+  .import-lock-spinner{
+    width:32px; height:32px; border-radius:50%; flex-shrink:0;
+    border:3px solid var(--border); border-top-color: var(--accent);
+    animation: import-spin 0.8s linear infinite;
+  }
+  .import-lock-text{ font-weight:700; color: var(--text-dim); font-size:0.92rem; max-width:340px; }
+  @media (prefers-reduced-motion: reduce){
+    .import-lock-overlay{ transition: none; }
+    .import-lock-spinner{ animation: none; }
   }
 
   .logo-picker{ display:flex; align-items:center; gap:14px; }
@@ -1391,7 +1422,11 @@
   <button id="packToTop" type="button" aria-label="Go to top" title="Go to top" data-i18n-attr="aria-label:createGoToTop,title:createGoToTop" style="position:fixed; right:24px; bottom:24px; z-index:60; width:44px; height:44px; border-radius:50%; border:1px solid var(--border); background:var(--surface-2); color:var(--text); cursor:pointer; box-shadow:0 4px 12px rgba(0,0,0,0.25); align-items:center; justify-content:center; opacity:0; visibility:hidden; transform:translateY(8px); transition:opacity .2s ease, transform .2s ease; display:flex;">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>
   </button>
-  <section id="tab-pack" style="display:none;">
+  <section id="tab-pack" class="tab-pack-section" style="display:none;">
+    <div class="import-lock-overlay" id="packImportLock" aria-live="polite">
+      <div class="import-lock-spinner" aria-hidden="true"></div>
+      <div class="import-lock-text" id="packImportLockText" data-i18n="createLockedImportingText">Mods are still importing — Create will unlock automatically when it's done.</div>
+    </div>
     <div class="search-box" id="packSearchBar" style="display:none; margin-bottom:12px;">
       <span aria-hidden="true">🔍</span>
       <input type="text" id="packSearchInput" placeholder="Search your pack…" aria-label="Search your pack" data-i18n-attr="placeholder:createSearchPlaceholder,aria-label:createSearchLabel">
@@ -1838,7 +1873,8 @@ let state = {
   autoCompatCheck: safeLocalStorageGet("modbench_auto_compat_check") !== "off",
   expLoaderTouched: false,
   expMcTouched: false,
-  lang: safeLocalStorageGet("modbench-lang", "en")
+  lang: safeLocalStorageGet("modbench-lang", "en"),
+  importingCount: 0
 };
 
 function t(key, fallback){
@@ -2002,9 +2038,20 @@ document.querySelectorAll("nav.tabs button").forEach(btn=>{
     btn.classList.add("active"); btn.setAttribute("aria-selected","true");
     state.tab = btn.dataset.tab;
     ["browse","favorites","modpacks","pack","export"].forEach(t=>{
-      document.getElementById("tab-"+t).style.display = (t===state.tab) ? "" : "none";
+      const sec = document.getElementById("tab-"+t);
+      if(t === state.tab){
+        sec.style.display = "";
+        sec.classList.remove("tab-panel-enter");
+        void sec.offsetWidth; // restart animation
+        sec.classList.add("tab-panel-enter");
+      } else {
+        sec.style.display = "none";
+      }
     });
-    if(state.tab === "pack") renderPack();
+    if(state.tab === "pack"){
+      renderPack();
+      if(state.importingCount > 0) showPackImportLock(); else hidePackImportLock();
+    }
     if(state.tab === "export") renderExport();
     if(state.tab === "favorites") renderFavorites();
     if(state.tab === "modpacks" && state.modpackResults.length === 0 && !state.modpackSearched) runModpackSearch();
@@ -4601,6 +4648,7 @@ async function importModpackVersion(projectId, version, btn, fallbackMeta = {}){
   const originalLabel = fallbackMeta.resetLabel !== undefined ? fallbackMeta.resetLabel : btn.dataset.originalLabel ?? btn.textContent;
   startLoadingButton(btn, "Adding…");
   let ok = false;
+  beginImportOp();
   try{
     const file = version.files.find(f=>f.primary) || version.files[0];
     if(!file) throw new Error("No versions available");
@@ -4623,6 +4671,7 @@ async function importModpackVersion(projectId, version, btn, fallbackMeta = {}){
     alert("Couldn't import that modpack's mods. Modrinth may be unreachable, or this modpack isn't in the standard .mrpack format.");
     return false;
   }finally{
+    endImportOp();
     stopLoadingButton(btn, originalLabel);
     if(state.tab === "pack") renderPack();
     if(state.tab === "export") renderExport();
@@ -4645,6 +4694,47 @@ function setImportStatus(kind, text, prefix = "mrpack"){
   if(kind === "error") statusEl.classList.add("error");
   iconEl.innerHTML = kind === "success" ? IMPORT_STATUS_ICON_CHECK : kind === "error" ? IMPORT_STATUS_ICON_X : IMPORT_STATUS_ICON_LOADING;
   textEl.textContent = text;
+  if(kind === "success" || kind === "error"){
+    statusEl.classList.remove("pop");
+    void statusEl.offsetWidth;
+    statusEl.classList.add("pop");
+  }
+}
+
+/* --- Create-tab import lock: grays out Create while a mod import is still running,
+   whether the import was kicked off from Export (file/share code) or Modpacks. --- */
+let packImportLockToastShown = false;
+
+function showPackImportLock(){
+  const overlay = document.getElementById("packImportLock");
+  if(!overlay) return;
+  const alreadyShown = overlay.style.display === "flex";
+  overlay.style.display = "flex";
+  requestAnimationFrame(()=> overlay.classList.add("visible"));
+  if(!alreadyShown && !packImportLockToastShown){
+    packImportLockToastShown = true;
+    showToast(t('toastCreateLockedImporting', "Mods are still importing — Create will unlock automatically when it's done."));
+  }
+}
+
+function hidePackImportLock(){
+  const overlay = document.getElementById("packImportLock");
+  if(!overlay) return;
+  overlay.classList.remove("visible");
+  packImportLockToastShown = false;
+  setTimeout(()=>{
+    if(state.importingCount === 0) overlay.style.display = "none";
+  }, 250);
+}
+
+function beginImportOp(){
+  state.importingCount++;
+  if(state.tab === "pack") showPackImportLock();
+}
+
+function endImportOp(){
+  state.importingCount = Math.max(0, state.importingCount - 1);
+  if(state.importingCount === 0) hidePackImportLock();
 }
 
 async function importMrpackFile(file){
@@ -4654,6 +4744,7 @@ async function importMrpackFile(file){
     return;
   }
   setImportStatus("loading", t("importReadingPack","Reading pack…"));
+  beginImportOp();
   try{
     const buf = await file.arrayBuffer();
     const zip = await JSZip.loadAsync(buf);
@@ -4676,6 +4767,8 @@ async function importMrpackFile(file){
   }catch(e){
     console.error(e);
     setImportStatus("error", t("importCouldntReadFile","Couldn't read that file. Make sure it's a valid .mrpack."));
+  }finally{
+    endImportOp();
   }
 }
 
@@ -4828,6 +4921,7 @@ async function importSharedPack(rawInput){
     return;
   }
   setImportStatus("loading", t("importResolvingMods","Resolving mods on Modrinth…"), "share");
+  beginImportOp();
   try{
     const versionIds = [...new Set(data.m.filter(Boolean))];
     const versionsRes = await fetch(`${API}/versions?ids=${encodeURIComponent(JSON.stringify(versionIds))}`);
@@ -4900,6 +4994,8 @@ async function importSharedPack(rawInput){
   }catch(e){
     console.error(e);
     setImportStatus("error", t("importCouldntResolvePack","Couldn't resolve that pack. Modrinth may be unreachable, or the code is invalid."), "share");
+  }finally{
+    endImportOp();
   }
 }
 
