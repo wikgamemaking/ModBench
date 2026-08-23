@@ -693,7 +693,7 @@
 
   #packList{ transition: opacity .4s cubic-bezier(.22,1,.36,1), filter .4s cubic-bezier(.22,1,.36,1); transform-origin: top center; }
   #packList.pack-clear-out{ pointer-events:none; }
-  #packList .pack-row, #packList .pack-category-label, #packList .pack-type-label{ transition: opacity .38s cubic-bezier(.22,1,.36,1), transform .38s cubic-bezier(.22,1,.36,1), filter .38s cubic-bezier(.22,1,.36,1); }
+  #packList .pack-row, #packList .pack-category-label, #packList .pack-type-label{ transform-origin: left center; transition: opacity .38s cubic-bezier(.22,1,.36,1), transform .38s cubic-bezier(.22,1,.36,1), filter .38s cubic-bezier(.22,1,.36,1); }
   #packList .pack-row.row-clear-out, #packList .pack-category-label.row-clear-out, #packList .pack-type-label.row-clear-out{ opacity:0; transform: scale(.94) translateX(-10px); filter: blur(3px); }
   @media (prefers-reduced-motion: reduce){
     #packList{ transition: none; }
