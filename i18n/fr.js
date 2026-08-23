@@ -150,7 +150,7 @@ window.i18n.fr = {
   introModpacksTitle: "Modpacks",
   introModpacksDesc: "<strong>Parcourez</strong> les modpacks existants sur Modrinth et <strong>importez</strong> toute leur liste de mods dans Créer en un clic, un bon point de départ pour votre propre pack.",
   introFavoritesTitle: "Favoris",
-  introFavoritesDesc: "<strong>Aimez</strong> des mods pendant que vous parcourez pour les enregistrer pour plus tard, indépendamment du pack que vous êtes en train de créer.",
+  introFavoritesDesc: "<strong>Likez</strong> des mods pendant que vous parcourez pour les enregistrer pour plus tard, indépendamment du pack que vous êtes en train de créer.",
   introExportTitle: "Exporter",
   introExportDesc: "<strong>Nommez</strong> votre pack, définissez sa version de Minecraft et son modloader, puis <strong>téléchargez</strong> un fichier <code>.mrpack</code> prêt à l'emploi. Vous pouvez aussi importer un <code>.mrpack</code> existant ici pour continuer à le modifier, et personnaliser l'icône du pack avant l'export.",
   introFootnote: "Vous pouvez rouvrir ce guide à tout moment depuis le bouton <strong>?</strong> dans l'en-tête.",
