@@ -95,14 +95,20 @@
     width:36px; height:36px; flex-shrink:0;
     background: var(--surface-2); border:1px solid var(--border);
     border-radius:8px; cursor:pointer; color: var(--text-dim);
+    overflow:hidden; position:relative;
     transition: background .18s ease, color .18s ease, border-color .18s ease, transform .15s;
   }
   .help-toggle svg{ width:18px; height:18px; }
   .theme-toggle:hover{ background: var(--accent-soft); color: var(--accent-dark); border-color: var(--accent-soft); transform: scale(1.05); }
-  .theme-toggle svg{ width:18px; height:18px; }
-  .theme-toggle .icon-moon{ display:none; }
-  html[data-theme="dark"] .theme-toggle .icon-sun{ display:none; }
-  html[data-theme="dark"] .theme-toggle .icon-moon{ display:block; }
+  .theme-toggle:active{ transform: scale(.92); }
+  .theme-toggle svg{ width:18px; height:18px; position:absolute; top:50%; left:50%; transform: translate(-50%,-50%); transition: opacity .28s ease, transform .32s cubic-bezier(.3,1.4,.4,1); }
+  .theme-toggle .icon-moon{ opacity:0; transform: translate(-50%,-50%) rotate(-70deg) scale(.4); }
+  .theme-toggle .icon-sun{ opacity:1; transform: translate(-50%,-50%) rotate(0deg) scale(1); }
+  html[data-theme="dark"] .theme-toggle .icon-sun{ opacity:0; transform: translate(-50%,-50%) rotate(70deg) scale(.4); }
+  html[data-theme="dark"] .theme-toggle .icon-moon{ opacity:1; transform: translate(-50%,-50%) rotate(0deg) scale(1); }
+  @media (prefers-reduced-motion: reduce){
+    .theme-toggle svg{ transition: opacity .15s ease; transform: translate(-50%,-50%) !important; }
+  }
   html[data-theme="dark"] select,
   html[data-theme="dark"] input[type=text],
   html[data-theme="dark"] input[type=search]{
@@ -172,7 +178,13 @@
     color: var(--text-dim); font-weight:700;
     display:flex; align-items:center; gap:6px;
     white-space:nowrap; flex-shrink:0;
-    transition: background .18s ease, color .18s ease;
+    transition: background .18s ease, color .18s ease, transform .12s ease;
+  }
+  nav.tabs button:active{ transform: scale(.94); }
+  nav.tabs button.active{ animation: tab-activate .22s cubic-bezier(.3,1.5,.4,1); }
+  @keyframes tab-activate{ 0%{ transform: scale(.95); } 60%{ transform: scale(1.03); } 100%{ transform: scale(1); } }
+  @media (prefers-reduced-motion: reduce){
+    nav.tabs button.active{ animation: none; }
   }
   @media (max-width: 640px){
     .header-inner{ flex-wrap:nowrap; gap:12px; padding:10px 12px; }
@@ -743,26 +755,60 @@
   @media (prefers-reduced-motion: reduce){ .tab-panel-enter{ animation: none; } }
 
   /* --- Create-tab import lock (shown while mods are still importing) --- */
-  .tab-pack-section{ position: relative; }
   .import-lock-overlay{
-    position:absolute; inset:0; z-index:20;
-    display:none; align-items:center; justify-content:center;
-    flex-direction:column; gap:12px; text-align:center; padding:24px;
-    background: color-mix(in srgb, var(--bg) 85%, transparent);
-    backdrop-filter: blur(2px); -webkit-backdrop-filter: blur(2px);
+    display:none;
+    position:relative;
     border-radius: var(--radius);
     opacity:0; transition: opacity .25s ease;
   }
   .import-lock-overlay.visible{ opacity:1; }
+  .import-lock-blur{
+    filter: blur(4px);
+    pointer-events:none;
+    -webkit-user-select:none; user-select:none;
+  }
   .import-lock-spinner{
-    width:32px; height:32px; border-radius:50%; flex-shrink:0;
+    position:absolute; top:50%; left:50%; transform: translate(-50%, -50%);
+    width:36px; height:36px; border-radius:50%;
+    background: var(--surface); box-shadow: 0 4px 16px rgba(0,0,0,.18);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .import-lock-spinner::after{
+    content:""; width:20px; height:20px; border-radius:50%;
     border:3px solid var(--border); border-top-color: var(--accent);
     animation: import-spin 0.8s linear infinite;
   }
-  .import-lock-text{ font-weight:700; color: var(--text-dim); font-size:0.92rem; max-width:340px; }
+  .import-skeleton{ display:flex; flex-direction:column; gap:10px; }
+  .import-skeleton-row{
+    display:flex; align-items:center; gap:12px; padding:12px 14px;
+    border-radius:10px; background: var(--surface); border:1px solid var(--border);
+    animation: sk-row-in .3s ease-out both;
+  }
+  .import-skeleton-row:nth-child(1){ animation-delay: 0s; }
+  .import-skeleton-row:nth-child(2){ animation-delay: .04s; }
+  .import-skeleton-row:nth-child(3){ animation-delay: .08s; }
+  .import-skeleton-row:nth-child(4){ animation-delay: .12s; }
+  .import-skeleton-row:nth-child(5){ animation-delay: .16s; }
+  @keyframes sk-row-in{ from{ opacity:0; transform: translateY(4px); } to{ opacity:1; transform: translateY(0); } }
+  .sk-icon{ width:40px; height:40px; border-radius:7px; flex-shrink:0; background: var(--surface-2); position:relative; overflow:hidden; }
+  .sk-lines{ flex:1; min-width:0; display:flex; flex-direction:column; gap:8px; }
+  .sk-line{ height:10px; border-radius:5px; background: var(--surface-2); position:relative; overflow:hidden; }
+  .sk-line-title{ width:52%; height:13px; }
+  .sk-line-sub{ width:30%; }
+  .sk-icon::after, .sk-line::after{
+    content:""; position:absolute; inset:0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,.55), transparent);
+    background-size:200% 100%;
+    animation: btn-shimmer 1.3s ease-in-out infinite;
+  }
+  html[data-theme="dark"] .sk-icon::after, html[data-theme="dark"] .sk-line::after{
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,.08), transparent);
+  }
   @media (prefers-reduced-motion: reduce){
     .import-lock-overlay{ transition: none; }
-    .import-lock-spinner{ animation: none; }
+    .import-lock-spinner::after{ animation: none; }
+    .import-skeleton-row{ animation: none; }
+    .sk-icon::after, .sk-line::after{ animation: none; }
   }
 
   .logo-picker{ display:flex; align-items:center; gap:14px; }
@@ -1423,10 +1469,39 @@
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>
   </button>
   <section id="tab-pack" class="tab-pack-section" style="display:none;">
-    <div class="import-lock-overlay" id="packImportLock" aria-live="polite">
+    <div class="import-lock-overlay" id="packImportLock" aria-live="polite" aria-label="Importing mods">
+      <div class="import-lock-blur" aria-hidden="true">
+        <div class="search-box" style="margin-bottom:12px;">
+          <span aria-hidden="true">🔍</span>
+          <input type="text" placeholder="Search your pack…" disabled tabindex="-1">
+          <kbd class="kbd-hint" aria-hidden="true">/</kbd>
+        </div>
+        <div class="toolbar" style="justify-content:flex-end; align-items:center; flex-wrap:wrap; gap:10px;">
+          <div class="history-controls">
+            <button type="button" class="page-btn" disabled tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
+            <button type="button" class="page-btn" disabled tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>
+            <button type="button" class="page-btn" disabled tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+          </div>
+          <label class="auto-compat-toggle">
+            <span class="switch"><input type="checkbox" disabled tabindex="-1"><span class="switch-track"><span class="switch-thumb"></span></span></span>
+            <span class="switch-label">Auto-flag incompatibilities</span>
+          </label>
+          <button class="page-btn" disabled tabindex="-1">Sort A→Z</button>
+          <button class="page-btn" disabled tabindex="-1">Check for updates</button>
+          <button class="page-btn" disabled tabindex="-1">Check compatibility</button>
+          <button class="page-btn" disabled tabindex="-1" style="color:var(--danger); border-color:var(--danger-border);">Remove all contents</button>
+        </div>
+        <div class="import-skeleton">
+          <div class="import-skeleton-row"><div class="sk-icon"></div><div class="sk-lines"><div class="sk-line sk-line-title"></div><div class="sk-line sk-line-sub"></div></div></div>
+          <div class="import-skeleton-row"><div class="sk-icon"></div><div class="sk-lines"><div class="sk-line sk-line-title"></div><div class="sk-line sk-line-sub"></div></div></div>
+          <div class="import-skeleton-row"><div class="sk-icon"></div><div class="sk-lines"><div class="sk-line sk-line-title"></div><div class="sk-line sk-line-sub"></div></div></div>
+          <div class="import-skeleton-row"><div class="sk-icon"></div><div class="sk-lines"><div class="sk-line sk-line-title"></div><div class="sk-line sk-line-sub"></div></div></div>
+          <div class="import-skeleton-row"><div class="sk-icon"></div><div class="sk-lines"><div class="sk-line sk-line-title"></div><div class="sk-line sk-line-sub"></div></div></div>
+        </div>
+      </div>
       <div class="import-lock-spinner" aria-hidden="true"></div>
-      <div class="import-lock-text" id="packImportLockText" data-i18n="createLockedImportingText">Mods are still importing — Create will unlock automatically when it's done.</div>
     </div>
+    <div id="packRealContent">
     <div class="search-box" id="packSearchBar" style="display:none; margin-bottom:12px;">
       <span aria-hidden="true">🔍</span>
       <input type="text" id="packSearchInput" placeholder="Search your pack…" aria-label="Search your pack" data-i18n-attr="placeholder:createSearchPlaceholder,aria-label:createSearchLabel">
@@ -1469,6 +1544,7 @@
       <div class="big">🧰</div>
       <p data-i18n="createEmptyText">Your pack is empty. Head to <strong>Browse</strong> or <strong>Modpacks</strong> to add mods.</p>
       <button type="button" class="export-btn quick-action" id="packEmptyBrowseBtn" data-i18n="createEmptyBrowseBtn">Browse mods</button>
+    </div>
     </div>
   </section>
 
@@ -4707,23 +4783,29 @@ let packImportLockToastShown = false;
 
 function showPackImportLock(){
   const overlay = document.getElementById("packImportLock");
+  const real = document.getElementById("packRealContent");
   if(!overlay) return;
-  const alreadyShown = overlay.style.display === "flex";
-  overlay.style.display = "flex";
+  const alreadyShown = overlay.style.display === "block";
+  overlay.style.display = "block";
+  if(real) real.style.display = "none";
   requestAnimationFrame(()=> overlay.classList.add("visible"));
   if(!alreadyShown && !packImportLockToastShown){
     packImportLockToastShown = true;
-    showToast(t('toastCreateLockedImporting', "Mods are still importing — Create will unlock automatically when it's done."));
+    showToast(t('toastCreateLockedImporting', "**Mods are still importing.** Create will unlock **automatically** when it's done."));
   }
 }
 
 function hidePackImportLock(){
   const overlay = document.getElementById("packImportLock");
+  const real = document.getElementById("packRealContent");
   if(!overlay) return;
   overlay.classList.remove("visible");
   packImportLockToastShown = false;
   setTimeout(()=>{
-    if(state.importingCount === 0) overlay.style.display = "none";
+    if(state.importingCount === 0){
+      overlay.style.display = "none";
+      if(real) real.style.display = "";
+    }
   }, 250);
 }
 
