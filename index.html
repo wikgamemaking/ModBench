@@ -68,6 +68,7 @@
   }
   *{ box-sizing: border-box; }
   html,body{ margin:0; padding:0; }
+  html{ touch-action: manipulation; }
   select{
     appearance: none !important;
     -webkit-appearance: none !important;
@@ -87,7 +88,11 @@
     color: var(--text);
     line-height: 1.5;
     transition: background .15s, color .15s;
+    display:flex; flex-direction:column; min-height:100vh;
   }
+  header.site{ flex-shrink:0; }
+  main{ flex:1 0 auto; width:100%; box-sizing:border-box; }
+  footer{ flex-shrink:0; }
   p{ text-wrap: pretty; }
   h1, h2, h3, h4{ text-wrap: balance; }
   .theme-toggle{
@@ -405,10 +410,27 @@
 
   @media (max-width: 640px){
     .toolbar{ flex-wrap:wrap; }
-    .toolbar .search-box{ flex:1 1 100%; min-width:0; }
-    select#sortSelect, select#modpackSortSelect{ flex:1 1 auto; width:auto; }
+    .toolbar .search-box{ flex:1 1 70px; min-width:70px; padding:10px 12px; }
+    select#sortSelect, select#modpackSortSelect{ flex:0 1 auto; width:auto; min-width:0; font-size:0.85rem; padding:10px 8px; }
     .view-toggle{ flex:0 0 auto; }
     #favSortBtn{ flex:1 1 100%; }
+  }
+
+  #createToolbar{ justify-content:flex-end; align-items:center; flex-wrap:wrap; gap:10px; }
+  @media (max-width: 640px){
+    #createToolbar{ justify-content:flex-start; }
+    #createToolbar #historyControls{
+      flex:1 1 100%; justify-content:flex-start;
+      border-right:none; padding-right:0; margin-right:0; margin-bottom:2px;
+    }
+    #createToolbar #autoCompatToggleWrap{ flex:1 1 100%; margin-right:0; margin-bottom:2px; }
+    #createToolbar #sortAlphaBtn,
+    #createToolbar #checkUpdatesBtn,
+    #createToolbar #checkCompatBtn,
+    #createToolbar #removeAllBtn{
+      flex:1 1 calc(50% - 5px);
+      text-align:center;
+    }
   }
 
   #results.grid, #favResults.grid, #modpackResults.grid, .pack-category-group .grid{
@@ -640,6 +662,20 @@
   }
   @media (prefers-reduced-motion: reduce){
     .empty-state .big{ animation: none; }
+  }
+  .empty-state.empty-pop-in{ animation: empty-pop-in .32s cubic-bezier(.2,.8,.3,1) backwards; }
+  @keyframes empty-pop-in{
+    from{ opacity:0; transform: scale(.92) translateY(8px); }
+    to{ opacity:1; transform: scale(1) translateY(0); }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .empty-state.empty-pop-in{ animation: none; }
+  }
+
+  #packList{ transition: opacity .22s ease, transform .22s ease; transform-origin: top center; }
+  #packList.pack-clear-out{ opacity:0; transform: scale(.97) translateY(6px); pointer-events:none; }
+  @media (prefers-reduced-motion: reduce){
+    #packList{ transition: none; }
   }
 
   .export-panel{
@@ -1507,7 +1543,7 @@
       <input type="text" id="packSearchInput" placeholder="Search your pack…" aria-label="Search your pack" data-i18n-attr="placeholder:createSearchPlaceholder,aria-label:createSearchLabel">
       <kbd class="kbd-hint" aria-hidden="true">/</kbd>
     </div>
-    <div class="toolbar" id="createToolbar" style="display:none; justify-content:flex-end; align-items:center; flex-wrap:wrap; gap:10px;">
+    <div class="toolbar" id="createToolbar" style="display:none;">
       <div class="history-controls" id="historyControls">
         <button type="button" class="page-btn" id="historyUndoBtn" title="Undo" aria-label="Undo" data-i18n-attr="title:historyUndo,aria-label:historyUndo" disabled>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>
@@ -5395,11 +5431,31 @@ document.getElementById("removeAllBtn").addEventListener("click", async ()=>{
     {confirmLabel: t('removeAllConfirmBtn','Remove all')}
   );
   if(ok){
-    state.pack = [];
-    state.packIcon = "";
-    savePackIcon();
-    renderLogoPicker();
-    refreshAllViews();
+    const listEl = document.getElementById("packList");
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const doClear = ()=>{
+      state.pack = [];
+      state.packIcon = "";
+      savePackIcon();
+      renderLogoPicker();
+      refreshAllViews();
+      listEl.classList.remove("pack-clear-out");
+      const emptyEl = document.getElementById("packEmpty");
+      if(!reduceMotion && emptyEl){
+        emptyEl.classList.remove("empty-pop-in");
+        void emptyEl.offsetWidth; // restart animation
+        emptyEl.classList.add("empty-pop-in");
+      }
+    };
+    if(reduceMotion || !listEl || !listEl.children.length){
+      doClear();
+    }else{
+      let done = false;
+      const finish = ()=>{ if(done) return; done = true; doClear(); };
+      listEl.classList.add("pack-clear-out");
+      listEl.addEventListener("transitionend", finish, {once:true});
+      setTimeout(finish, 260);
+    }
   }
 });
 document.getElementById("packSearchInput").addEventListener("input", (e)=>{
