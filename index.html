@@ -19,7 +19,8 @@
 <script src="i18n/fr.js"></script>
 <script>
   (function(){
-    const saved = localStorage.getItem("modbench-theme");
+    let saved = null;
+    try{ saved = localStorage.getItem("modbench-theme"); }catch(e){ /* storage blocked; fall back to system preference */ }
     const theme = saved || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
     if(theme === "dark") document.documentElement.setAttribute("data-theme","dark");
   })();
@@ -556,19 +557,19 @@
      explicitly whenever the attribute is present. */
   .pack-row-issue-badge[hidden]{ display:none !important; }
   .auto-compat-toggle{ display:inline-flex; align-items:center; gap:8px; cursor:pointer; margin-right:auto; }
-  .auto-compat-toggle .switch{ position:relative; display:inline-block; width:34px; height:20px; flex-shrink:0; }
-  .auto-compat-toggle .switch input{ position:absolute; opacity:0; width:100%; height:100%; margin:0; cursor:pointer; z-index:1; }
-  .auto-compat-toggle .switch-track{
+  .switch{ position:relative; display:inline-block; width:34px; height:20px; flex-shrink:0; }
+  .switch input{ position:absolute; opacity:0; width:100%; height:100%; margin:0; cursor:pointer; z-index:1; }
+  .switch-track{
     position:absolute; inset:0; background: var(--surface-2); border:1px solid var(--border);
     border-radius:999px; transition: background .15s ease, border-color .15s ease;
   }
-  .auto-compat-toggle .switch-thumb{
+  .switch-thumb{
     position:absolute; top:1px; left:1px; width:16px; height:16px; border-radius:50%;
     background: var(--text-dim); transition: transform .15s ease, background .15s ease;
   }
-  .auto-compat-toggle .switch input:checked ~ .switch-track{ background: var(--accent); border-color: var(--accent); }
-  .auto-compat-toggle .switch input:checked ~ .switch-track .switch-thumb{ transform: translateX(14px); background:#fff; }
-  .auto-compat-toggle .switch-label{ font-size:0.85rem; color: var(--text-dim); }
+  .switch input:checked ~ .switch-track{ background: var(--accent); border-color: var(--accent); }
+  .switch input:checked ~ .switch-track .switch-thumb{ transform: translateX(14px); background:#fff; }
+  .switch-label{ font-size:0.85rem; color: var(--text-dim); }
   #packIssueBanner.compat-summary{ cursor:pointer; transition: filter .15s ease; }
   #packIssueBanner.compat-summary:hover{ filter: brightness(0.97); }
   html[data-theme="dark"] #packIssueBanner.compat-summary:hover{ filter: brightness(1.12); }
@@ -845,6 +846,11 @@
     font-family:inherit; font-weight:700; color: var(--accent-dark);
   }
   .modlist-toggle-chip:hover{ border-color: var(--accent); color: var(--accent); }
+  /* Overrides .compat-mod-chip's icon-hugging padding (3px 9px 3px 3px) below —
+     this toggle button has no icon, so it needs symmetric padding to stay centered.
+     Needs the compound selector for specificity: .compat-mod-chip is declared later
+     in the stylesheet and would otherwise win the cascade on source order alone. */
+  .compat-mod-chip.modlist-toggle-chip{ padding:3px 10px; justify-content:center; }
   .modal-desc-full{ font-size:0.92rem; color: var(--text); line-height:1.6; }
   .modal-desc-full h1, .modal-desc-full h2, .modal-desc-full h3{ font-size:1rem; margin:16px 0 6px; }
   .modal-desc-full p{ margin:0 0 10px; }
@@ -874,6 +880,15 @@
   .version-row .vmeta{ color:var(--text-dim); margin-left:auto; font-size:0.78rem; }
   .version-loaders{ display:flex; gap:4px; flex-shrink:0; }
   .version-loaders .loader-icon{ width:16px; height:16px; }
+  .latest-dot{
+    width:8px; height:8px; border-radius:50%; flex-shrink:0;
+    background: #3fb950; box-shadow: 0 0 0 2px var(--accent-soft);
+  }
+  .modpack-unstable-toggle{
+    display:flex; align-items:center; gap:8px; margin-top:12px;
+    font-size:0.82rem; color:var(--text-dim); cursor:pointer; user-select:none;
+  }
+  .modpack-unstable-toggle input{ margin:0; cursor:pointer; }
 
   .status-msg{ text-align:center; padding:40px; color: var(--text-dim); animation: fade-in .25s ease-out; }
   @keyframes fade-in{
@@ -1384,19 +1399,19 @@
     </div>
     <div class="toolbar" id="createToolbar" style="display:none; justify-content:flex-end; align-items:center; flex-wrap:wrap; gap:10px;">
       <div class="history-controls" id="historyControls">
-        <button type="button" class="page-btn" id="historyUndoBtn" title="Undo" aria-label="Undo" disabled>
+        <button type="button" class="page-btn" id="historyUndoBtn" title="Undo" aria-label="Undo" data-i18n-attr="title:historyUndo,aria-label:historyUndo" disabled>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>
         </button>
-        <button type="button" class="page-btn" id="historyRedoBtn" title="Redo" aria-label="Redo" disabled>
+        <button type="button" class="page-btn" id="historyRedoBtn" title="Redo" aria-label="Redo" data-i18n-attr="title:historyRedo,aria-label:historyRedo" disabled>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg>
         </button>
-        <button type="button" class="page-btn" id="historyListToggleBtn" title="Recent actions" aria-label="Recent actions" aria-haspopup="true" aria-expanded="false" disabled>
+        <button type="button" class="page-btn" id="historyListToggleBtn" title="Recent actions" aria-label="Recent actions" data-i18n-attr="title:historyRecentActions,aria-label:historyRecentActions" aria-haspopup="true" aria-expanded="false" disabled>
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
         </button>
         <div class="history-popover" id="historyPopover" hidden>
           <div class="history-popover-title">
             <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/></svg>
-            Recent actions
+            <span data-i18n="historyRecentActions">Recent actions</span>
           </div>
           <div id="historyList"></div>
         </div>
@@ -1606,7 +1621,7 @@ function showToast(message, opts = {}){
   const closeBtn = document.createElement("button");
   closeBtn.type = "button";
   closeBtn.className = "toast-close";
-  closeBtn.setAttribute("aria-label", "Dismiss");
+  closeBtn.setAttribute("aria-label", t('toastDismiss','Dismiss'));
   closeBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
   closeBtn.addEventListener("click", dismiss);
   toast.appendChild(closeBtn);
@@ -1677,7 +1692,7 @@ function renderHistoryControls(){
   const listEl = document.getElementById("historyList");
   if(!listEl) return;
   if(!actionHistory.past.length){
-    listEl.innerHTML = `<div class="history-empty">No recent actions</div>`;
+    listEl.innerHTML = `<div class="history-empty">${t('historyEmpty','No recent actions')}</div>`;
     return;
   }
   listEl.innerHTML = actionHistory.past.map((entry, idx)=>{
@@ -1685,7 +1700,7 @@ function renderHistoryControls(){
     return `<button type="button" class="history-item${isLast ? " is-latest" : ""}" data-history-idx="${idx}">
       <span class="history-item-dot"></span>
       <span class="history-item-label">${escapeHtml(entry.label)}</span>
-      <span class="history-item-undo">${isLast ? "Undo" : "Undo to here"}</span>
+      <span class="history-item-undo">${isLast ? t('historyUndo','Undo') : t('historyUndoToHere','Undo to here')}</span>
     </button>`;
   }).reverse().join("");
 }
@@ -1701,7 +1716,7 @@ function startLoadingButton(btn, label){
   btn.classList.add("btn-loading");
   if(!btn._slowLoadTimer){
     btn._slowLoadTimer = setTimeout(()=>{
-      showToast("**Taking more time than expected.** Modbench is still working on getting your mods added.");
+      showToast(t('toastSlowLoad','**Taking more time than expected.** Modbench is still working on getting your mods added.'));
       btn._slowLoadTimer = null;
     }, 15000);
   }
@@ -1804,10 +1819,10 @@ let state = {
   results: [],
   page: 1,
   totalHits: 0,
-  pack: JSON.parse(localStorage.getItem("packsmith_pack") || "[]"),
+  pack: JSON.parse(safeLocalStorageGet("packsmith_pack", "[]")),
   packSort: "category",
   packSearch: "",
-  favorites: JSON.parse(localStorage.getItem("packsmith_favorites") || "[]"),
+  favorites: JSON.parse(safeLocalStorageGet("packsmith_favorites", "[]")),
   favSort: "alpha",
   favView: "grid",
   modpackQuery: "",
@@ -1819,11 +1834,11 @@ let state = {
   modpackPage: 1,
   modpackTotalHits: 0,
   modpackSearched: false,
-  packIcon: localStorage.getItem("modbench_pack_icon") || "",
-  autoCompatCheck: localStorage.getItem("modbench_auto_compat_check") !== "off",
+  packIcon: safeLocalStorageGet("modbench_pack_icon", ""),
+  autoCompatCheck: safeLocalStorageGet("modbench_auto_compat_check") !== "off",
   expLoaderTouched: false,
   expMcTouched: false,
-  lang: localStorage.getItem("modbench-lang") || "en"
+  lang: safeLocalStorageGet("modbench-lang", "en")
 };
 
 function t(key, fallback){
@@ -1851,6 +1866,15 @@ function tPlural(n, oneKey, oneFallback, otherKey, otherFallback, vars){
   return tf(isOne ? oneKey : otherKey, isOne ? oneFallback : otherFallback, Object.assign({ n }, vars || {}));
 }
 
+function safeLocalStorageGet(key, fallback = null){
+  try{
+    const value = localStorage.getItem(key);
+    return value === null ? fallback : value;
+  }catch(e){
+    console.warn(`Couldn't read "${key}" from local storage:`, e);
+    return fallback;
+  }
+}
 function safeLocalStorageSet(key, value){
   try{
     localStorage.setItem(key, value);
@@ -1911,7 +1935,7 @@ function toggleFavorite(hit){
 }
 
 const LANGUAGES = ["en", "fr"];
-state.lang = localStorage.getItem("modbench-lang") || "en";
+state.lang = safeLocalStorageGet("modbench-lang", "en");
 
 const englishSnapshot = { html: new Map(), attrs: new Map() };
 document.querySelectorAll("[data-i18n]").forEach(el=>{
@@ -1951,7 +1975,7 @@ function applyLanguage(lang){
     langLabel.textContent = flags[lang] || lang.toUpperCase();
   }
 
-  localStorage.setItem("modbench-lang", lang);
+  safeLocalStorageSet("modbench-lang", lang);
   refreshDynamicContentForLanguage();
 }
 
@@ -1961,6 +1985,7 @@ function refreshDynamicContentForLanguage(){
   if(state.tab === "favorites") renderFavorites();
   if(state.tab === "modpacks" && state.modpackResults.length) renderModpackResults();
   if(state.tab === "export") renderExport();
+  renderHistoryControls();
   document.querySelectorAll(".modal-backdrop").forEach(b=>b.remove());
 }
 
@@ -2602,12 +2627,25 @@ async function quickAdd(projectId){
   }
 }
 
-async function fetchVersions(projectId){
+async function fetchVersionsRaw(projectId){
   const res = await fetchWithTimeout(`${API}/project/${projectId}/version`);
   if(!res.ok) throw new Error("version fetch failed");
-  const data = await res.json();
+  return res.json();
+}
+function filterSnapshotOnlyVersions(data){
+  // isSnapshotOnlyVersion drops builds whose game_versions are *entirely* snapshots — meant to
+  // hide mod builds that only exist for a pre-release/RC and were never cut for an actual
+  // Minecraft release. That heuristic doesn't apply to modpacks: a modpack's own "versions" are
+  // the author's published pack releases (v1.0, v1.1-beta, ...), and it's normal for a
+  // perfectly complete pack release to be tagged with a game_version Modrinth's own
+  // /tag/game_version list doesn't happen to mark "release" (older/oddly-tagged MC versions).
+  // Applying this mod-oriented filter there was silently deleting whole, real modpack releases
+  // (and with them, the Minecraft version they targeted) before the user ever saw them.
   const filtered = data.filter(v=>!isSnapshotOnlyVersion(v));
   return filtered.length ? filtered : data;
+}
+async function fetchVersions(projectId){
+  return filterSnapshotOnlyVersions(await fetchVersionsRaw(projectId));
 }
 
 const FABRIC_API_ID = "P7dR8mSH";
@@ -2644,11 +2682,15 @@ function showConfirm(messageHtml, {confirmLabel = "Confirm", danger = true} = {}
   });
 }
 
-async function autoAddDependencies(version, visited, hostProjectType, packTarget){
+async function autoAddDependencies(version, visited, hostProjectType, packTarget, trusted = false){
   if(!version || !Array.isArray(version.dependencies)) return;
-  const includeOptional = hostProjectType && hostProjectType !== "mod";
+  // Only auto-add *required* dependencies. This used to also pull in every "optional"
+  // dependency whenever the host item wasn't literally typed "mod" (resource packs, shader
+  // packs, datapacks — all common inside a bundled modpack) — silently treating merely-suggested
+  // companion content as mandatory. That's how imports ballooned past what the pack actually
+  // needs. Optional means optional; the person can add those themselves if they want them.
   for(const dep of version.dependencies){
-    if(dep.dependency_type !== "required" && !(includeOptional && dep.dependency_type === "optional")) continue;
+    if(dep.dependency_type !== "required") continue;
     let depProjectId = dep.project_id;
     if(!depProjectId && dep.version_id){
       try{
@@ -2678,12 +2720,15 @@ async function autoAddDependencies(version, visited, hostProjectType, packTarget
         clientSide: proj.client_side || "required",
         serverSide: proj.server_side || "required",
         isDependency: true,
+        // Trusted only when this dependency was pulled in as part of a modpack import — see
+        // runCompatibilityCheck for what that exempts it from.
+        trustedFromModpack: trusted,
         selectedVersionId: best.id,
         selectedVersionNumber: best.version_number,
         selectedFile: best.files.find(f=>f.primary) || best.files[0],
         versions
       });
-      await autoAddDependencies(best, visited, proj.project_type, packTarget);
+      await autoAddDependencies(best, visited, proj.project_type, packTarget, trusted);
       updateCardButtonsEverywhere(depProjectId);
     }catch(e){ console.error("Failed to add dependency", depProjectId, e); }
   }
@@ -2701,7 +2746,7 @@ function hasEquivalentInPack(projectId){
 
 const QUILT_API_ID = "qvIfYCYJ";
 
-async function addLoaderApiMod(apiId, hintGameVersions, requiredLoader){
+async function addLoaderApiMod(apiId, hintGameVersions, requiredLoader, trusted = false){
   if(state.pack.some(p=>p.id === apiId)) return;
   try{
     const proj = await fetchWithTimeout(`${API}/project/${apiId}`).then(r=>r.ok?r.json():null);
@@ -2722,6 +2767,7 @@ async function addLoaderApiMod(apiId, hintGameVersions, requiredLoader){
       clientSide: proj.client_side || "required",
       serverSide: proj.server_side || "required",
       isDependency: true,
+      trustedFromModpack: trusted,
       selectedVersionId: best.id,
       selectedVersionNumber: best.version_number,
       selectedFile: best.files.find(f=>f.primary) || best.files[0],
@@ -2745,7 +2791,7 @@ function packLeansFabric(){
   return fabricCount >= quiltOnlyCount;
 }
 
-async function ensureLoaderApis(hintGameVersions, loadersInvolved){
+async function ensureLoaderApis(hintGameVersions, loadersInvolved, trusted = false){
   let loaders = (loadersInvolved && loadersInvolved.length) ? loadersInvolved : state.loaders;
   if(state.loaders.length && loadersInvolved && loadersInvolved.length){
     const narrowed = loadersInvolved.filter(l=>state.loaders.includes(l));
@@ -2753,11 +2799,11 @@ async function ensureLoaderApis(hintGameVersions, loadersInvolved){
   }
   if(!loaders || !loaders.length) return;
   const tasks = [];
-  if(loaders.includes("fabric")) tasks.push(addLoaderApiMod(FABRIC_API_ID, hintGameVersions, "fabric"));
+  if(loaders.includes("fabric")) tasks.push(addLoaderApiMod(FABRIC_API_ID, hintGameVersions, "fabric", trusted));
   if(loaders.includes("quilt")){
     const modIsQuiltExclusive = !loaders.includes("fabric");
     if(modIsQuiltExclusive || !packLeansFabric()){
-      tasks.push(addLoaderApiMod(QUILT_API_ID, hintGameVersions, "quilt"));
+      tasks.push(addLoaderApiMod(QUILT_API_ID, hintGameVersions, "quilt", trusted));
     }
   }
   await Promise.all(tasks);
@@ -2767,13 +2813,15 @@ function pickBestVersion(versions, hintGameVersions, hintLoaders){
   if(!versions.length) return null;
   let candidates = versions;
   if(state.mcVersion){
-    candidates = candidates.filter(v=>v.game_versions.includes(state.mcVersion)) || candidates;
+    const mcMatched = candidates.filter(v=>v.game_versions.includes(state.mcVersion));
+    if(mcMatched.length) candidates = mcMatched;
   } else if(hintGameVersions && hintGameVersions.length){
     const hinted = candidates.filter(v=>v.game_versions.some(gv=>hintGameVersions.includes(gv)));
     if(hinted.length) candidates = hinted;
   }
   if(state.loaders.length){
-    candidates = candidates.filter(v=>v.loaders.some(l=>state.loaders.includes(l))) || candidates;
+    const loaderMatched = candidates.filter(v=>v.loaders.some(l=>state.loaders.includes(l)));
+    if(loaderMatched.length) candidates = loaderMatched;
   } else if(hintLoaders && hintLoaders.length){
     const hintedL = candidates.filter(v=>v.loaders.some(l=>hintLoaders.includes(l)));
     if(hintedL.length) candidates = hintedL;
@@ -2817,13 +2865,16 @@ async function openModal(projectId, hitLookup){
 
   try{
     await gameVersionRankReady;
-    const [projRes, versions] = await Promise.all([
+    const [projRes, versionsRaw] = await Promise.all([
       fetch(`${API}/project/${projectId}`).then(r=>r.json()),
-      fetchVersions(projectId)
+      fetchVersionsRaw(projectId)
     ]);
     const gallery = (projRes.gallery || []).slice(0,6);
     const projectType = projRes.project_type || "mod";
     const isModpack = projectType === "modpack";
+    // Only apply the snapshot-only filter to mods — see filterSnapshotOnlyVersions for why
+    // modpack releases need to skip it.
+    const versions = isModpack ? versionsRaw : filterSnapshotOnlyVersions(versionsRaw);
     const inPack = isModpack
       ? state.pack.some(p=>p.fromModpack === projectId)
       : state.pack.find(p=>p.id === projectId);
@@ -3139,10 +3190,10 @@ function renderPack(){
         savePack(); renderPack();
         updateCardButtonsEverywhere(removedId);
       };
-      const historyEntry = pushHistoryAction(`Removed "${removedMod.title}"`, restoreMod, removeModAgain);
+      const historyEntry = pushHistoryAction(tf('historyRemovedLabel','Removed "{title}"', { title: removedMod.title }), restoreMod, removeModAgain);
 
-      showToast(`Removed "${removedMod.title}" from Create.`, {
-        actionLabel: "Undo",
+      showToast(tf('toastRemovedFromCreate','Removed "{title}" from Create.', { title: removedMod.title }), {
+        actionLabel: t('historyUndo','Undo'),
         onAction: ()=>{
           restoreMod();
           removeHistoryEntry(historyEntry);
@@ -3158,6 +3209,9 @@ function renderPack(){
       mod.selectedVersionId = v.id;
       mod.selectedVersionNumber = v.version_number;
       mod.selectedFile = v.files.find(f=>f.primary) || v.files[0];
+      // A manual version pick means the user is overriding the pack author's original choice
+      // for this mod specifically — resume real compatibility checking on it from here on.
+      mod.trustedFromModpack = false;
       syncModpackSnapshot(mod, v);
       savePack(); renderPack();
       await autoAddDependencies(v, new Set([mod.id]), mod.projectType);
@@ -3343,8 +3397,16 @@ const LOADER_RUNS_ON = { fabric: ["fabric"], quilt: ["quilt", "fabric"], forge: 
 const LOADER_DISPLAY_NAMES = { fabric: "Fabric", quilt: "Quilt", forge: "Forge", neoforge: "NeoForge" };
 function formatLoaderName(loader){ return LOADER_DISPLAY_NAMES[loader] || formatCategoryName(loader || ""); }
 
+// Mods that let Fabric-tagged mods run inside a Forge/NeoForge instance. Each of these is
+// itself published as a Forge/NeoForge build (its own effectiveLoaders will say "neoforge"),
+// so they still need to be present together — Connector does the translation, Forgified
+// Fabric API provides the Fabric API library on top of NeoForge, and Launchpad is the
+// lightweight opt-in alternative to Connector. A pack that bundles any of these plus a bunch
+// of "fabric"-tagged mods is a NeoForge/Forge pack under the hood, not a Fabric one.
 const LOADER_BRIDGES = {
-  "u58R1TMW": { runs: ["fabric", "quilt"], on: ["forge", "neoforge"] } // Sinytra Connector
+  "u58R1TMW": { runs: ["fabric", "quilt"], on: ["forge", "neoforge"] }, // Sinytra Connector
+  "Aqlf1Shp": { runs: ["fabric", "quilt"], on: ["forge", "neoforge"] }, // Forgified Fabric API
+  "voWgQoWV": { runs: ["fabric", "quilt"], on: ["forge", "neoforge"] }  // Launchpad
 };
 
 function getActiveLoaderBridges(selected){
@@ -3389,12 +3451,29 @@ function modListHtml(mods, limit = 6){
 }
 
 function dominantImportedLoader(selected){
+  // Bridge-aware: a mod reported as "fabric" in the pack's manifest only needs an actual
+  // Fabric instance if nothing is translating it. When a bridge mod (Connector, Forgified
+  // Fabric API, Launchpad, ...) is also selected, those "fabric" mods are really running on
+  // whichever loader the bridge itself targets (Forge/NeoForge) — so give that target loader
+  // credit too. Otherwise a pack that's mostly Fabric-tagged content mods riding a NeoForge-side
+  // bridge gets misread as targeting Fabric, and the bridge mods themselves (which correctly
+  // only ship NeoForge builds) get wrongly flagged as missing a Fabric version.
+  const bridges = getActiveLoaderBridges(selected);
   const counts = new Map();
   selected.forEach(x=>{
     const m = x.mod;
     if(!m.fromModpack || !m.fromModpackLoaders || m.fromModpackLoaders.length !== 1) return;
-    const key = `${m.fromModpack}|${m.fromModpackLoaders[0]}`;
+    const reported = m.fromModpackLoaders[0];
+    const key = `${m.fromModpack}|${reported}`;
     counts.set(key, (counts.get(key) || 0) + 1);
+    bridges.forEach(b=>{
+      if(b.runs.includes(reported)){
+        b.on.forEach(onLoader=>{
+          const bridgeKey = `${m.fromModpack}|${onLoader}`;
+          counts.set(bridgeKey, (counts.get(bridgeKey) || 0) + 1);
+        });
+      }
+    });
   });
   if(!counts.size) return null;
   let bestKey = null, bestCount = 0;
@@ -3421,6 +3500,12 @@ async function runCompatibilityCheck(){
         if(!depProjectId) continue;
         const other = selected.find(x=>x.mod.id === depProjectId);
         if(other){
+          // Some "incompatible" entries point at one specific version_id of the other
+          // project (a conflict that only existed in that release) rather than the whole
+          // project via project_id. Only treat it as a real conflict when the pack is
+          // actually using that exact flagged version — otherwise a pack that bundles a
+          // newer, already-fixed version of the other mod gets wrongly flagged too.
+          if(dep.version_id && !dep.project_id && other.version.id !== dep.version_id) continue;
           const pairKey = [mod.id, other.mod.id].sort().join("|");
           if(seenPairs.has(pairKey)) continue;
           seenPairs.add(pairKey);
@@ -3468,7 +3553,13 @@ async function runCompatibilityCheck(){
     const loaderPick = explicitLoader ? { loader: explicitLoader, runners: selected.filter(x=>modRunsOnLoader(x, explicitLoader, loaderBridges)) } : pickBestLoaderForPack(selected);
 
     if(loaderPick){
-      const missing = selected.filter(x=>!modRunsOnLoader(x, loaderPick.loader, loaderBridges));
+      const missing = selected.filter(x=>!modRunsOnLoader(x, loaderPick.loader, loaderBridges))
+        // Mods still on the exact version they came in with from a modpack import are trusted
+        // as-is — the pack author already shipped them together as a working combination.
+        // Flagging them against a majority computed across the whole Create list (which may
+        // now include unrelated manually-added mods) is what kept "breaking" a freshly
+        // imported pack. Only mods you've added or re-picked yourself get checked here.
+        .filter(x=>!x.mod.trustedFromModpack);
       if(missing.length){
         const loaderLabel = formatLoaderName(loaderPick.loader);
         const loaderStrong = boldEsc(loaderLabel);
@@ -3482,14 +3573,17 @@ async function runCompatibilityCheck(){
         });
       }
     }else{
-      issues.push({
-        type: "loader",
-        icon: COMPAT_ICON_LOADER,
-        title: t('compatTitleNoLoader','No shared mod loader'),
-        detail: t('compatLoaderNoneReported',`None of your selected mod versions report a loader, so compatibility can't be confirmed. Open each mod below and check it has a proper loader-specific version selected.`),
-        mods: selected.map(x=>x.mod),
-        perModNote: selected.map(x=>`${escapeHtml(x.mod.title)}: ${boldEsc((x.version.loaders||[]).join(", ") || t('compatUnknown','unknown'))}`)
-      });
+      const untrusted = selected.filter(x=>!x.mod.trustedFromModpack);
+      if(untrusted.length){
+        issues.push({
+          type: "loader",
+          icon: COMPAT_ICON_LOADER,
+          title: t('compatTitleNoLoader','No shared mod loader'),
+          detail: t('compatLoaderNoneReported',`None of your selected mod versions report a loader, so compatibility can't be confirmed. Open each mod below and check it has a proper loader-specific version selected.`),
+          mods: untrusted.map(x=>x.mod),
+          perModNote: untrusted.map(x=>`${escapeHtml(x.mod.title)}: ${boldEsc((x.version.loaders||[]).join(", ") || t('compatUnknown','unknown'))}`)
+        });
+      }
     }
 
     const expMcEl = document.getElementById("expMcVersion");
@@ -3498,25 +3592,30 @@ async function runCompatibilityCheck(){
       ? { value: explicitMc, supporters: selected.filter(x=>effectiveGameVersions(x).includes(explicitMc)) }
       : findMajoritySupport(selected, effectiveGameVersions);
     if(gvBest && gvBest.supporters.length < selected.length){
-      const missing = selected.filter(x=>!gvBest.supporters.includes(x));
-      const mcStrong = boldEsc(explicitMc ? `Minecraft ${gvBest.value}` : gvBest.value);
-      issues.push({
-        type: "version",
-        icon: COMPAT_ICON_BLOCK,
-        title: t('compatTitleNoVersion','No shared Minecraft version'),
-        detail: `${explicitMc ? tf('compatVersionTargets','Your pack targets {version}', {version: mcStrong}) : tf('compatVersionMostSupport','Most of your selected mods support {version}', {version: mcStrong})}${t('compatVersionRest',", but these don't have a version for it. Pick versions of each mod below that target that release instead.")}`,
-        mods: missing.map(x=>x.mod),
-        perModNote: missing.map(x=>`${escapeHtml(x.mod.title)}: ${boldEsc(effectiveGameVersions(x).slice(-3).join(", ") || t('compatUnknown','unknown'))}`)
-      });
+      const missing = selected.filter(x=>!gvBest.supporters.includes(x)).filter(x=>!x.mod.trustedFromModpack);
+      if(missing.length){
+        const mcStrong = boldEsc(explicitMc ? `Minecraft ${gvBest.value}` : gvBest.value);
+        issues.push({
+          type: "version",
+          icon: COMPAT_ICON_BLOCK,
+          title: t('compatTitleNoVersion','No shared Minecraft version'),
+          detail: `${explicitMc ? tf('compatVersionTargets','Your pack targets {version}', {version: mcStrong}) : tf('compatVersionMostSupport','Most of your selected mods support {version}', {version: mcStrong})}${t('compatVersionRest',", but these don't have a version for it. Pick versions of each mod below that target that release instead.")}`,
+          mods: missing.map(x=>x.mod),
+          perModNote: missing.map(x=>`${escapeHtml(x.mod.title)}: ${boldEsc(effectiveGameVersions(x).slice(-3).join(", ") || t('compatUnknown','unknown'))}`)
+        });
+      }
     }else if(!gvBest){
-      issues.push({
-        type: "version",
-        icon: COMPAT_ICON_BLOCK,
-        title: t('compatTitleNoVersion','No shared Minecraft version'),
-        detail: t('compatVersionNoneReported',`None of your selected mod versions report a Minecraft version, so compatibility can't be confirmed. Open each mod below and check its selected version.`),
-        mods: selected.map(x=>x.mod),
-        perModNote: selected.map(x=>`${escapeHtml(x.mod.title)}: ${boldEsc((x.version.game_versions||[]).slice(-3).join(", ") || t('compatUnknown','unknown'))}`)
-      });
+      const untrusted = selected.filter(x=>!x.mod.trustedFromModpack);
+      if(untrusted.length){
+        issues.push({
+          type: "version",
+          icon: COMPAT_ICON_BLOCK,
+          title: t('compatTitleNoVersion','No shared Minecraft version'),
+          detail: t('compatVersionNoneReported',`None of your selected mod versions report a Minecraft version, so compatibility can't be confirmed. Open each mod below and check its selected version.`),
+          mods: untrusted.map(x=>x.mod),
+          perModNote: untrusted.map(x=>`${escapeHtml(x.mod.title)}: ${boldEsc((x.version.game_versions||[]).slice(-3).join(", ") || t('compatUnknown','unknown'))}`)
+        });
+      }
     }
   }
 
@@ -3596,6 +3695,9 @@ async function autoFixCompatibility(missingDepIds){
   if(selected.length >= 2 && !noTarget){
     for(const x of selected){
       const { mod } = x;
+      // Mods still on their original modpack-imported version are trusted and left alone here
+      // too — AutoSolve shouldn't "fix" something that was never broken.
+      if(mod.trustedFromModpack) continue;
       const okLoader = !targetLoader || isLoaderAgnostic(x) || modRunsOnLoader(x, targetLoader, loaderBridges);
       const okVersion = !targetMc || effectiveGameVersions(x).includes(targetMc);
       if(okLoader && okVersion) continue; // already fine, leave it alone
@@ -4261,16 +4363,57 @@ function compareMcVersions(a, b){
 }
 
 async function pickModpackVersion(versions){
-  const releaseVersions = versions.filter(v=>!v.version_type || v.version_type === "release");
-  const usable = (releaseVersions.length ? releaseVersions : versions).filter(v=>v.files && v.files.length);
+  // Show every importable version, not just "release"-type ones — a pack's newest upload is
+  // often a beta, and filtering those out here was hiding it from the picker entirely. Alpha/beta
+  // builds are still hidden by default (most people just want the stable line), but a toggle
+  // lets you bring them back in rather than losing them completely.
+  //
+  // Only treat a release as alpha/beta if its own label actually says so ("-alpha"/"-beta" in
+  // the name or version number). The API's version_type field was also being checked here, but
+  // it's set by the pack author's upload workflow and isn't a reliable "this is unstable"
+  // signal — it was hiding perfectly normal, complete releases (e.g. 1.21.5, 1.21.6 builds)
+  // that just happened to be tagged version_type "beta" for reasons unrelated to build quality.
+  const usable = versions.filter(v=>v.files && v.files.length);
   if(!usable.length) return null;
-  const options = [...usable].sort((a,b)=>{
-    const gvA = (a.game_versions||[]).slice(-1)[0] || "";
-    const gvB = (b.game_versions||[]).slice(-1)[0] || "";
-    return compareMcVersions(gvB, gvA);
+  const UNSTABLE_LABEL_RE = /-(?:alpha|beta)\b/i;
+  const isStable = v=>!UNSTABLE_LABEL_RE.test(`${v.name || ""} ${v.version_number || ""}`);
+  const hasUnstable = usable.some(v=>!isStable(v));
+  // A single modpack release can legitimately target more than one Minecraft version at once
+  // (game_versions: ["1.20.1","1.20.2"]). Only ever looking at the *last* entry in that array
+  // (the old behavior) meant every earlier Minecraft version it also supported never showed up
+  // anywhere — not in the "releases for more than one version" message, not in the latest-build
+  // marker, not in sorting — even though the release was a complete, working build for it.
+  // Using the newest game version in the array (rather than the last-in-array one, whose
+  // ordering isn't guaranteed by the API) fixes sorting; flattening every entry fixes the rest.
+  const newestGv = v=>(v.game_versions||[]).reduce((best, gv)=>(!best || compareMcVersions(gv, best) > 0) ? gv : best, "");
+  const sortAll = list=>[...list].sort((a,b)=>{
+    const gvCmp = compareMcVersions(newestGv(b), newestGv(a));
+    return gvCmp !== 0 ? gvCmp : (b.date_published||"").localeCompare(a.date_published||"");
   });
-  const distinctGv = [...new Set(options.map(v=>(v.game_versions||[]).slice(-1)[0] || "unknown"))];
-  if(distinctGv.length <= 1) return pickBestVersion(options);
+  const stableOptions = sortAll(usable.filter(isStable));
+  const allOptions = sortAll(usable);
+  const distinctGv = [...new Set(usable.flatMap(v=>(v.game_versions||[]).length ? v.game_versions : ["unknown"]))];
+  // Only skip the picker outright if there's truly nothing to pick between. (Previously this
+  // also skipped whenever every release shared the same Minecraft version — but a pack can have
+  // several releases *for the same MC version* (bugfixes, content updates, etc.), and silently
+  // grabbing the newest one hid every other build from the user. We still call
+  // pickBestVersion(options) here would carry the same stray-filter risk noted below, so we
+  // don't do that either — we just always surface the choice when there's more than one option.)
+  if(usable.length <= 1) return usable[0];
+
+  // Per Minecraft-version "latest" markers: within whichever list is currently shown, find the
+  // most-recently-published version for each distinct game version and flag its id.
+  function latestIdsFor(list){
+    const byGv = new Map();
+    for(const v of list){
+      const gvs = (v.game_versions||[]).length ? v.game_versions : ["unknown"];
+      for(const gv of gvs){
+        const cur = byGv.get(gv);
+        if(!cur || (v.date_published||"") > (cur.date_published||"")) byGv.set(gv, v);
+      }
+    }
+    return new Set([...byGv.values()].map(v=>v.id));
+  }
 
   return new Promise(resolve=>{
     const backdrop = document.createElement("div");
@@ -4279,25 +4422,49 @@ async function pickModpackVersion(versions){
     backdrop.innerHTML = `
       <div class="modal" style="max-width:400px;">
         <div class="modal-head" style="margin-bottom:14px;">
-          <div class="name" style="font-size:1.05rem;">Pick a Minecraft version</div>
+          <div class="name" style="font-size:1.05rem;">Pick a version to import</div>
           <button class="modal-close" aria-label="${t('close','Close')}">✕</button>
         </div>
-        <p style="margin:0 0 14px; font-size:0.85rem; color:var(--text-dim);">This modpack has releases for more than one Minecraft version. Choose which build to import into Create.</p>
-        <div class="modal-versions">
-          ${options.map((v,i)=>`
-            <div class="version-row" data-idx="${i}">
-              <span class="version-loaders">${loaderIconsHtml(v.loaders)}</span>
-              <span class="vname">${escapeHtml(v.version_number)}</span>
-              <span class="vmeta">${(v.game_versions||[]).slice(-3).join(", ")} · ${(v.loaders||[]).join(", ")}</span>
-            </div>`).join("")}
-        </div>
+        <p style="margin:0 0 14px; font-size:0.85rem; color:var(--text-dim);">${distinctGv.length > 1 ? "This modpack has releases for more than one Minecraft version. Choose which build to import into Create." : "This modpack has more than one release available. Choose which build to import into Create."}</p>
+        <div class="modal-versions" id="modpackVersionList"></div>
+        ${hasUnstable ? `
+        <label class="modpack-unstable-toggle">
+          <span class="switch">
+            <input type="checkbox" id="modpackShowUnstable">
+            <span class="switch-track"><span class="switch-thumb"></span></span>
+          </span>
+          <span class="switch-label">${t('showAlphaBetaVersions','Show alpha/beta versions')}</span>
+        </label>` : ""}
       </div>`;
+
+    const listEl = backdrop.querySelector("#modpackVersionList");
+    let current = stableOptions.length ? stableOptions : allOptions;
+    function renderList(){
+      const latestIds = latestIdsFor(current);
+      listEl.innerHTML = current.map((v,i)=>`
+        <div class="version-row" data-idx="${i}">
+          ${latestIds.has(v.id) ? `<span class="latest-dot" title="${t('latestUploadTitle','Latest version uploaded')}"></span>` : ""}
+          <span class="version-loaders">${loaderIconsHtml(v.loaders)}</span>
+          <span class="vname">${escapeHtml(v.version_number)}</span>
+          <span class="vmeta">${(v.game_versions||[]).slice(-3).join(", ")} · ${(v.loaders||[]).join(", ")}</span>
+        </div>`).join("");
+      listEl.querySelectorAll(".version-row").forEach(row=>{
+        row.addEventListener("click", ()=>finish(current[Number(row.dataset.idx)]));
+      });
+    }
+    renderList();
+
+    const unstableToggle = backdrop.querySelector("#modpackShowUnstable");
+    if(unstableToggle){
+      unstableToggle.addEventListener("change", ()=>{
+        current = unstableToggle.checked ? allOptions : (stableOptions.length ? stableOptions : allOptions);
+        renderList();
+      });
+    }
+
     function finish(v){ backdrop.remove(); resolve(v); }
     backdrop.addEventListener("click", (e)=>{ if(e.target === backdrop) finish(null); });
     backdrop.querySelector(".modal-close").addEventListener("click", ()=>finish(null));
-    backdrop.querySelectorAll(".version-row").forEach(row=>{
-      row.addEventListener("click", ()=>finish(options[Number(row.dataset.idx)]));
-    });
     document.body.appendChild(backdrop);
   });
 }
@@ -4360,8 +4527,20 @@ async function importMrpackZipIntoPack(zip, meta = {}){
       clientSide: (proj && proj.client_side) || "required",
       serverSide: (proj && proj.server_side) || "required",
       fromModpack: meta.fromModpackId || "imported-mrpack",
-      fromModpackLoaders: loaders,
-      fromModpackGameVersions: gameVersions,
+      // Per-mod, not pack-wide: a modpack's manifest-level loader (`loaders` above, from
+      // index.dependencies) is the same for every entry, but bridge mods like Sinytra
+      // Connector/Forgified Fabric API/Launchpad genuinely ship a different loader (NeoForge)
+      // than the rest of the pack. Stamping every mod with the manifest's overall loader wiped
+      // out that distinction and made bridge mods look like they needed a Fabric version they
+      // don't actually have. Each mod's own version.loaders is what it's really published as.
+      fromModpackLoaders: (v.loaders && v.loaders.length) ? v.loaders : loaders,
+      fromModpackGameVersions: (v.game_versions && v.game_versions.length) ? v.game_versions : gameVersions,
+      // Mods straight from a modpack import are trusted as a working combination — the pack
+      // author already shipped them together. See runCompatibilityCheck: this exempts them
+      // from loader/version mismatch flags until the user manually touches their version, so
+      // importing a pack (and adding a mod or two afterward) doesn't light up every original
+      // pack mod as "incompatible" against the rest of Create.
+      trustedFromModpack: true,
       selectedVersionId: v.id,
       selectedVersionNumber: v.version_number,
       selectedFile: v.files.find(f=>f.primary) || v.files[0],
@@ -4373,15 +4552,22 @@ async function importMrpackZipIntoPack(zip, meta = {}){
   savePack();
   foundVersions.forEach(v=>updateCardButtonsEverywhere(v.project_id));
 
+  // Dependencies pulled in transitively (API/compat shims not explicitly listed in the
+  // .mrpack) need to be matched against *this pack's* declared loader/MC version — not
+  // whatever's left over in the unrelated Browse-tab sidebar filters. Without this,
+  // pickBestVersion() (the fallback used when no packTarget is given) prioritizes
+  // state.mcVersion/state.loaders over the hints, so a dependency could end up on a
+  // completely different version than the pack it was just pulled into.
+  const packTarget = { loader: loaders[0] || null, mcVersion: gameVersions[0] || null };
   const depVisited = new Set(foundVersions.map(v=>v.project_id));
   for(const v of foundVersions){
     const proj = projectById[v.project_id];
     try{
-      await autoAddDependencies(v, depVisited, (proj && proj.project_type) || "mod");
+      await autoAddDependencies(v, depVisited, (proj && proj.project_type) || "mod", packTarget, true);
     }catch(e){ console.error("Dependency resolution failed for", v.project_id, e); }
   }
   try{
-    await ensureLoaderApis(gameVersions, loaders);
+    await ensureLoaderApis(gameVersions, loaders, true);
   }catch(e){ console.error("Loader API resolution failed", e); }
   savePack();
   foundVersions.forEach(v=>updateCardButtonsEverywhere(v.project_id));
@@ -4722,8 +4908,13 @@ async function addModpackToCreate(projectId, btn){
   const originalLabel = btn.textContent;
   startLoadingButton(btn, "Loading…");
   try{
-    const versions = await fetchVersions(projectId);
+    const versions = await fetchVersionsRaw(projectId);
     if(!versions.length) throw new Error("No versions available");
+    // Pausing here (rather than leaving the button "loading") is deliberate: the slow-load
+    // toast is meant to reassure the user during actual network/import work, not while they're
+    // sitting on the version-picker modal deciding what to import. Without this, someone who
+    // takes >15s to pick a version would get a "still working on it" toast for no reason.
+    if(btn._slowLoadTimer){ clearTimeout(btn._slowLoadTimer); btn._slowLoadTimer = null; }
     const chosen = await pickModpackVersion(versions);
     if(!chosen){
       stopLoadingButton(btn, originalLabel);
@@ -5259,7 +5450,7 @@ async function checkIncomingShareLink(){
 }
 
 function showGettingStarted(force){
-  if(!force && localStorage.getItem("modbench_intro_seen")) return;
+  if(!force && safeLocalStorageGet("modbench_intro_seen")) return;
   const backdrop = document.createElement("div");
   backdrop.className = "modal-backdrop";
   backdrop.innerHTML = `
