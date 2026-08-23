@@ -284,6 +284,10 @@ window.i18n.fr = {
   shareCreatingCode: "Création du code…",
   shareLinkServiceFallback: "(Impossible de joindre le service de liens courts, voici donc le code autonome complet à la place, il fonctionne de la même façon.)",
   shareRateLimited: "(Vous avez créé beaucoup de liens courts aujourd'hui, voici donc le code autonome complet à la place, il fonctionne de la même façon.)",
+  shareUsageNoteOne: "<strong>{n}</strong> génération de code/lien restante aujourd'hui (sur {limit}) · réinitialisation à {time}",
+  shareUsageNoteOther: "<strong>{n}</strong> générations de code/lien restantes aujourd'hui (sur {limit}) · réinitialisation à {time}",
+  shareLimitReachedTitle: "Limite quotidienne atteinte",
+  shareLimitReachedBody: "Vous avez utilisé les {limit} générations de code/lien prévues pour aujourd'hui. Vous pourrez de nouveau créer des codes et des liens de partage après {time}.",
 
   // Export download
   exportDownloadedBtn: "Téléchargé ✓",
