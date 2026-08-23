@@ -1499,9 +1499,16 @@ function showToast(message, opts = {}){
 /* --- Button loading state (shimmer + spinner + slow-load toast) --- */
 function startLoadingButton(btn, label){
   if(!btn) return;
+  // NOTE: intentionally do NOT set the native `disabled` attribute here.
+  // Disabled form controls don't reliably run CSS animations on their
+  // ::before/::after pseudo-elements in every browser (Firefox in particular
+  // freezes animations on :disabled buttons), which made the shimmer/spinner
+  // flaky or invisible. Using aria-disabled + pointer-events:none (see
+  // .btn-loading in CSS) blocks interaction just as well while keeping the
+  // element enabled so the animation actually plays everywhere.
   if(btn.dataset.originalLabel === undefined) btn.dataset.originalLabel = btn.textContent;
   if(label !== undefined) btn.textContent = label;
-  btn.disabled = true;
+  btn.setAttribute("aria-disabled", "true");
   btn.classList.add("btn-loading");
   if(!btn._slowLoadTimer){
     btn._slowLoadTimer = setTimeout(()=>{
@@ -1513,7 +1520,7 @@ function startLoadingButton(btn, label){
 
 function stopLoadingButton(btn, finalLabel){
   if(!btn) return;
-  btn.disabled = false;
+  btn.removeAttribute("aria-disabled");
   btn.classList.remove("btn-loading");
   btn.textContent = finalLabel !== undefined ? finalLabel : (btn.dataset.originalLabel ?? btn.textContent);
   delete btn.dataset.originalLabel;
@@ -1521,6 +1528,12 @@ function stopLoadingButton(btn, finalLabel){
     clearTimeout(btn._slowLoadTimer);
     btn._slowLoadTimer = null;
   }
+}
+
+// Guard against double-activation (e.g. keyboard Enter/Space) while a
+// btn-loading button is mid-flight, since it's no longer truly `disabled`.
+function isLoadingButton(btn){
+  return !!btn && btn.classList.contains("btn-loading");
 }
 
 const SUPABASE_URL = "https://nwshmuzkphmozilcpdti.supabase.co";
@@ -2122,10 +2135,6 @@ const HEART_ICON_OUTLINE = '<svg viewBox="0 0 24 24" fill="none" stroke="current
 const HEART_ICON_FILLED = '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
 const DOWNLOAD_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>';
 
-// Builds a map of projectId -> [{id,title}] pack mods whose selected version
-// explicitly flags that project as incompatible. Only looks at data already
-// cached on pack items (no extra network calls), so it's cheap to call on
-// every card render.
 let conflictMapCache = null;
 let conflictMapCacheKey = null;
 function getConflictMap(){
@@ -2551,6 +2560,35 @@ function pickBestVersion(versions, hintGameVersions, hintLoaders){
     const hintedL = candidates.filter(v=>v.loaders.some(l=>hintLoaders.includes(l)));
     if(hintedL.length) candidates = hintedL;
   }
+  return (candidates.length ? candidates : versions)[0];
+}
+
+// Like pickBestVersion, but ranks candidates against the pack's actual
+// export target (loader/Minecraft version, as resolved by getCompatTargets)
+// instead of the unrelated Browse-tab search filters. Used by the update
+// checker so it doesn't pick a "newest" version that breaks whatever the
+// compatibility checker just fixed.
+function pickBestVersionForPackTarget(versions, targetLoader, targetMc, hintGameVersions, hintLoaders){
+  if(!versions.length) return null;
+  let candidates = versions;
+
+  if(targetMc){
+    const mcMatched = candidates.filter(v=>v.game_versions.includes(targetMc));
+    if(mcMatched.length) candidates = mcMatched;
+  } else if(hintGameVersions && hintGameVersions.length){
+    const hinted = candidates.filter(v=>v.game_versions.some(gv=>hintGameVersions.includes(gv)));
+    if(hinted.length) candidates = hinted;
+  }
+
+  if(targetLoader){
+    const runnableLoaders = LOADER_RUNS_ON[targetLoader] || [targetLoader];
+    const loaderMatched = candidates.filter(v=>v.loaders.some(l=>runnableLoaders.includes(l)));
+    if(loaderMatched.length) candidates = loaderMatched;
+  } else if(hintLoaders && hintLoaders.length){
+    const hintedL = candidates.filter(v=>v.loaders.some(l=>hintLoaders.includes(l)));
+    if(hintedL.length) candidates = hintedL;
+  }
+
   return (candidates.length ? candidates : versions)[0];
 }
 
@@ -3535,6 +3573,13 @@ async function showCompatibilityResults(fixNote){
 
 async function runUpdateCheck(){
   const candidates = state.pack.filter(m=>m.selectedVersionId);
+
+  const compatSelected = candidates
+    .filter(m=>Array.isArray(m.versions))
+    .map(m=>({ mod: m, version: m.versions.find(v=>v.id === m.selectedVersionId) }))
+    .filter(x=>x.version);
+  const { loader: targetLoader, mcVersion: targetMc } = getCompatTargets(compatSelected);
+
   const results = await Promise.all(candidates.map(async mod=>{
     try{
       const fresh = await fetchVersions(mod.id);
@@ -3543,7 +3588,7 @@ async function runUpdateCheck(){
         || (Array.isArray(mod.versions) ? mod.versions.find(v=>v.id === mod.selectedVersionId) : null);
       const hintGameVersions = current ? current.game_versions : (mod.fromModpackGameVersions || null);
       const hintLoaders = current ? current.loaders : (mod.fromModpackLoaders || null);
-      const best = pickBestVersion(fresh, hintGameVersions, hintLoaders);
+      const best = pickBestVersionForPackTarget(fresh, targetLoader, targetMc, hintGameVersions, hintLoaders);
       if(!best) return { mod, status: "error" };
       const currentDate = current ? new Date(current.date_published).getTime() : 0;
       const bestDate = new Date(best.date_published).getTime();
@@ -3674,6 +3719,7 @@ async function showUpdateResults(){
   const allBtn = backdrop.querySelector("#updateAllBtn");
   if(allBtn){
     allBtn.addEventListener("click", async ()=>{
+      if(isLoadingButton(allBtn)) return;
       startLoadingButton(allBtn, t('updating','Updating…'));
       for(const r of outdated){
         await updateOne(r, backdrop.querySelector(`.update-mod-btn[data-update="${CSS.escape(r.mod.id)}"]`));
