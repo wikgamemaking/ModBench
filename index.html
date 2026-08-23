@@ -368,9 +368,19 @@
     display:flex; align-items:center; gap:8px;
     background: var(--surface); border:1px solid var(--border);
     border-radius: 8px; padding: 10px 14px;
-    transition: border-color .15s, box-shadow .15s;
+    transition: border-color .25s cubic-bezier(.22,1,.36,1), box-shadow .25s cubic-bezier(.22,1,.36,1), transform .25s cubic-bezier(.22,1,.36,1), background-color .25s cubic-bezier(.22,1,.36,1);
   }
-  .search-box:focus-within{ border-color: var(--accent); box-shadow: 0 0 0 3px var(--accent-soft); }
+  .search-box:focus-within{
+    border-color: var(--accent);
+    box-shadow: 0 0 0 4px var(--accent-soft), 0 4px 14px -6px var(--accent);
+    transform: translateY(-1px);
+  }
+  .search-box > span[aria-hidden]{ transition: transform .25s cubic-bezier(.34,1.56,.64,1), opacity .25s ease; opacity:.75; }
+  .search-box:focus-within > span[aria-hidden]{ transform: scale(1.12); opacity:1; }
+  @media (prefers-reduced-motion: reduce){
+    .search-box, .search-box > span[aria-hidden]{ transition: none; }
+    .search-box:focus-within{ transform:none; }
+  }
   .search-box input{
     border:none; outline:none; font-family:inherit; font-size:1rem;
     width:100%; background:transparent; color:var(--text);
@@ -463,10 +473,19 @@
     padding: 14px;
     display:flex; flex-direction:column; gap:8px;
     cursor:pointer;
-    transition: border-color .18s ease, transform .18s ease, box-shadow .18s ease;
+    transition: border-color .18s ease, transform .18s ease, box-shadow .18s ease, opacity .3s cubic-bezier(.22,1,.36,1), filter .3s cubic-bezier(.22,1,.36,1);
   }
   .card:hover{ border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 6px 18px rgba(38,36,32,.08); }
   .card:active{ transform: scale(0.99); }
+  #favResults .card.card-unfav-out{
+    opacity: 0;
+    transform: scale(.92) translateY(6px);
+    filter: blur(2px);
+    pointer-events: none;
+  }
+  @media (prefers-reduced-motion: reduce){
+    #favResults .card.card-unfav-out{ transition: none; }
+  }
   .card.card-conflict{ border-color: var(--warn-border); background: var(--warn-soft); }
   .card.card-conflict:hover{ border-color: var(--warn); }
   .card-conflict-note{
@@ -531,25 +550,25 @@
   }
   .card-stats{ position:relative; }
 
-  #results.list, #favResults.list, .pack-category-group .list{ display:flex; flex-direction:column; gap:8px; }
-  #results.list .card, #favResults.list .card, .pack-category-group .list .card{
+  #results.list, #favResults.list, #modpackResults.list, .pack-category-group .list{ display:flex; flex-direction:column; gap:8px; }
+  #results.list .card, #favResults.list .card, #modpackResults.list .card, .pack-category-group .list .card{
     flex-direction:row; align-items:center; padding:10px 14px;
   }
-  #results.list .card-top, #favResults.list .card-top, .pack-category-group .list .card-top{ flex:1; min-width:0; }
-  #results.list .card-desc, #favResults.list .card-desc, .pack-category-group .list .card-desc{ -webkit-line-clamp:1; margin:0; }
-  #results.list .card-tags, #favResults.list .card-tags, .pack-category-group .list .card-tags{ display:none; }
-  #results.list .card-icon, #favResults.list .card-icon, .pack-category-group .list .card-icon{ width:36px; height:36px; }
-  #results.list .card-stats, #favResults.list .card-stats, .pack-category-group .list .card-stats{ flex-shrink:0; }
+  #results.list .card-top, #favResults.list .card-top, #modpackResults.list .card-top, .pack-category-group .list .card-top{ flex:1; min-width:0; }
+  #results.list .card-desc, #favResults.list .card-desc, #modpackResults.list .card-desc, .pack-category-group .list .card-desc{ -webkit-line-clamp:1; margin:0; }
+  #results.list .card-tags, #favResults.list .card-tags, #modpackResults.list .card-tags, .pack-category-group .list .card-tags{ display:none; }
+  #results.list .card-icon, #favResults.list .card-icon, #modpackResults.list .card-icon, .pack-category-group .list .card-icon{ width:36px; height:36px; }
+  #results.list .card-stats, #favResults.list .card-stats, #modpackResults.list .card-stats, .pack-category-group .list .card-stats{ flex-shrink:0; }
 
   @media (max-width: 640px){
-    #results.list .card, #favResults.list .card, .pack-category-group .list .card{
+    #results.list .card, #favResults.list .card, #modpackResults.list .card, .pack-category-group .list .card{
       flex-wrap: wrap;
       row-gap: 8px;
       padding: 12px;
     }
-    #results.list .card-top, #favResults.list .card-top, .pack-category-group .list .card-top{ width:100%; }
-    #results.list .card-desc, #favResults.list .card-desc, .pack-category-group .list .card-desc{ display:-webkit-box; -webkit-line-clamp:2; margin:0; }
-    #results.list .card-stats, #favResults.list .card-stats, .pack-category-group .list .card-stats{
+    #results.list .card-top, #favResults.list .card-top, #modpackResults.list .card-top, .pack-category-group .list .card-top{ width:100%; }
+    #results.list .card-desc, #favResults.list .card-desc, #modpackResults.list .card-desc, .pack-category-group .list .card-desc{ display:-webkit-box; -webkit-line-clamp:2; margin:0; }
+    #results.list .card-stats, #favResults.list .card-stats, #modpackResults.list .card-stats, .pack-category-group .list .card-stats{
       width:100%;
       justify-content: flex-start;
     }
@@ -672,10 +691,13 @@
     .empty-state.empty-pop-in{ animation: none; }
   }
 
-  #packList{ transition: opacity .5s cubic-bezier(.16,1,.3,1), transform .5s cubic-bezier(.16,1,.3,1), filter .5s cubic-bezier(.16,1,.3,1); transform-origin: top center; }
-  #packList.pack-clear-out{ opacity:0; transform: scale(.97) translateY(10px); filter: blur(2px); pointer-events:none; }
+  #packList{ transition: opacity .4s cubic-bezier(.22,1,.36,1), filter .4s cubic-bezier(.22,1,.36,1); transform-origin: top center; }
+  #packList.pack-clear-out{ pointer-events:none; }
+  #packList .pack-row{ transition: opacity .38s cubic-bezier(.22,1,.36,1), transform .38s cubic-bezier(.22,1,.36,1), filter .38s cubic-bezier(.22,1,.36,1); }
+  #packList .pack-row.row-clear-out{ opacity:0; transform: scale(.94) translateX(-10px); filter: blur(3px); }
   @media (prefers-reduced-motion: reduce){
     #packList{ transition: none; }
+    #packList .pack-row{ transition: none; }
   }
 
   .export-panel{
@@ -1497,6 +1519,14 @@
             <option value="oldest" data-i18n="sortOldest">Oldest</option>
             <option value="updated" data-i18n="sortUpdated">Recently updated</option>
           </select>
+          <div class="view-toggle">
+            <button id="modpackGridBtn" class="active" aria-label="Grid view" title="Grid view" data-i18n-attr="aria-label:viewGrid,title:viewGrid">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/></svg>
+            </button>
+            <button id="modpackListBtn" aria-label="List view" title="List view" data-i18n-attr="aria-label:viewList,title:viewList">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
+            </button>
+          </div>
         </div>
         <div id="modpackResults" class="grid"></div>
         <div id="modpackStatusMsg" class="status-msg" style="display:none;"></div>
@@ -1985,6 +2015,7 @@ let state = {
   modpackPage: 1,
   modpackTotalHits: 0,
   modpackSearched: false,
+  modpackView: "grid",
   packIcon: safeLocalStorageGet("modbench_pack_icon", ""),
   autoCompatCheck: safeLocalStorageGet("modbench_auto_compat_check") !== "off",
   expLoaderTouched: false,
@@ -2647,9 +2678,22 @@ function wireCardEvents(container, hitLookup, onAdd){
     btn.addEventListener("click", (e)=>{
       e.stopPropagation();
       const hit = hitLookup(btn.dataset.fav);
+      const wasFav = hit && state.favorites.some(f=>f.id===hit.project_id);
       if(hit) toggleFavorite(hit);
       updateCardButtonsEverywhere(btn.dataset.fav);
-      if(state.tab === "favorites") renderFavorites();
+      if(state.tab === "favorites"){
+        const card = wasFav ? btn.closest(".card") : null;
+        const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        if(card && !reduceMotion){
+          card.classList.add("card-unfav-out");
+          let done = false;
+          const finish = ()=>{ if(done) return; done = true; renderFavorites(); };
+          card.addEventListener("transitionend", finish, {once:true});
+          setTimeout(finish, 320);
+        }else{
+          renderFavorites();
+        }
+      }
     });
   });
 }
@@ -4451,7 +4495,7 @@ async function runModpackSearch(){
 function renderModpackResults(){
   const resultsEl = document.getElementById("modpackResults");
   if(!resultsEl) return;
-  resultsEl.className = "grid";
+  resultsEl.className = state.modpackView;
   resultsEl.innerHTML = state.modpackResults.map(hit=>{
     const html = cardHtml(hit);
     const alreadyAdded = state.pack.some(p=>p.fromModpack===hit.project_id);
@@ -5451,14 +5495,20 @@ document.getElementById("removeAllBtn").addEventListener("click", async ()=>{
         requestAnimationFrame(()=> emptyEl.classList.add("empty-pop-in"));
       }
     };
-    if(reduceMotion || !listEl || !listEl.children.length){
+    const rows = listEl ? Array.from(listEl.querySelectorAll(".pack-row")) : [];
+    if(reduceMotion || !listEl || !rows.length){
       doClear();
     }else{
       let done = false;
       const finish = ()=>{ if(done) return; done = true; doClear(); };
       listEl.classList.add("pack-clear-out");
-      listEl.addEventListener("transitionend", finish, {once:true});
-      setTimeout(finish, 520);
+      const stagger = Math.min(28, 260 / rows.length);
+      rows.forEach((row, i)=>{
+        row.style.transitionDelay = `${i * stagger}ms`;
+        requestAnimationFrame(()=> row.classList.add("row-clear-out"));
+      });
+      const totalDelay = (rows.length - 1) * stagger + 380;
+      setTimeout(finish, totalDelay);
     }
   }
 });
@@ -5555,6 +5605,19 @@ document.getElementById("favListBtn").addEventListener("click", ()=>{
   document.getElementById("favListBtn").classList.add("active");
   document.getElementById("favGridBtn").classList.remove("active");
   renderFavorites();
+});
+
+document.getElementById("modpackGridBtn").addEventListener("click", ()=>{
+  state.modpackView = "grid";
+  document.getElementById("modpackGridBtn").classList.add("active");
+  document.getElementById("modpackListBtn").classList.remove("active");
+  renderModpackResults();
+});
+document.getElementById("modpackListBtn").addEventListener("click", ()=>{
+  state.modpackView = "list";
+  document.getElementById("modpackListBtn").classList.add("active");
+  document.getElementById("modpackGridBtn").classList.remove("active");
+  renderModpackResults();
 });
 
 document.getElementById("packEmptyBrowseBtn").addEventListener("click", ()=>{
