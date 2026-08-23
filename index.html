@@ -899,7 +899,23 @@
   .intro-head-text p{ text-wrap: pretty; }
   .intro-modal .modal-close{ flex-shrink:0; }
   .intro-steps{ display:flex; flex-direction:column; gap:14px; margin:18px 0 0; }
-  .intro-step{ display:flex; gap:12px; align-items:flex-start; }
+  .intro-step{
+    display:flex; gap:12px; align-items:flex-start;
+    opacity:0; animation: intro-step-in .38s ease forwards;
+  }
+  .intro-step:nth-child(1){ animation-delay: .03s; }
+  .intro-step:nth-child(2){ animation-delay: .09s; }
+  .intro-step:nth-child(3){ animation-delay: .15s; }
+  .intro-step:nth-child(4){ animation-delay: .21s; }
+  .intro-step:nth-child(5){ animation-delay: .27s; }
+  @keyframes intro-step-in{
+    from{ opacity:0; transform: translateY(6px); }
+    to{ opacity:1; transform: translateY(0); }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .intro-step{ opacity:1; animation:none; }
+  }
+  .intro-step strong{ color: var(--text); }
   .intro-step-icon{
     flex-shrink:0; width:38px; height:38px; border-radius:10px;
     background: var(--accent-soft); color: var(--accent-dark);
@@ -912,7 +928,7 @@
     color: var(--text); background: var(--surface-2); border:1px solid var(--border);
     border-radius:5px; padding:1px 6px; line-height:1.5;
   }
-  .intro-footnote{ font-size:0.78rem; color:var(--text-dim); margin:14px 0 0; text-align:center; text-wrap: pretty; }
+  .intro-footnote{ font-size:0.8rem; color:var(--text); margin:14px 0 0; text-align:center; text-wrap: pretty; }
   @media (max-width: 480px){
     .modal{ padding: 18px; }
     .intro-logo{ width:44px; height:44px; padding:6px; }
@@ -1717,7 +1733,7 @@
 
 </main>
 
-<footer data-i18n="footerText">ModBench pulls live data from the <a href="https://modrinth.com" target="_blank" rel="noopener">Modrinth</a> API. Not affiliated with Modrinth or Mojang.<div style="margin-top:6px; opacity:0.6;">Modbench, 2026 - Made with ❤️ by Vik</div></footer>
+<footer data-i18n="footerText">ModBench pulls live data from the <a href="https://modrinth.com" target="_blank" rel="noopener">Modrinth</a> API. Not affiliated with Modrinth or Mojang.<div style="margin-top:6px; opacity:0.6;">ModBench, 2026 - Made with ❤️ by Vik</div></footer>
 
 <script>
 const API = "https://api.modrinth.com/v2";
@@ -2566,10 +2582,6 @@ const HEART_ICON_OUTLINE = '<svg viewBox="0 0 24 24" fill="none" stroke="current
 const HEART_ICON_FILLED = '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
 const DOWNLOAD_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>';
 
-// Builds a map of projectId -> [{id,title}] pack mods whose selected version
-// explicitly flags that project as incompatible. Only looks at data already
-// cached on pack items (no extra network calls), so it's cheap to call on
-// every card render.
 let conflictMapCache = null;
 let conflictMapCacheKey = null;
 function getConflictMap(){
@@ -2840,14 +2852,6 @@ async function fetchVersionsRaw(projectId){
   return res.json();
 }
 function filterSnapshotOnlyVersions(data){
-  // isSnapshotOnlyVersion drops builds whose game_versions are *entirely* snapshots — meant to
-  // hide mod builds that only exist for a pre-release/RC and were never cut for an actual
-  // Minecraft release. That heuristic doesn't apply to modpacks: a modpack's own "versions" are
-  // the author's published pack releases (v1.0, v1.1-beta, ...), and it's normal for a
-  // perfectly complete pack release to be tagged with a game_version Modrinth's own
-  // /tag/game_version list doesn't happen to mark "release" (older/oddly-tagged MC versions).
-  // Applying this mod-oriented filter there was silently deleting whole, real modpack releases
-  // (and with them, the Minecraft version they targeted) before the user ever saw them.
   const filtered = data.filter(v=>!isSnapshotOnlyVersion(v));
   return filtered.length ? filtered : data;
 }
@@ -2891,11 +2895,6 @@ function showConfirm(messageHtml, {confirmLabel = "Confirm", danger = true} = {}
 
 async function autoAddDependencies(version, visited, hostProjectType, packTarget, trusted = false){
   if(!version || !Array.isArray(version.dependencies)) return;
-  // Only auto-add *required* dependencies. This used to also pull in every "optional"
-  // dependency whenever the host item wasn't literally typed "mod" (resource packs, shader
-  // packs, datapacks — all common inside a bundled modpack) — silently treating merely-suggested
-  // companion content as mandatory. That's how imports ballooned past what the pack actually
-  // needs. Optional means optional; the person can add those themselves if they want them.
   for(const dep of version.dependencies){
     if(dep.dependency_type !== "required") continue;
     let depProjectId = dep.project_id;
@@ -3604,12 +3603,6 @@ const LOADER_RUNS_ON = { fabric: ["fabric"], quilt: ["quilt", "fabric"], forge: 
 const LOADER_DISPLAY_NAMES = { fabric: "Fabric", quilt: "Quilt", forge: "Forge", neoforge: "NeoForge" };
 function formatLoaderName(loader){ return LOADER_DISPLAY_NAMES[loader] || formatCategoryName(loader || ""); }
 
-// Mods that let Fabric-tagged mods run inside a Forge/NeoForge instance. Each of these is
-// itself published as a Forge/NeoForge build (its own effectiveLoaders will say "neoforge"),
-// so they still need to be present together — Connector does the translation, Forgified
-// Fabric API provides the Fabric API library on top of NeoForge, and Launchpad is the
-// lightweight opt-in alternative to Connector. A pack that bundles any of these plus a bunch
-// of "fabric"-tagged mods is a NeoForge/Forge pack under the hood, not a Fabric one.
 const LOADER_BRIDGES = {
   "u58R1TMW": { runs: ["fabric", "quilt"], on: ["forge", "neoforge"] }, // Sinytra Connector
   "Aqlf1Shp": { runs: ["fabric", "quilt"], on: ["forge", "neoforge"] }, // Forgified Fabric API
@@ -3658,13 +3651,6 @@ function modListHtml(mods, limit = 6){
 }
 
 function dominantImportedLoader(selected){
-  // Bridge-aware: a mod reported as "fabric" in the pack's manifest only needs an actual
-  // Fabric instance if nothing is translating it. When a bridge mod (Connector, Forgified
-  // Fabric API, Launchpad, ...) is also selected, those "fabric" mods are really running on
-  // whichever loader the bridge itself targets (Forge/NeoForge) — so give that target loader
-  // credit too. Otherwise a pack that's mostly Fabric-tagged content mods riding a NeoForge-side
-  // bridge gets misread as targeting Fabric, and the bridge mods themselves (which correctly
-  // only ship NeoForge builds) get wrongly flagged as missing a Fabric version.
   const bridges = getActiveLoaderBridges(selected);
   const counts = new Map();
   selected.forEach(x=>{
@@ -3707,11 +3693,6 @@ async function runCompatibilityCheck(){
         if(!depProjectId) continue;
         const other = selected.find(x=>x.mod.id === depProjectId);
         if(other){
-          // Some "incompatible" entries point at one specific version_id of the other
-          // project (a conflict that only existed in that release) rather than the whole
-          // project via project_id. Only treat it as a real conflict when the pack is
-          // actually using that exact flagged version — otherwise a pack that bundles a
-          // newer, already-fixed version of the other mod gets wrongly flagged too.
           if(dep.version_id && !dep.project_id && other.version.id !== dep.version_id) continue;
           const pairKey = [mod.id, other.mod.id].sort().join("|");
           if(seenPairs.has(pairKey)) continue;
@@ -3761,11 +3742,6 @@ async function runCompatibilityCheck(){
 
     if(loaderPick){
       const missing = selected.filter(x=>!modRunsOnLoader(x, loaderPick.loader, loaderBridges))
-        // Mods still on the exact version they came in with from a modpack import are trusted
-        // as-is — the pack author already shipped them together as a working combination.
-        // Flagging them against a majority computed across the whole Create list (which may
-        // now include unrelated manually-added mods) is what kept "breaking" a freshly
-        // imported pack. Only mods you've added or re-picked yourself get checked here.
         .filter(x=>!x.mod.trustedFromModpack);
       if(missing.length){
         const loaderLabel = formatLoaderName(loaderPick.loader);
@@ -4570,28 +4546,11 @@ function compareMcVersions(a, b){
 }
 
 async function pickModpackVersion(versions){
-  // Show every importable version, not just "release"-type ones — a pack's newest upload is
-  // often a beta, and filtering those out here was hiding it from the picker entirely. Alpha/beta
-  // builds are still hidden by default (most people just want the stable line), but a toggle
-  // lets you bring them back in rather than losing them completely.
-  //
-  // Only treat a release as alpha/beta if its own label actually says so ("-alpha"/"-beta" in
-  // the name or version number). The API's version_type field was also being checked here, but
-  // it's set by the pack author's upload workflow and isn't a reliable "this is unstable"
-  // signal — it was hiding perfectly normal, complete releases (e.g. 1.21.5, 1.21.6 builds)
-  // that just happened to be tagged version_type "beta" for reasons unrelated to build quality.
   const usable = versions.filter(v=>v.files && v.files.length);
   if(!usable.length) return null;
   const UNSTABLE_LABEL_RE = /-(?:alpha|beta)\b/i;
   const isStable = v=>!UNSTABLE_LABEL_RE.test(`${v.name || ""} ${v.version_number || ""}`);
   const hasUnstable = usable.some(v=>!isStable(v));
-  // A single modpack release can legitimately target more than one Minecraft version at once
-  // (game_versions: ["1.20.1","1.20.2"]). Only ever looking at the *last* entry in that array
-  // (the old behavior) meant every earlier Minecraft version it also supported never showed up
-  // anywhere — not in the "releases for more than one version" message, not in the latest-build
-  // marker, not in sorting — even though the release was a complete, working build for it.
-  // Using the newest game version in the array (rather than the last-in-array one, whose
-  // ordering isn't guaranteed by the API) fixes sorting; flattening every entry fixes the rest.
   const newestGv = v=>(v.game_versions||[]).reduce((best, gv)=>(!best || compareMcVersions(gv, best) > 0) ? gv : best, "");
   const sortAll = list=>[...list].sort((a,b)=>{
     const gvCmp = compareMcVersions(newestGv(b), newestGv(a));
@@ -4600,16 +4559,8 @@ async function pickModpackVersion(versions){
   const stableOptions = sortAll(usable.filter(isStable));
   const allOptions = sortAll(usable);
   const distinctGv = [...new Set(usable.flatMap(v=>(v.game_versions||[]).length ? v.game_versions : ["unknown"]))];
-  // Only skip the picker outright if there's truly nothing to pick between. (Previously this
-  // also skipped whenever every release shared the same Minecraft version — but a pack can have
-  // several releases *for the same MC version* (bugfixes, content updates, etc.), and silently
-  // grabbing the newest one hid every other build from the user. We still call
-  // pickBestVersion(options) here would carry the same stray-filter risk noted below, so we
-  // don't do that either — we just always surface the choice when there's more than one option.)
   if(usable.length <= 1) return usable[0];
 
-  // Per Minecraft-version "latest" markers: within whichever list is currently shown, find the
-  // most-recently-published version for each distinct game version and flag its id.
   function latestIdsFor(list){
     const byGv = new Map();
     for(const v of list){
@@ -4734,19 +4685,8 @@ async function importMrpackZipIntoPack(zip, meta = {}){
       clientSide: (proj && proj.client_side) || "required",
       serverSide: (proj && proj.server_side) || "required",
       fromModpack: meta.fromModpackId || "imported-mrpack",
-      // Per-mod, not pack-wide: a modpack's manifest-level loader (`loaders` above, from
-      // index.dependencies) is the same for every entry, but bridge mods like Sinytra
-      // Connector/Forgified Fabric API/Launchpad genuinely ship a different loader (NeoForge)
-      // than the rest of the pack. Stamping every mod with the manifest's overall loader wiped
-      // out that distinction and made bridge mods look like they needed a Fabric version they
-      // don't actually have. Each mod's own version.loaders is what it's really published as.
       fromModpackLoaders: (v.loaders && v.loaders.length) ? v.loaders : loaders,
       fromModpackGameVersions: (v.game_versions && v.game_versions.length) ? v.game_versions : gameVersions,
-      // Mods straight from a modpack import are trusted as a working combination — the pack
-      // author already shipped them together. See runCompatibilityCheck: this exempts them
-      // from loader/version mismatch flags until the user manually touches their version, so
-      // importing a pack (and adding a mod or two afterward) doesn't light up every original
-      // pack mod as "incompatible" against the rest of Create.
       trustedFromModpack: true,
       selectedVersionId: v.id,
       selectedVersionNumber: v.version_number,
@@ -4759,12 +4699,6 @@ async function importMrpackZipIntoPack(zip, meta = {}){
   savePack();
   foundVersions.forEach(v=>updateCardButtonsEverywhere(v.project_id));
 
-  // Dependencies pulled in transitively (API/compat shims not explicitly listed in the
-  // .mrpack) need to be matched against *this pack's* declared loader/MC version — not
-  // whatever's left over in the unrelated Browse-tab sidebar filters. Without this,
-  // pickBestVersion() (the fallback used when no packTarget is given) prioritizes
-  // state.mcVersion/state.loaders over the hints, so a dependency could end up on a
-  // completely different version than the pack it was just pulled into.
   const packTarget = { loader: loaders[0] || null, mcVersion: gameVersions[0] || null };
   const depVisited = new Set(foundVersions.map(v=>v.project_id));
   for(const v of foundVersions){
@@ -5769,7 +5703,7 @@ function showGettingStarted(force){
           <div class="intro-step-icon">🔍</div>
           <div>
             <h4>${t('introBrowseTitle','Browse')}</h4>
-            <p>${t('introBrowseDesc','Search live mods, shaders, and resource packs straight from Modrinth. Filter by Minecraft version, loader, and category, then add anything you like.')}</p>
+            <p>${t('introBrowseDesc','<strong>Search</strong> live mods, shaders, and resource packs straight from Modrinth. <strong>Filter</strong> by Minecraft version, loader, and category, then add anything you like.')}</p>
             <p style="margin-top:6px;">${t('introBrowseTip','Tip: hover a mod and press <kbd>A</kbd> to quickly add it to Create.')}</p>
           </div>
         </div>
@@ -5777,28 +5711,29 @@ function showGettingStarted(force){
           <div class="intro-step-icon">🧰</div>
           <div>
             <h4>${t('introCreateTitle','Create')}</h4>
-            <p>${t('introCreateDesc',"Everything you've added lives here. Pick a specific file per mod, check compatibility across your whole pack, and remove anything you change your mind about.")}</p>
+            <p>${t('introCreateDesc',"Everything you've added lives here. <strong>Pick</strong> a specific file per mod, <strong>check compatibility</strong> across your whole pack, and remove anything you change your mind about.")}</p>
+            <p style="margin-top:6px;">${t('introCreateTip','Tip: hover a mod in your pack and press <kbd>R</kbd> to quickly remove it.')}</p>
           </div>
         </div>
         <div class="intro-step">
           <div class="intro-step-icon">📦</div>
           <div>
             <h4>${t('introModpacksTitle','Modpacks')}</h4>
-            <p>${t('introModpacksDesc','Browse existing modpacks on Modrinth and import their entire mod list into Create in one click, a great starting point for your own pack.')}</p>
+            <p>${t('introModpacksDesc','<strong>Browse</strong> existing modpacks on Modrinth and <strong>import</strong> their entire mod list into Create in one click, a great starting point for your own pack.')}</p>
           </div>
         </div>
         <div class="intro-step">
           <div class="intro-step-icon">⭐</div>
           <div>
             <h4>${t('introFavoritesTitle','Favorites')}</h4>
-            <p>${t('introFavoritesDesc',"Like mods while browsing to save them for later, independent of whatever pack you're currently building.")}</p>
+            <p>${t('introFavoritesDesc',"<strong>Like</strong> mods while browsing to save them for later, independent of whatever pack you're currently building.")}</p>
           </div>
         </div>
         <div class="intro-step">
           <div class="intro-step-icon">⬇️</div>
           <div>
             <h4>${t('introExportTitle','Export')}</h4>
-            <p>${t('introExportDesc',"Name your pack, set its Minecraft version and loader, and download a ready-to-use <code>.mrpack</code>. You can also import an existing <code>.mrpack</code> here to keep editing it, and customize the pack's icon before exporting.")}</p>
+            <p>${t('introExportDesc',"<strong>Name</strong> your pack, set its Minecraft version and loader, and <strong>download</strong> a ready-to-use <code>.mrpack</code>. You can also import an existing <code>.mrpack</code> here to keep editing it, and customize the pack's icon before exporting.")}</p>
           </div>
         </div>
       </div>
