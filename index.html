@@ -410,8 +410,8 @@
 
   @media (max-width: 640px){
     .toolbar{ flex-wrap:wrap; }
-    .toolbar .search-box{ flex:1 1 70px; min-width:70px; padding:10px 12px; }
-    select#sortSelect, select#modpackSortSelect{ flex:0 1 auto; width:auto; min-width:0; font-size:0.85rem; padding:10px 8px; }
+    .toolbar .search-box{ flex:1 1 100%; min-width:0; }
+    select#sortSelect, select#modpackSortSelect{ flex:1 1 auto; width:auto; min-width:0; }
     .view-toggle{ flex:0 0 auto; }
     #favSortBtn{ flex:1 1 100%; }
   }
@@ -663,17 +663,17 @@
   @media (prefers-reduced-motion: reduce){
     .empty-state .big{ animation: none; }
   }
-  .empty-state.empty-pop-in{ animation: empty-pop-in .32s cubic-bezier(.2,.8,.3,1) backwards; }
+  .empty-state.empty-pop-in{ animation: empty-pop-in .45s cubic-bezier(.22,1,.36,1) backwards; }
   @keyframes empty-pop-in{
-    from{ opacity:0; transform: scale(.92) translateY(8px); }
+    from{ opacity:0; transform: scale(.94) translateY(10px); }
     to{ opacity:1; transform: scale(1) translateY(0); }
   }
   @media (prefers-reduced-motion: reduce){
     .empty-state.empty-pop-in{ animation: none; }
   }
 
-  #packList{ transition: opacity .22s ease, transform .22s ease; transform-origin: top center; }
-  #packList.pack-clear-out{ opacity:0; transform: scale(.97) translateY(6px); pointer-events:none; }
+  #packList{ transition: opacity .5s cubic-bezier(.16,1,.3,1), transform .5s cubic-bezier(.16,1,.3,1), filter .5s cubic-bezier(.16,1,.3,1); transform-origin: top center; }
+  #packList.pack-clear-out{ opacity:0; transform: scale(.97) translateY(10px); filter: blur(2px); pointer-events:none; }
   @media (prefers-reduced-motion: reduce){
     #packList{ transition: none; }
   }
@@ -1092,7 +1092,11 @@
   .compat-summary .ignore-btn{ margin-left:auto; flex-shrink:0; }
   @media (max-width: 560px){
     .compat-summary{ flex-wrap:wrap; }
-    .compat-summary .ignore-btn{ margin-left:52px; }
+    .compat-summary .ignore-btn{
+      margin-left:0; margin-top:8px;
+      flex:1 1 100%; width:100%; box-sizing:border-box;
+      text-align:center; display:flex;
+    }
   }
 
   /* --- Undo/redo history --- */
@@ -5444,7 +5448,7 @@ document.getElementById("removeAllBtn").addEventListener("click", async ()=>{
       if(!reduceMotion && emptyEl){
         emptyEl.classList.remove("empty-pop-in");
         void emptyEl.offsetWidth; // restart animation
-        emptyEl.classList.add("empty-pop-in");
+        requestAnimationFrame(()=> emptyEl.classList.add("empty-pop-in"));
       }
     };
     if(reduceMotion || !listEl || !listEl.children.length){
@@ -5454,7 +5458,7 @@ document.getElementById("removeAllBtn").addEventListener("click", async ()=>{
       const finish = ()=>{ if(done) return; done = true; doClear(); };
       listEl.classList.add("pack-clear-out");
       listEl.addEventListener("transitionend", finish, {once:true});
-      setTimeout(finish, 260);
+      setTimeout(finish, 520);
     }
   }
 });
