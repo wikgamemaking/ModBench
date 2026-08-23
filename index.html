@@ -961,6 +961,57 @@
   .compat-summary .icon svg{ width:20px; height:20px; }
   .compat-summary .headline{ font-weight:700; font-size:0.98rem; }
   .compat-summary .subline{ font-size:0.82rem; color: var(--text-dim); }
+  .compat-summary .ignore-btn{ margin-left:auto; flex-shrink:0; }
+  @media (max-width: 560px){
+    .compat-summary{ flex-wrap:wrap; }
+    .compat-summary .ignore-btn{ margin-left:52px; }
+  }
+
+  /* --- Undo/redo history --- */
+  .history-controls{
+    position:relative; display:flex; align-items:center; gap:6px;
+    padding-right:12px; margin-right:2px; border-right:1px solid var(--border);
+  }
+  .history-controls .page-btn{ display:flex; align-items:center; justify-content:center; }
+  .history-controls .page-btn svg{ width:16px; height:16px; }
+  .history-controls .page-btn#historyListToggleBtn svg{ width:14px; height:14px; transition: transform .15s ease; }
+  .history-controls .page-btn#historyListToggleBtn[aria-expanded="true"] svg{ transform: rotate(180deg); }
+  .history-popover{
+    position:absolute; top:calc(100% + 10px); left:0; z-index:40;
+    width:300px; max-width:82vw;
+    background: var(--surface); border:1px solid var(--border); border-radius:12px;
+    box-shadow: 0 12px 32px rgba(0,0,0,.18);
+    padding:6px; max-height:320px; overflow-y:auto;
+    opacity:0; transform: translateY(-4px) scale(.98);
+    animation: history-pop-in .16s cubic-bezier(.2,.8,.3,1) forwards;
+  }
+  @keyframes history-pop-in{ to{ opacity:1; transform: translateY(0) scale(1); } }
+  html[data-theme="dark"] .history-popover{ box-shadow: 0 12px 32px rgba(0,0,0,.45); }
+  .history-popover-title{
+    display:flex; align-items:center; gap:6px;
+    font-weight:800; font-size:0.72rem; text-transform:uppercase; letter-spacing:.06em; color: var(--text-dim);
+    padding:8px 10px 6px; margin-bottom:2px; border-bottom:1px solid var(--border);
+  }
+  .history-empty{ font-size:0.86rem; color: var(--text-dim); padding:22px 8px; text-align:center; }
+  .history-item{
+    display:flex; align-items:center; gap:10px;
+    width:100%; background:none; border:none; border-radius:8px;
+    padding:9px 8px; margin-top:2px; font-family:inherit; font-size:0.86rem; color:var(--text); text-align:left; cursor:pointer;
+    transition: background .12s ease;
+  }
+  .history-item:first-child{ margin-top:0; }
+  .history-item:hover{ background: var(--accent-soft); }
+  .history-item:hover .history-item-undo{ color: var(--accent-dark); }
+  .history-item-dot{
+    flex-shrink:0; width:7px; height:7px; border-radius:50%; background: var(--border);
+  }
+  .history-item.is-latest .history-item-dot{ background: var(--accent); }
+  .history-item-label{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .history-item-undo{
+    flex-shrink:0; font-weight:700; font-size:0.74rem; color: var(--text-dim);
+    padding:3px 8px; border-radius:6px; background: var(--surface-2);
+    transition: color .12s ease;
+  }
   .compat-issue{
     border:1px solid var(--danger-border); background: var(--danger-soft);
     border-radius:10px; padding:12px 14px; margin-bottom:10px;
@@ -1332,6 +1383,24 @@
       <kbd class="kbd-hint" aria-hidden="true">/</kbd>
     </div>
     <div class="toolbar" id="createToolbar" style="display:none; justify-content:flex-end; align-items:center; flex-wrap:wrap; gap:10px;">
+      <div class="history-controls" id="historyControls">
+        <button type="button" class="page-btn" id="historyUndoBtn" title="Undo" aria-label="Undo" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>
+        </button>
+        <button type="button" class="page-btn" id="historyRedoBtn" title="Redo" aria-label="Redo" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg>
+        </button>
+        <button type="button" class="page-btn" id="historyListToggleBtn" title="Recent actions" aria-label="Recent actions" aria-haspopup="true" aria-expanded="false" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="history-popover" id="historyPopover" hidden>
+          <div class="history-popover-title">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/></svg>
+            Recent actions
+          </div>
+          <div id="historyList"></div>
+        </div>
+      </div>
       <label class="auto-compat-toggle" id="autoCompatToggleWrap" title="Automatically scan for compatibility issues as you edit your pack" data-i18n-attr="title:createAutoFlagTitle">
         <span class="switch">
           <input type="checkbox" id="autoCompatToggle">
@@ -1545,6 +1614,80 @@ function showToast(message, opts = {}){
   stack.appendChild(toast);
   dismissTimer = setTimeout(dismiss, duration);
   return { dismiss };
+}
+
+/* --- Action history (undo/redo) --- */
+const actionHistory = { past: [], future: [] };
+const MAX_HISTORY_ENTRIES = 25;
+
+function pushHistoryAction(label, undoFn, redoFn){
+  const entry = { label, undo: undoFn, redo: redoFn };
+  actionHistory.past.push(entry);
+  if(actionHistory.past.length > MAX_HISTORY_ENTRIES) actionHistory.past.shift();
+  actionHistory.future = [];
+  renderHistoryControls();
+  return entry;
+}
+
+function removeHistoryEntry(entry){
+  const idx = actionHistory.past.indexOf(entry);
+  if(idx !== -1) actionHistory.past.splice(idx, 1);
+  renderHistoryControls();
+}
+
+function undoLastAction(){
+  const entry = actionHistory.past.pop();
+  if(!entry) return;
+  entry.undo();
+  actionHistory.future.push(entry);
+  renderHistoryControls();
+}
+
+function redoLastAction(){
+  const entry = actionHistory.future.pop();
+  if(!entry) return;
+  entry.redo();
+  actionHistory.past.push(entry);
+  renderHistoryControls();
+}
+
+function undoHistoryToIndex(idx){
+  while(actionHistory.past.length > idx){
+    undoLastAction();
+  }
+  closeHistoryPopover();
+}
+
+function closeHistoryPopover(){
+  const popover = document.getElementById("historyPopover");
+  const toggleBtn = document.getElementById("historyListToggleBtn");
+  if(popover) popover.hidden = true;
+  if(toggleBtn) toggleBtn.setAttribute("aria-expanded", "false");
+}
+
+function renderHistoryControls(){
+  const undoBtn = document.getElementById("historyUndoBtn");
+  const redoBtn = document.getElementById("historyRedoBtn");
+  const toggleBtn = document.getElementById("historyListToggleBtn");
+  if(undoBtn) undoBtn.disabled = actionHistory.past.length === 0;
+  if(redoBtn) redoBtn.disabled = actionHistory.future.length === 0;
+  if(toggleBtn) toggleBtn.disabled = actionHistory.past.length === 0;
+  if(actionHistory.past.length === 0) closeHistoryPopover();
+
+  const listEl = document.getElementById("historyList");
+  if(!listEl) return;
+  if(!actionHistory.past.length){
+    listEl.innerHTML = `<div class="history-empty">No recent actions</div>`;
+    return;
+  }
+  listEl.innerHTML = actionHistory.past.map((entry, idx)=>{
+    const isLast = idx === actionHistory.past.length - 1;
+    return `<button type="button" class="history-item${isLast ? " is-latest" : ""}" data-history-idx="${idx}">
+      <span class="history-item-dot"></span>
+      <span class="history-item-label">${escapeHtml(entry.label)}</span>
+      <span class="history-item-undo">${isLast ? "Undo" : "Undo to here"}</span>
+    </button>`;
+  }).reverse().join("");
 }
 
 /* --- Button loading state (shimmer + spinner + slow-load toast) --- */
@@ -2875,6 +3018,10 @@ function syncModpackSnapshot(mod, version){
   mod.fromModpackGameVersions = version.game_versions || [];
 }
 
+// Tracks whichever pack row the mouse is currently over, so the "r" hotkey
+// can remove that mod without requiring it to be focused/opened first.
+let hoveredPackRow = null;
+
 function packRowHtml(mod){
   const displayVersions = sortByGameVersionRecency(mod.versions);
   return `
@@ -2897,6 +3044,7 @@ function renderPack(){
   const toolbarEl = document.getElementById("createToolbar");
   const bannerEl = document.getElementById("packIssueBanner");
   const searchBarEl = document.getElementById("packSearchBar");
+  hoveredPackRow = null;
   if(state.pack.length === 0){
     listEl.innerHTML = ""; emptyEl.style.display = "block";
     toolbarEl.style.display = "none";
@@ -2964,6 +3112,8 @@ function renderPack(){
     row.addEventListener("keydown", (e)=>{
       if(e.key === "Enter" && !e.target.closest("select")) openModal(row.dataset.id, id=>state.pack.find(m=>m.id===id));
     });
+    row.addEventListener("mouseenter", ()=>{ hoveredPackRow = row; });
+    row.addEventListener("mouseleave", ()=>{ if(hoveredPackRow === row) hoveredPackRow = null; });
   });
   listEl.querySelectorAll("[data-remove]").forEach(btn=>{
     btn.addEventListener("click", (e)=>{
@@ -2974,14 +3124,28 @@ function renderPack(){
       const [removedMod] = state.pack.splice(removedIdx, 1);
       savePack(); renderPack();
       updateCardButtonsEverywhere(removedId);
+
+      const restoreMod = ()=>{
+        if(state.pack.some(m=>m.id === removedId)) return;
+        const insertAt = Math.min(removedIdx, state.pack.length);
+        state.pack.splice(insertAt, 0, removedMod);
+        savePack(); renderPack();
+        updateCardButtonsEverywhere(removedId);
+      };
+      const removeModAgain = ()=>{
+        const idx = state.pack.findIndex(m=>m.id === removedId);
+        if(idx === -1) return;
+        state.pack.splice(idx, 1);
+        savePack(); renderPack();
+        updateCardButtonsEverywhere(removedId);
+      };
+      const historyEntry = pushHistoryAction(`Removed "${removedMod.title}"`, restoreMod, removeModAgain);
+
       showToast(`Removed "${removedMod.title}" from Create.`, {
         actionLabel: "Undo",
         onAction: ()=>{
-          if(state.pack.some(m=>m.id === removedId)) return;
-          const insertAt = Math.min(removedIdx, state.pack.length);
-          state.pack.splice(insertAt, 0, removedMod);
-          savePack(); renderPack();
-          updateCardButtonsEverywhere(removedId);
+          restoreMod();
+          removeHistoryEntry(historyEntry);
         }
       });
     });
@@ -3065,11 +3229,33 @@ async function updatePackIssueHighlights(){
         <div>
           <div class="headline">${tPlural(issues.length, 'compatIssuesFoundOne','{n} compatibility issue found', 'compatIssuesFoundOther','{n} compatibility issues found')}</div>
           <div class="subline">${t('compatBannerSubline','Affected mods are highlighted in red below - tap here for details')}</div>
-        </div>`;
+        </div>
+        <button type="button" class="page-btn ignore-btn" id="ignoreCompatBannerBtn">${t('compatIgnoreAnyway','Ignore anyway')}</button>`;
+      const ignoreBtn = bannerEl.querySelector("#ignoreCompatBannerBtn");
+      if(ignoreBtn){
+        ignoreBtn.addEventListener("click", (e)=>{
+          e.stopPropagation();
+          ignoreCompatWarnings();
+        });
+      }
     }else{
       bannerEl.style.display = "none";
     }
   }
+}
+
+function ignoreCompatWarnings(){
+  const bannerEl = document.getElementById("packIssueBanner");
+  if(bannerEl) bannerEl.style.display = "none";
+  document.querySelectorAll("#packList .pack-row.has-issue").forEach(row=>{
+    row.classList.remove("has-issue");
+    const badge = row.querySelector(".pack-row-issue-badge");
+    if(badge){
+      badge.hidden = true;
+      badge.innerHTML = "";
+      badge.title = "";
+    }
+  });
 }
 
 const COMPAT_ICON_WARN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
@@ -3539,6 +3725,7 @@ async function showCompatibilityResults(fixNote){
       ${fixNoteHtml}
       ${summaryHtml}
       ${fixableIssues ? `<button class="export-btn" id="autoFixCompatBtn" style="margin-top:12px; width:100%;">${t('autoSolveFix','Let AutoSolve fix incompatibilities')}</button>` : ""}
+      ${issues.length ? `<button class="page-btn" id="ignoreCompatModalBtn" style="margin-top:${fixableIssues ? "8px" : "12px"}; width:100%; padding:9px 16px;">${t('compatIgnoreAnyway','Ignore anyway')}</button>` : ""}
       <div style="margin-top:16px;">${issuesHtml}</div>
       ${skipped > 0 ? `<div class="compat-skipped">${tPlural(skipped, 'compatSkippedOne','{n} mod skipped: no version selected yet.', 'compatSkippedOther','{n} mods skipped: no version selected yet.')}</div>` : ""}
       <button class="page-btn" data-choice="close" style="margin-top:18px; width:100%; padding:9px 16px;">${t('close','Close')}</button>
@@ -3546,6 +3733,13 @@ async function showCompatibilityResults(fixNote){
   backdrop.addEventListener("click", (e)=>{ if(e.target === backdrop) backdrop.remove(); });
   backdrop.querySelector(".modal-close").addEventListener("click", ()=>backdrop.remove());
   backdrop.querySelector('[data-choice="close"]').addEventListener("click", ()=>backdrop.remove());
+  const ignoreModalBtn = backdrop.querySelector("#ignoreCompatModalBtn");
+  if(ignoreModalBtn){
+    ignoreModalBtn.addEventListener("click", ()=>{
+      ignoreCompatWarnings();
+      backdrop.remove();
+    });
+  }
   const fixBtn = backdrop.querySelector("#autoFixCompatBtn");
   if(fixBtn){
     fixBtn.addEventListener("click", async ()=>{
@@ -3920,7 +4114,7 @@ function renderFavorites(){
 }
 
 const MODPACK_PAGE_SIZE = 30;
-const PINNED_MODPACK_SLUGS = ["fabulously-optimized", "remarkably", "optifabric-modpack"];
+const PINNED_MODPACK_SLUGS = ["fabulously-optimized", "fresh-smooth", "optifabric-modpack"];
 let pinnedModpacksCache = null;
 
 async function getPinnedModpacks(){
@@ -4885,6 +5079,29 @@ document.getElementById("checkUpdatesBtn").addEventListener("click", async ()=>{
 document.getElementById("packIssueBanner").addEventListener("click", ()=>{
   showCompatibilityResults();
 });
+document.getElementById("historyUndoBtn").addEventListener("click", ()=>{
+  undoLastAction();
+});
+document.getElementById("historyRedoBtn").addEventListener("click", ()=>{
+  redoLastAction();
+});
+document.getElementById("historyListToggleBtn").addEventListener("click", (e)=>{
+  e.stopPropagation();
+  const popover = document.getElementById("historyPopover");
+  const toggleBtn = document.getElementById("historyListToggleBtn");
+  const willOpen = popover.hidden;
+  popover.hidden = !willOpen;
+  toggleBtn.setAttribute("aria-expanded", String(willOpen));
+});
+document.getElementById("historyList").addEventListener("click", (e)=>{
+  const item = e.target.closest("[data-history-idx]");
+  if(!item) return;
+  undoHistoryToIndex(Number(item.dataset.historyIdx));
+});
+document.addEventListener("click", (e)=>{
+  const controls = document.getElementById("historyControls");
+  if(controls && !controls.contains(e.target)) closeHistoryPopover();
+});
 document.getElementById("gridBtn").addEventListener("click", ()=>{
   state.view = "grid";
   document.getElementById("gridBtn").classList.add("active");
@@ -5145,6 +5362,12 @@ document.addEventListener("keydown", (e)=>{
     e.preventDefault();
     const addBtn = hoveredAddCard.querySelector("[data-add]");
     if(addBtn && !addBtn.disabled) addBtn.click();
+    return;
+  }
+  if((e.key === "r" || e.key === "R") && !isTyping && hoveredPackRow && document.body.contains(hoveredPackRow)){
+    e.preventDefault();
+    const removeBtn = hoveredPackRow.querySelector("[data-remove]");
+    if(removeBtn) removeBtn.click();
     return;
   }
   if(e.key === "Escape" && isTyping && active.tagName === "INPUT" && Object.values(SEARCH_INPUT_ID_BY_TAB).includes(active.id) && active.value === ""){
