@@ -693,11 +693,11 @@
 
   #packList{ transition: opacity .4s cubic-bezier(.22,1,.36,1), filter .4s cubic-bezier(.22,1,.36,1); transform-origin: top center; }
   #packList.pack-clear-out{ pointer-events:none; }
-  #packList .pack-row{ transition: opacity .38s cubic-bezier(.22,1,.36,1), transform .38s cubic-bezier(.22,1,.36,1), filter .38s cubic-bezier(.22,1,.36,1); }
-  #packList .pack-row.row-clear-out{ opacity:0; transform: scale(.94) translateX(-10px); filter: blur(3px); }
+  #packList .pack-row, #packList .pack-category-label, #packList .pack-type-label{ transition: opacity .38s cubic-bezier(.22,1,.36,1), transform .38s cubic-bezier(.22,1,.36,1), filter .38s cubic-bezier(.22,1,.36,1); }
+  #packList .pack-row.row-clear-out, #packList .pack-category-label.row-clear-out, #packList .pack-type-label.row-clear-out{ opacity:0; transform: scale(.94) translateX(-10px); filter: blur(3px); }
   @media (prefers-reduced-motion: reduce){
     #packList{ transition: none; }
-    #packList .pack-row{ transition: none; }
+    #packList .pack-row, #packList .pack-category-label, #packList .pack-type-label{ transition: none; }
   }
 
   .export-panel{
@@ -897,7 +897,6 @@
   .modal-head .intro-logo img{ width:100%; height:100%; }
   .intro-head-text{ flex:1; min-width:0; }
   .intro-head-text p{ text-wrap: pretty; }
-  .intro-modal .modal-close{ flex-shrink:0; }
   .intro-steps{ display:flex; flex-direction:column; gap:14px; margin:18px 0 0; }
   .intro-step{
     display:flex; gap:12px; align-items:flex-start;
@@ -921,7 +920,7 @@
     background: var(--accent-soft); color: var(--accent-dark);
     display:flex; align-items:center; justify-content:center; font-size:1.05rem;
   }
-  .intro-step h4{ margin:0 0 3px; font-size:0.95rem; }
+  .intro-step h4{ margin:0 0 3px; font-size:0.95rem; color: var(--accent-dark); font-weight:800; }
   .intro-step p{ margin:0; font-size:0.85rem; color: var(--text-dim); line-height:1.5; text-wrap: pretty; }
   .intro-step p kbd{
     font-family:inherit; font-size:0.78rem; font-weight:700;
@@ -961,6 +960,36 @@
   }
   @media (prefers-reduced-motion: reduce){
     .modal-backdrop, .modal{ animation: none; }
+  }
+  .modal-backdrop.closing{ animation: modal-fade-out .16s ease-in forwards; }
+  .intro-modal.closing{ animation: modal-pop-out .16s ease-in forwards; }
+  @keyframes modal-fade-out{
+    from{ opacity:1; }
+    to{ opacity:0; }
+  }
+  @keyframes modal-pop-out{
+    from{ opacity:1; transform: translateY(0) scale(1); }
+    to{ opacity:0; transform: translateY(10px) scale(.96); }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .modal-backdrop.closing, .intro-modal.closing{ animation: none; }
+  }
+  #introCloseBtn, #exportBtn{ position:relative; overflow:hidden; z-index:0; }
+  #introCloseBtn:hover, #exportBtn:not(:disabled):hover{ background: var(--accent); }
+  #introCloseBtn::after, #exportBtn::after{
+    content:""; position:absolute; top:0; left:-75%; width:35%; height:100%;
+    background: linear-gradient(115deg, transparent 0%, rgba(255,255,255,.85) 50%, transparent 100%);
+    transform: skewX(-20deg); pointer-events:none; opacity:0; mix-blend-mode:overlay; z-index:1;
+  }
+  #introCloseBtn:hover::after, #exportBtn:not(:disabled):hover::after{ animation: intro-btn-shimmer .85s ease; }
+  @keyframes intro-btn-shimmer{
+    0%{ left:-75%; opacity:0; }
+    15%{ opacity:1; }
+    85%{ opacity:1; }
+    100%{ left:125%; opacity:0; }
+  }
+  @media (prefers-reduced-motion: reduce){
+    #introCloseBtn:hover::after, #exportBtn:hover::after{ animation:none; }
   }
   .modal-head{ display:flex; gap:14px; align-items:center; }
   .modal-head img{ width:72px; height:72px; border-radius:12px; object-fit:cover; flex-shrink:0; }
@@ -1727,6 +1756,8 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px; height:16px;"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
         <span data-i18n="exportCopyPackCode">Copy pack code</span>
       </button>
+      <p id="shareUsageNote" style="display:none; color:var(--accent-dark); font-weight:700; font-size:0.85rem; margin:8px 0 0; text-align:center;"></p>
+      <hr id="shareUsageSeparator" style="display:none; border:none; border-top:1px solid var(--border); margin:10px 0 0;">
       <p style="color:var(--text-dim); font-size:0.8rem; margin:6px 0 0;" data-i18n="exportShareCodeHint">Copies a short code with your mod list. Others paste it straight into <strong>Import a share code</strong> above to get the same mods. <button type="button" id="shareLinkBtn" style="background:none; border:none; padding:0; color:var(--accent-dark); text-decoration:underline; cursor:pointer; font:inherit;">Prefer a link?</button></p>
     </div>
   </section>
@@ -1942,6 +1973,62 @@ const SHARE_TABLE = "shared_packs";
 function shareBackendConfigured(){
   return Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
 }
+
+const DAILY_SHARE_LIMIT = 10;
+function getShareUsageState(){
+  const today = new Date().toDateString();
+  let usage;
+  try{ usage = JSON.parse(safeLocalStorageGet("modbench_share_usage", "null")); }catch(e){ usage = null; }
+  if(!usage || usage.date !== today){
+    usage = { date: today, used: 0 };
+    safeLocalStorageSet("modbench_share_usage", JSON.stringify(usage));
+  }
+  return usage;
+}
+function getShareRemaining(){
+  return Math.max(0, DAILY_SHARE_LIMIT - getShareUsageState().used);
+}
+function recordShareUsage(){
+  const usage = getShareUsageState();
+  usage.used = Math.min(DAILY_SHARE_LIMIT, usage.used + 1);
+  safeLocalStorageSet("modbench_share_usage", JSON.stringify(usage));
+  updateShareUsageDisplays();
+}
+function exhaustShareUsage(){
+  const usage = getShareUsageState();
+  usage.used = DAILY_SHARE_LIMIT;
+  safeLocalStorageSet("modbench_share_usage", JSON.stringify(usage));
+  updateShareUsageDisplays();
+}
+function getNextShareResetTime(){
+  const d = new Date();
+  d.setHours(24, 0, 0, 0);
+  return d;
+}
+function formatShareResetTime(){
+  return getNextShareResetTime().toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+function updateShareUsageDisplays(){
+  const note = document.getElementById("shareUsageNote");
+  const separator = document.getElementById("shareUsageSeparator");
+  if(!note) return;
+  const usage = getShareUsageState();
+  if(!shareBackendConfigured() || usage.used <= 0){
+    note.style.display = "none";
+    note.innerHTML = "";
+    if(separator) separator.style.display = "none";
+    return;
+  }
+  const remaining = getShareRemaining();
+  note.innerHTML = tPlural(remaining,
+    'shareUsageNoteOne','<strong>{n}</strong> code/link generation left today (of {limit}) <span style="color:var(--text-dim); font-weight:400;">· resets at {time}</span>',
+    'shareUsageNoteOther','<strong>{n}</strong> code/link generations left today (of {limit}) <span style="color:var(--text-dim); font-weight:400;">· resets at {time}</span>',
+    { limit: DAILY_SHARE_LIMIT, time: formatShareResetTime() }
+  );
+  note.style.display = "block";
+  if(separator) separator.style.display = "block";
+}
+
 function generateShortCode(len = 7){
   const chars = "23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"; // no 0/O/1/l/I
   let out = "";
@@ -2134,7 +2221,13 @@ function toggleFavorite(hit){
 }
 
 const LANGUAGES = ["en", "fr"];
-state.lang = safeLocalStorageGet("modbench-lang", "en");
+function detectDefaultLang(){
+  const stored = safeLocalStorageGet("modbench-lang");
+  if(stored) return stored;
+  const browserLang = (navigator.language || (navigator.languages && navigator.languages[0]) || "").toLowerCase();
+  return browserLang.startsWith("fr") ? "fr" : "en";
+}
+state.lang = detectDefaultLang();
 
 const englishSnapshot = { html: new Map(), attrs: new Map() };
 document.querySelectorAll("[data-i18n]").forEach(el=>{
@@ -2185,6 +2278,7 @@ function refreshDynamicContentForLanguage(){
   if(state.tab === "modpacks" && state.modpackResults.length) renderModpackResults();
   if(state.tab === "export") renderExport();
   renderHistoryControls();
+  updateShareUsageDisplays();
   document.querySelectorAll(".modal-backdrop").forEach(b=>b.remove());
 }
 
@@ -4947,6 +5041,10 @@ function showShareModal(){
     alert(t('alertAddModsShareLink',"Add mods to your pack first, then generate a share link."));
     return;
   }
+  if(shareBackendConfigured() && getShareRemaining() <= 0){
+    showShareLimitReachedModal();
+    return;
+  }
   const longCode = encodeShareData(data);
   const backdrop = document.createElement("div");
   backdrop.className = "modal-backdrop";
@@ -4979,13 +5077,17 @@ function showShareModal(){
       try{
         const shortId = await createShortShareCode(longCode);
         code = `mb-${shortId}`;
+        recordShareUsage();
       }catch(e){
         console.error(e);
+        if(e && e.rateLimited){
+          exhaustShareUsage();
+          close();
+          showShareLimitReachedModal();
+          return;
+        }
         const intro = backdrop.querySelector("#shareModalIntro");
-        const fallbackMsg = e && e.rateLimited
-          ? t('shareRateLimited',"(You've created a lot of short links today, so here's the full self-contained code instead, it still works the same way.)")
-          : t('shareLinkServiceFallback',"(Couldn't reach the short-link service, so here's the full self-contained code instead, it still works the same way.)");
-        if(intro) intro.insertAdjacentHTML("beforeend", " <em>"+fallbackMsg+"</em>");
+        if(intro) intro.insertAdjacentHTML("beforeend", " <em>"+t('shareLinkServiceFallback',"(Couldn't reach the short-link service, so here's the full self-contained code instead, it still works the same way.)")+"</em>");
       }
     }
     const link = shareLinkFromCode(code);
@@ -4998,6 +5100,23 @@ function showShareModal(){
     if(copyLinkBtn) copyLinkBtn.addEventListener("click", (e)=>copyTextToClipboard(link, e.currentTarget));
     if(copyCodeBtn) copyCodeBtn.addEventListener("click", (e)=>copyTextToClipboard(code, e.currentTarget));
   })();
+}
+
+function showShareLimitReachedModal(){
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  backdrop.innerHTML = `
+    <div class="modal" style="max-width:420px;">
+      <h3 style="margin:0 0 6px;">${t('shareLimitReachedTitle',"Daily limit reached")}</h3>
+      <p style="margin:0; color:var(--text-dim); font-size:0.85rem;">${tf('shareLimitReachedBody',"You've used all {limit} code/link generations for today. You'll be able to create share codes and links again after {time}.",{ limit: DAILY_SHARE_LIMIT, time: formatShareResetTime() })}</p>
+      <div class="modal-actions" style="justify-content:flex-end;">
+        <button class="page-btn" id="shareLimitCloseBtn">${t('close','Close')}</button>
+      </div>
+    </div>`;
+  function close(){ backdrop.remove(); }
+  backdrop.addEventListener("click", (e)=>{ if(e.target === backdrop) close(); });
+  backdrop.querySelector("#shareLimitCloseBtn").addEventListener("click", close);
+  document.body.appendChild(backdrop);
 }
 
 async function importSharedPack(rawInput){
@@ -5429,7 +5548,7 @@ document.getElementById("removeAllBtn").addEventListener("click", async ()=>{
         requestAnimationFrame(()=> emptyEl.classList.add("empty-pop-in"));
       }
     };
-    const rows = listEl ? Array.from(listEl.querySelectorAll(".pack-row")) : [];
+    const rows = listEl ? Array.from(listEl.querySelectorAll(".pack-row, .pack-category-label, .pack-type-label")) : [];
     if(reduceMotion || !listEl || !rows.length){
       doClear();
     }else{
@@ -5629,6 +5748,10 @@ document.getElementById("copyShareCodeBtn2").addEventListener("click", async (e)
     alert(t('alertAddModsShareCode',"Add mods to your pack first, then copy a share code."));
     return;
   }
+  if(shareBackendConfigured() && getShareRemaining() <= 0){
+    showShareLimitReachedModal();
+    return;
+  }
   const longCode = encodeShareData(data);
   const btn = e.currentTarget;
   let code = longCode;
@@ -5639,8 +5762,18 @@ document.getElementById("copyShareCodeBtn2").addEventListener("click", async (e)
     try{
       const shortId = await createShortShareCode(longCode);
       code = `mb-${shortId}`;
+      recordShareUsage();
     }catch(err){
       console.error(err);
+      btn.disabled = false;
+      btn.innerHTML = original;
+      if(err && err.rateLimited){
+        exhaustShareUsage();
+        showShareLimitReachedModal();
+        return;
+      }
+      copyTextToClipboard(code, btn);
+      return;
     }
     btn.disabled = false;
     btn.innerHTML = original;
@@ -5696,7 +5829,6 @@ function showGettingStarted(force){
           <div class="name">${t('introWelcomeTitle','Welcome to ModBench')}</div>
           <p style="margin:2px 0 0; color:var(--text-dim); font-size:0.86rem;">${t('introWelcomeSubtitle','Here is a quick tour before you start building a pack.')}</p>
         </div>
-        <button class="modal-close" aria-label="${t('close','Close')}">✕</button>
       </div>
       <div class="intro-steps">
         <div class="intro-step">
@@ -5744,11 +5876,21 @@ function showGettingStarted(force){
     </div>
   `;
   document.body.appendChild(backdrop);
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
   function close(){
     safeLocalStorageSet("modbench_intro_seen", "1");
-    backdrop.remove();
+    if(reduceMotion){
+      backdrop.remove();
+      return;
+    }
+    const modalEl = backdrop.querySelector(".intro-modal");
+    backdrop.classList.add("closing");
+    if(modalEl) modalEl.classList.add("closing");
+    let done = false;
+    const finish = ()=>{ if(done) return; done = true; backdrop.remove(); };
+    backdrop.addEventListener("animationend", finish, {once:true});
+    setTimeout(finish, 220);
   }
-  backdrop.querySelector(".modal-close").addEventListener("click", close);
   backdrop.querySelector("#introCloseBtn").addEventListener("click", close);
   backdrop.addEventListener("click", (e)=>{ if(e.target === backdrop) close(); });
 }
@@ -5772,6 +5914,12 @@ const SEARCH_INPUT_ID_BY_TAB = {
   favorites: "favSearchInput"
 };
 document.addEventListener("keydown", (e)=>{
+  if((e.metaKey || e.ctrlKey) && e.key === "Enter"){
+    const exportBtn = document.getElementById("exportBtn");
+    if(exportBtn && !exportBtn.disabled) exportBtn.click();
+    e.preventDefault();
+    return;
+  }
   if(e.metaKey || e.ctrlKey || e.altKey) return;
   const active = document.activeElement;
   const isTyping = active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable);
