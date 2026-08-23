@@ -309,7 +309,18 @@
   .cat-toggle h3{ margin:0; }
   .cat-toggle .chev{ width:16px; height:16px; color:var(--text-dim); transition: transform .15s; flex-shrink:0; }
   .cat-toggle[aria-expanded="true"] .chev{ transform: rotate(180deg); }
-  .cat-body{ display:flex; flex-direction:column; }
+  .cat-body{
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows .28s cubic-bezier(.4,0,.2,1);
+  }
+  .cat-body.open{ grid-template-rows: 1fr; }
+  .cat-body-inner{
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
   .cat-body label{
     display:flex; align-items:center; gap:6px;
     border-radius:6px; padding:4px 6px; cursor:pointer;
@@ -319,7 +330,6 @@
   .cat-body label:hover .filter-icon{ transform: scale(1.15) rotate(-6deg); color: var(--accent-dark); }
   .cat-body label:has(input:checked){ background: var(--accent-soft); color: var(--accent-dark); font-weight:600; box-shadow: inset 0 0 0 1px var(--accent-soft); }
   .cat-body label:has(input:checked):hover{ transform: translateX(3px) scale(1.01); }
-  .cat-body[hidden]{ display:none; }
 
   .toolbar{
     display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; align-items:center;
@@ -1135,25 +1145,41 @@
             <h3 style="margin:0;" data-i18n="browseCategory">Category</h3>
             <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
           </button>
-          <div class="cat-body" id="catBodyBrowse" hidden>
-            <label><input type="checkbox" value="technology" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.6V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.6 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.6 1z"/></svg> <span data-i18n="catTechnology">Technology</span></label>
-            <label><input type="checkbox" value="magic" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.9L19 9l-5.1 1.9L12 16l-1.9-5.1L5 9l5.1-1.1L12 3z"/><path d="M19 17l.9 2.1L22 20l-2.1.9L19 23l-.9-2.1L16 20l2.1-.9L19 17z"/></svg> <span data-i18n="catMagic">Magic</span></label>
+          <div class="cat-body" id="catBodyBrowse">
+           <div class="cat-body-inner">
             <label><input type="checkbox" value="adventure" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg> <span data-i18n="catAdventure">Adventure</span></label>
+            <label><input type="checkbox" value="cursed" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="7.5" width="10" height="14" rx="5"/><polyline points="2 12.5 4 14.5 7 14.5"/><polyline points="22 12.5 20 14.5 17 14.5"/><polyline points="3 21.5 5 18.5 7 17.5"/><polyline points="21 21.5 19 18.5 17 17.5"/><polyline points="3 8.5 5 10.5 7 11.5"/><polyline points="21 8.5 19 10.5 17 11.5"/><line x1="12" y1="7.5" x2="12" y2="21.5"/><path d="M15.38,8.82A3,3,0,0,0,16,7h0a3,3,0,0,0-3-3H11A3,3,0,0,0,8,7H8a3,3,0,0,0,.61,1.82"/><line x1="9" y1="4.5" x2="8" y2="2.5"/><line x1="15" y1="4.5" x2="16" y2="2.5"/></svg> <span data-i18n="catCursed">Cursed</span></label>
             <label><input type="checkbox" value="decoration" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.06 11.9l8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08"/><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 0 0-3-3.02z"/></svg> <span data-i18n="catDecoration">Decoration</span></label>
-            <label><input type="checkbox" value="optimization" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> <span data-i18n="catOptimization">Optimization</span></label>
-            <label><input type="checkbox" value="utility" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg> <span data-i18n="catUtility">Utility</span></label>
+            <label><input type="checkbox" value="economy" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> <span data-i18n="catEconomy">Economy</span></label>
+            <label><input type="checkbox" value="equipment" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.573 20.038L3.849 7.913 2.753 2.755 7.838 4.06 19.47 18.206l-1.898 1.832z"/><path d="M7.45 14.455l-3.043 3.661 1.887 1.843 3.717-3.25"/><path d="M16.75 10.82l3.333-2.913 1.123-5.152-5.091 1.28-2.483 2.985"/><path d="M21.131 16.602l-5.187 5.01 2.596-2.508 2.667 2.761"/><path d="M2.828 16.602l5.188 5.01-2.597-2.508-2.667 2.761"/></svg> <span data-i18n="catEquipment">Equipment</span></label>
+            <label><input type="checkbox" value="food" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.27 21.7s9.87-3.5 12.73-6.36a4.5 4.5 0 0 0-6.36-6.37C5.77 11.84 2.27 21.7 2.27 21.7zM8.64 14l-2.05-2.04M15.34 15l-2.46-2.46"/><path d="M22 9s-1.33-2-3.5-2C16.86 7 15 9 15 9s1.33 2 3.5 2S22 9 22 9z"/><path d="M15 2s-2 1.33-2 3.5S15 9 15 9s2-1.84 2-3.5C17 3.33 15 2 15 2z"/></svg> <span data-i18n="catFood">Food</span></label>
+            <label><input type="checkbox" value="game-mechanics" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg> <span data-i18n="catGameMechanics">Game Mechanics</span></label>
             <label><input type="checkbox" value="library" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg> <span data-i18n="catLibrary">Library</span></label>
+            <label><input type="checkbox" value="magic" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.9L19 9l-5.1 1.9L12 16l-1.9-5.1L5 9l5.1-1.1L12 3z"/><path d="M19 17l.9 2.1L22 20l-2.1.9L19 23l-.9-2.1L16 20l2.1-.9L19 17z"/></svg> <span data-i18n="catMagic">Magic</span></label>
+            <label><input type="checkbox" value="management" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg> <span data-i18n="catManagement">Management</span></label>
+            <label><input type="checkbox" value="minigame" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></svg> <span data-i18n="catMinigame">Minigame</span></label>
+            <label><input type="checkbox" value="mobs" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18"/><path d="M6 6h4v4H6zm8 0h4v4h-4zm-4 4h4v2h2v6h-2v-2h-4v2H8v-6h2v-2Z" fill="currentColor" stroke="none"/></svg> <span data-i18n="catMobs">Mobs</span></label>
+            <label><input type="checkbox" value="optimization" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> <span data-i18n="catOptimization">Optimization</span></label>
+            <label><input type="checkbox" value="social" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg> <span data-i18n="catSocial">Social</span></label>
+            <label><input type="checkbox" value="storage" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg> <span data-i18n="catStorage">Storage</span></label>
+            <label><input type="checkbox" value="technology" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.6V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.6 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.6 1z"/></svg> <span data-i18n="catTechnology">Technology</span></label>
+            <label><input type="checkbox" value="transportation" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg> <span data-i18n="catTransportation">Transportation</span></label>
+            <label><input type="checkbox" value="utility" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg> <span data-i18n="catUtility">Utility</span></label>
+            <label><input type="checkbox" value="worldgen" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> <span data-i18n="catWorldGeneration">World Generation</span></label>
+           </div>
           </div>
         </div>
         <hr class="filter-sep" id="envSepBrowse">
         <div class="filter-group" id="envFilterGroup">
           <button type="button" class="cat-toggle" id="catToggleEnv" aria-expanded="false">
-            <h3 style="margin:0;" data-i18n="browseSide">Side</h3>
+            <h3 style="margin:0;" data-i18n="browseEnvironment">Environment</h3>
             <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
           </button>
-          <div class="cat-body" id="catBodyEnv" hidden>
+          <div class="cat-body" id="catBodyEnv">
+           <div class="cat-body-inner">
             <label><input type="checkbox" value="client" class="envCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> <span data-i18n="sideClient">Client-side</span></label>
             <label><input type="checkbox" value="server" class="envCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg> <span data-i18n="sideServer">Server-side</span></label>
+           </div>
           </div>
         </div>
       </aside>
@@ -1235,14 +1261,28 @@
             <h3 style="margin:0;" data-i18n="browseCategory">Category</h3>
             <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
           </button>
-          <div class="cat-body" id="catBodyModpacks" hidden>
-            <label><input type="checkbox" value="technology" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.6V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.6 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.6 1z"/></svg> <span data-i18n="catTechnology">Technology</span></label>
-            <label><input type="checkbox" value="magic" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.9L19 9l-5.1 1.9L12 16l-1.9-5.1L5 9l5.1-1.1L12 3z"/><path d="M19 17l.9 2.1L22 20l-2.1.9L19 23l-.9-2.1L16 20l2.1-.9L19 17z"/></svg> <span data-i18n="catMagic">Magic</span></label>
+          <div class="cat-body" id="catBodyModpacks">
+           <div class="cat-body-inner">
             <label><input type="checkbox" value="adventure" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg> <span data-i18n="catAdventure">Adventure</span></label>
+            <label><input type="checkbox" value="cursed" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="7.5" width="10" height="14" rx="5"/><polyline points="2 12.5 4 14.5 7 14.5"/><polyline points="22 12.5 20 14.5 17 14.5"/><polyline points="3 21.5 5 18.5 7 17.5"/><polyline points="21 21.5 19 18.5 17 17.5"/><polyline points="3 8.5 5 10.5 7 11.5"/><polyline points="21 8.5 19 10.5 17 11.5"/><line x1="12" y1="7.5" x2="12" y2="21.5"/><path d="M15.38,8.82A3,3,0,0,0,16,7h0a3,3,0,0,0-3-3H11A3,3,0,0,0,8,7H8a3,3,0,0,0,.61,1.82"/><line x1="9" y1="4.5" x2="8" y2="2.5"/><line x1="15" y1="4.5" x2="16" y2="2.5"/></svg> <span data-i18n="catCursed">Cursed</span></label>
             <label><input type="checkbox" value="decoration" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.06 11.9l8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08"/><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 0 0-3-3.02z"/></svg> <span data-i18n="catDecoration">Decoration</span></label>
-            <label><input type="checkbox" value="optimization" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> <span data-i18n="catOptimization">Optimization</span></label>
-            <label><input type="checkbox" value="utility" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg> <span data-i18n="catUtility">Utility</span></label>
+            <label><input type="checkbox" value="economy" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> <span data-i18n="catEconomy">Economy</span></label>
+            <label><input type="checkbox" value="equipment" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.573 20.038L3.849 7.913 2.753 2.755 7.838 4.06 19.47 18.206l-1.898 1.832z"/><path d="M7.45 14.455l-3.043 3.661 1.887 1.843 3.717-3.25"/><path d="M16.75 10.82l3.333-2.913 1.123-5.152-5.091 1.28-2.483 2.985"/><path d="M21.131 16.602l-5.187 5.01 2.596-2.508 2.667 2.761"/><path d="M2.828 16.602l5.188 5.01-2.597-2.508-2.667 2.761"/></svg> <span data-i18n="catEquipment">Equipment</span></label>
+            <label><input type="checkbox" value="food" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.27 21.7s9.87-3.5 12.73-6.36a4.5 4.5 0 0 0-6.36-6.37C5.77 11.84 2.27 21.7 2.27 21.7zM8.64 14l-2.05-2.04M15.34 15l-2.46-2.46"/><path d="M22 9s-1.33-2-3.5-2C16.86 7 15 9 15 9s1.33 2 3.5 2S22 9 22 9z"/><path d="M15 2s-2 1.33-2 3.5S15 9 15 9s2-1.84 2-3.5C17 3.33 15 2 15 2z"/></svg> <span data-i18n="catFood">Food</span></label>
+            <label><input type="checkbox" value="game-mechanics" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg> <span data-i18n="catGameMechanics">Game Mechanics</span></label>
             <label><input type="checkbox" value="library" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg> <span data-i18n="catLibrary">Library</span></label>
+            <label><input type="checkbox" value="magic" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.9L19 9l-5.1 1.9L12 16l-1.9-5.1L5 9l5.1-1.1L12 3z"/><path d="M19 17l.9 2.1L22 20l-2.1.9L19 23l-.9-2.1L16 20l2.1-.9L19 17z"/></svg> <span data-i18n="catMagic">Magic</span></label>
+            <label><input type="checkbox" value="management" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg> <span data-i18n="catManagement">Management</span></label>
+            <label><input type="checkbox" value="minigame" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></svg> <span data-i18n="catMinigame">Minigame</span></label>
+            <label><input type="checkbox" value="mobs" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18"/><path d="M6 6h4v4H6zm8 0h4v4h-4zm-4 4h4v2h2v6h-2v-2h-4v2H8v-6h2v-2Z" fill="currentColor" stroke="none"/></svg> <span data-i18n="catMobs">Mobs</span></label>
+            <label><input type="checkbox" value="optimization" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> <span data-i18n="catOptimization">Optimization</span></label>
+            <label><input type="checkbox" value="social" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg> <span data-i18n="catSocial">Social</span></label>
+            <label><input type="checkbox" value="storage" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg> <span data-i18n="catStorage">Storage</span></label>
+            <label><input type="checkbox" value="technology" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.6V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.6 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.6 1z"/></svg> <span data-i18n="catTechnology">Technology</span></label>
+            <label><input type="checkbox" value="transportation" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg> <span data-i18n="catTransportation">Transportation</span></label>
+            <label><input type="checkbox" value="utility" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg> <span data-i18n="catUtility">Utility</span></label>
+            <label><input type="checkbox" value="worldgen" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> <span data-i18n="catWorldGeneration">World Generation</span></label>
+           </div>
           </div>
         </div>
       </aside>
@@ -1919,17 +1959,41 @@ const ICON = {
   barChart: '<line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/>',
   image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>',
   square: '<rect x="4" y="4" width="16" height="16" rx="2"/>',
-  tag: '<path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>'
+  tag: '<path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>',
+  cursedMod: '<rect x="7" y="7.5" width="10" height="14" rx="5"/><polyline points="2 12.5 4 14.5 7 14.5"/><polyline points="22 12.5 20 14.5 17 14.5"/><polyline points="3 21.5 5 18.5 7 17.5"/><polyline points="21 21.5 19 18.5 17 17.5"/><polyline points="3 8.5 5 10.5 7 11.5"/><polyline points="21 8.5 19 10.5 17 11.5"/><line x1="12" y1="7.5" x2="12" y2="21.5"/><path d="M15.38,8.82A3,3,0,0,0,16,7h0a3,3,0,0,0-3-3H11A3,3,0,0,0,8,7H8a3,3,0,0,0,.61,1.82"/><line x1="9" y1="4.5" x2="8" y2="2.5"/><line x1="15" y1="4.5" x2="16" y2="2.5"/>',
+  economy: '<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+  equipment: '<path d="M17.573 20.038L3.849 7.913 2.753 2.755 7.838 4.06 19.47 18.206l-1.898 1.832z"/><path d="M7.45 14.455l-3.043 3.661 1.887 1.843 3.717-3.25"/><path d="M16.75 10.82l3.333-2.913 1.123-5.152-5.091 1.28-2.483 2.985"/><path d="M21.131 16.602l-5.187 5.01 2.596-2.508 2.667 2.761"/><path d="M2.828 16.602l5.188 5.01-2.597-2.508-2.667 2.761"/>',
+  food: '<path d="M2.27 21.7s9.87-3.5 12.73-6.36a4.5 4.5 0 0 0-6.36-6.37C5.77 11.84 2.27 21.7 2.27 21.7zM8.64 14l-2.05-2.04M15.34 15l-2.46-2.46"/><path d="M22 9s-1.33-2-3.5-2C16.86 7 15 9 15 9s1.33 2 3.5 2S22 9 22 9z"/><path d="M15 2s-2 1.33-2 3.5S15 9 15 9s2-1.84 2-3.5C17 3.33 15 2 15 2z"/>',
+  gameMechanics: '<line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>',
+  management: '<rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/>',
+  minigame: '<circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/>',
+  mobs: '<rect x="3" y="3" width="18" height="18"/><path d="M6 6h4v4H6zm8 0h4v4h-4zm-4 4h4v2h2v6h-2v-2h-4v2H8v-6h2v-2Z" fill="currentColor" stroke="none"/>',
+  social: '<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>',
+  storage: '<polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/>',
+  transportation: '<rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>',
+  worldgen: '<path d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>'
 };
 const CATEGORY_SETS = {
   mod: [
-    {value:"technology", label:"Technology", icon:ICON.technology},
-    {value:"magic", label:"Magic", icon:ICON.magic},
     {value:"adventure", label:"Adventure", icon:ICON.adventure},
+    {value:"cursed", label:"Cursed", icon:ICON.cursedMod},
     {value:"decoration", label:"Decoration", icon:ICON.decoration},
+    {value:"economy", label:"Economy", icon:ICON.economy},
+    {value:"equipment", label:"Equipment", icon:ICON.equipment},
+    {value:"food", label:"Food", icon:ICON.food},
+    {value:"game-mechanics", label:"Game Mechanics", icon:ICON.gameMechanics},
+    {value:"library", label:"Library", icon:ICON.library},
+    {value:"magic", label:"Magic", icon:ICON.magic},
+    {value:"management", label:"Management", icon:ICON.management},
+    {value:"minigame", label:"Minigame", icon:ICON.minigame},
+    {value:"mobs", label:"Mobs", icon:ICON.mobs},
     {value:"optimization", label:"Optimization", icon:ICON.optimization},
+    {value:"social", label:"Social", icon:ICON.social},
+    {value:"storage", label:"Storage", icon:ICON.storage},
+    {value:"technology", label:"Technology", icon:ICON.technology},
+    {value:"transportation", label:"Transportation", icon:ICON.transportation},
     {value:"utility", label:"Utility", icon:ICON.utility},
-    {value:"library", label:"Library", icon:ICON.library}
+    {value:"worldgen", label:"World Generation", icon:ICON.worldgen}
   ],
   shader: [
     {value:"fantasy", label:"Fantasy", icon:ICON.star, header:"Style"},
@@ -3845,7 +3909,7 @@ function renderFavorites(){
 }
 
 const MODPACK_PAGE_SIZE = 30;
-const PINNED_MODPACK_SLUGS = ["better-mc-forge-bmc4", "fabulously-optimized"];
+const PINNED_MODPACK_SLUGS = ["fabulously-optimized", "remarkably", "optifabric-modpack"];
 let pinnedModpacksCache = null;
 
 async function getPinnedModpacks(){
@@ -4738,11 +4802,11 @@ function wireCatToggle(toggleId, bodyId){
   const body = document.getElementById(bodyId);
   const expanded = window.matchMedia("(min-width: 861px)").matches;
   toggle.setAttribute("aria-expanded", String(expanded));
-  body.hidden = !expanded;
+  body.classList.toggle("open", expanded);
   toggle.addEventListener("click", ()=>{
     const isExpanded = toggle.getAttribute("aria-expanded") === "true";
     toggle.setAttribute("aria-expanded", String(!isExpanded));
-    body.hidden = isExpanded;
+    body.classList.toggle("open", !isExpanded);
   });
 }
 wireCatToggle("catToggleBrowse", "catBodyBrowse");
