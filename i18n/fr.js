@@ -310,9 +310,7 @@ window.i18n.fr = {
   copy: "Copier",
   introGotIt: "Compris, on y va",
   
-  toastCreateLockedImporting: "Les mods sont encore en cours d'importation — Créer se débloquera automatiquement une fois terminé.",
-  createLockedImportingText: "Les mods sont encore en cours d'importation — Créer se débloquera automatiquement une fois terminé.",
-
+  toastCreateLockedImporting: "**Les mods sont encore en cours d'importation.** Créer se débloquera **automatiquement** une fois terminé.",
   historyUndo: "Annuler",
   historyUndoToHere: "Annuler jusqu'ici",
   historyRedo: "Rétablir",
