@@ -319,5 +319,6 @@ window.i18n.fr = {
   toastRemovedFromCreate: "\"{title}\" retiré de Créer.",
   toastDismiss: "Fermer",
   toastSlowLoad: "**Ça prend plus de temps que prévu.** ModBench travaille toujours à l'ajout de vos mods.",
-  latestUploadTitle: "Dernière version mise en ligne"
+  latestUploadTitle: "Dernière version mise en ligne",
+  showAlphaBetaVersions: "Afficher les versions alpha/bêta"
 };
