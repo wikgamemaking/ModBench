@@ -1897,7 +1897,13 @@
 
 </main>
 
-<footer data-i18n="footerText">ModBench pulls live data from the <a href="https://modrinth.com" target="_blank" rel="noopener">Modrinth</a> API. Not affiliated with Modrinth or Mojang.<div style="margin-top:6px; opacity:0.6;">ModBench, 2026 - Made with ❤️ by Vik</div></footer>
+<footer>
+  <span data-i18n="footerText">ModBench pulls live data from the <a href="https://modrinth.com" target="_blank" rel="noopener">Modrinth</a> API. Not affiliated with Modrinth or Mojang.</span>
+  <div style="margin-top:6px; opacity:0.6;">ModBench, 2026 - Made with ❤️ by Vik</div>
+  <div id="footerLegalLinks" style="margin-top:6px;">
+    <a href="privacy.html">Privacy Policy</a> · <a href="terms.html">Terms of Service</a>
+  </div>
+</footer>
 
 <script>
 const API = "https://api.modrinth.com/v2";
@@ -3254,6 +3260,8 @@ document.querySelectorAll("nav.tabs button").forEach(btn=>{
     if(state.tab === "export") renderExport();
     if(state.tab === "favorites") renderFavorites();
     if(state.tab === "modpacks" && state.modpackResults.length === 0 && !state.modpackSearched) runModpackSearch();
+    const footerLegalLinks = document.getElementById("footerLegalLinks");
+    if(footerLegalLinks) footerLegalLinks.style.display = (state.tab === "browse") ? "" : "none";
   });
 });
 
