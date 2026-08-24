@@ -391,5 +391,22 @@ window.i18n.fr = {
   authErrAlreadyRegistered: "Un compte existe déjà avec cet e-mail — essayez de vous connecter.",
   authErrEmailNotConfirmed: "Vérifiez votre boîte mail et confirmez votre adresse avant de vous connecter.",
   authErrRateLimited: "Trop de tentatives — patientez un instant puis réessayez.",
-  authErrGeneric: "Une erreur est survenue. Réessayez."
+  authErrGeneric: "Une erreur est survenue. Réessayez.",
+
+  // --- Header burger menu
+  menuToggleLabel: "Menu",
+  menuGuide: "Premiers pas",
+  menuLanguage: "Langue",
+  menuTheme: "Thème",
+
+  // --- Sync status (replaces the previous accountSyncError)
+  accountSyncError: "Échec de synchro",
+  toastSyncPushFailed: "Enregistrement impossible sur votre compte. Vos données restent sur cet appareil.",
+
+  // --- Named sync failures
+  syncErrNoTable: "La table user_data n'existe pas encore dans Supabase.",
+  syncErrRls: "Supabase a bloqué l'écriture : aucune règle RLS ne l'autorise.",
+  syncErrColumn: "Une colonne manque dans la table user_data.",
+  syncErrNoUnique: "user_data.user_id n'a pas de contrainte unique, l'enregistrement est impossible.",
+  syncErrUnknown: "Échec de synchronisation, cause inconnue."
 };
