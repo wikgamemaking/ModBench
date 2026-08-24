@@ -402,11 +402,59 @@ window.i18n.fr = {
   // --- Sync status (replaces the previous accountSyncError)
   accountSyncError: "Échec de synchro",
   toastSyncPushFailed: "Enregistrement impossible sur votre compte. Vos données restent sur cet appareil.",
-
-  // --- Named sync failures
   syncErrNoTable: "La table user_data n'existe pas encore dans Supabase.",
   syncErrRls: "Supabase a bloqué l'écriture : aucune règle RLS ne l'autorise.",
   syncErrColumn: "Une colonne manque dans la table user_data.",
   syncErrNoUnique: "user_data.user_id n'a pas de contrainte unique, l'enregistrement est impossible.",
-  syncErrUnknown: "Échec de synchronisation, cause inconnue."
+  syncErrUnknown: "Échec de synchronisation, cause inconnue.",
+
+  // --- Account menu tools
+  checkSyncBtn: "Voir le contenu du compte",
+  restoreSyncBtn: "Restaurer depuis le compte",
+  accountSharesLeft: "{n}/{limit} codes restants aujourd'hui",
+  toastNotSignedIn: "Vous n'êtes pas connecté.",
+  toastCheckingAccount: "Vérification de votre compte…",
+  toastAccountEmpty: "Votre compte ne contient encore aucune donnée : rien n'a jamais été envoyé.",
+  toastAccountHolds: "Le compte contient : {fav} enregistrés, {pack} dans le pack, {packs} modpacks. Dernière écriture : {when}",
+  toastAccountCheckFailed: "Lecture du compte impossible : {msg}",
+  confirmRestore: "Remplacer les mods enregistrés, le pack et les modpacks de cet appareil par la copie stockée dans votre compte ?",
+  toastRestored: "Restauré depuis votre compte.",
+  never: "jamais",
+
+  // --- Saved tab (ex-Favoris)
+  navFavorites: "Enregistrés",
+  favSearchPlaceholder: "Rechercher dans vos mods enregistrés…",
+  favSearchLabel: "Rechercher dans les enregistrés",
+  favEmptyText: "Rien d'enregistré pour l'instant. Touchez le cœur sur un mod dans <strong>Parcourir</strong> ou <strong>Modpacks</strong>, ou enregistrez un modpack créé dans <strong>Export</strong>.",
+  favNoMatch: "Aucun élément enregistré ne correspond à « {q} ».",
+  favAdd: "Enregistrer",
+  favRemove: "Retirer des enregistrés",
+
+  // --- Saved modpack cards
+  savedPacksTitle: "Vos modpacks",
+  savedModsTitle: "Mods enregistrés",
+  savedPackOpen: "Ouvrir dans Créer",
+  savedPackDelete: "Supprimer",
+  savedPackCopyCode: "Copier le code de partage",
+  savedPackUntitled: "Modpack sans titre",
+  savedPackModsOne: "{n} mod",
+  savedPackModsOther: "{n} mods",
+  exportSavePackBtn: "Enregistrer ce modpack",
+  toastSavePackEmpty: "Ajoutez des mods à votre pack avant de l'enregistrer.",
+  toastPackSaved: "« {name} » enregistré dans l'onglet Enregistrés.",
+  toastPackOpened: "« {name} » ouvert dans Créer.",
+  toastPackDeleted: "Modpack enregistré supprimé.",
+  confirmReplacePack: "Remplacer les {n} mod(s) actuellement dans Créer par « {name} » ?",
+  confirmDeleteSavedPack: "Supprimer le modpack enregistré « {name} » ? Votre pack actuel dans Créer ne sera pas touché.",
+
+  // --- Share codes now require an account
+  exportShareNeedsAccount: "Connectez-vous pour générer des codes et liens de partage.",
+  toastShareNeedsAccount: "Connectez-vous pour générer des codes de partage.",
+
+  // --- Merge prompt wording
+  mergeDesc: "Cet appareil contient un pack et des éléments enregistrés, et votre compte en contient déjà aussi.",
+  mergeFavCountOne: "{n} enregistré",
+  mergeFavCountOther: "{n} enregistrés",
+  mergeKeepBothDesc: "Fusionne les éléments enregistrés. Garde le pack de cet appareil actif et laisse celui de votre compte intact pour le moment.",
+  toastMergeBothDone: "Éléments enregistrés fusionnés. Le pack de cet appareil reste actif, et le pack précédent de votre compte est conservé."
 };
