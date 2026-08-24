@@ -1178,6 +1178,41 @@
     width:16px; height:16px; color: var(--text-dim); pointer-events:none;
   }
   .auth-field-input-wrap input{ padding-left:36px; }
+  /* Password fields: the real <input> keeps type="password" (so browsers still
+     offer autofill/password-manager suggestions and password-strength hints),
+     but its own text is made invisible so we can draw our own masked
+     characters on top via .pw-reveal-overlay, which briefly shows a just-typed
+     character before turning it into a dot. */
+  .pw-reveal-input{ color: transparent !important; caret-color: var(--text) !important; padding-right:36px !important; }
+  .pw-reveal-input::-ms-reveal, .pw-reveal-input::-ms-clear{ display:none; }
+  .pw-reveal-input:-webkit-autofill,
+  .pw-reveal-input:-webkit-autofill:hover,
+  .pw-reveal-input:-webkit-autofill:focus{
+    -webkit-text-fill-color: transparent !important;
+    transition: background-color 9999s ease-in-out 0s;
+  }
+  .pw-reveal-overlay{
+    position:absolute; inset:0;
+    display:flex; align-items:center;
+    padding-left:36px; padding-right:36px;
+    font-family:inherit; font-size:0.95rem; color: var(--text);
+    white-space:pre; overflow:hidden;
+    pointer-events:none;
+  }
+  .pw-reveal-toggle{
+    position:absolute; top:0; bottom:0; right:7px; margin:auto 0;
+    width:26px; height:26px; display:flex; align-items:center; justify-content:center;
+    background:none; border:none; padding:0; cursor:pointer;
+    color: var(--text-dim); border-radius:6px; line-height:0;
+    transition: background .15s ease, color .15s ease;
+  }
+  .pw-reveal-toggle:hover{ background: var(--accent-soft); color: var(--accent-dark); }
+  .pw-reveal-toggle:active{ transform: scale(.9); }
+  .pw-reveal-toggle svg{
+    position:static; top:auto; left:auto; transform:none; /* cancel .auth-field-input-wrap svg's absolute positioning + translateY below — this icon shares that ancestor */
+    width:18px; height:18px; display:block; pointer-events:none;
+  }
+  .pw-reveal-toggle:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
   .auth-error{
     display:flex; gap:8px; align-items:flex-start; background: var(--danger-soft); color: var(--danger-text);
     border:1px solid var(--danger-border); border-radius:8px; padding:9px 11px; font-size:0.84rem;
@@ -2547,6 +2582,137 @@ async function handleSignOut(){
   }
 }
 
+// Password fields normally mask every character the instant it's typed,
+// which makes it easy to miss a typo. This keeps the native <input
+// type="password"> (so autofill/password managers still work) but hides its
+// text and draws our own overlay on top: a newly typed character is shown in
+// the clear for a moment, then swapped for the same dot the rest of the
+// field already uses. An eye button lets the user reveal the whole field on
+// demand instead of waiting character-by-character.
+const PW_REVEAL_MS = 650;
+const PW_MASK_CHAR = "\u2022"; // same bullet the browser's own password mask uses
+const PW_ICON_EYE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
+const PW_ICON_EYE_OFF = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a20.7 20.7 0 0 1 5.06-6.06M9.9 4.24A10.4 10.4 0 0 1 12 4c7 0 11 8 11 8a20.6 20.6 0 0 1-3.22 4.66M14.12 14.12a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>`;
+
+// Removes any spaces that made it into a password field (paste, drag-drop,
+// autofill — keydown alone only stops typed spaces) and keeps the caret
+// where the user would expect it, rather than letting it jump to the end.
+function stripSpaces(input){
+  const value = input.value;
+  if(!/\s/.test(value)) return value;
+  const selStart = input.selectionStart ?? value.length;
+  const spacesBefore = (value.slice(0, selStart).match(/\s/g) || []).length;
+  const cleaned = value.replace(/\s/g, "");
+  input.value = cleaned;
+  const newPos = Math.max(0, selStart - spacesBefore);
+  try{ input.setSelectionRange(newPos, newPos); }catch(e){ /* selection API unsupported; harmless */ }
+  return cleaned;
+}
+
+function attachPasswordReveal(input){
+  if(!input || input.dataset.pwRevealAttached) return;
+  const wrap = input.closest(".auth-field-input-wrap") || input.parentElement;
+  if(!wrap) return;
+  input.dataset.pwRevealAttached = "1";
+  input.classList.add("pw-reveal-input");
+
+  const overlay = document.createElement("div");
+  overlay.className = "pw-reveal-overlay";
+  overlay.setAttribute("aria-hidden", "true");
+  wrap.appendChild(overlay);
+
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "pw-reveal-toggle";
+  wrap.appendChild(toggle);
+
+  const state = { prevValue: input.value || "", revealFrom: null, revealTo: null, timer: null, forceShow: false };
+
+  function render(){
+    const value = input.value;
+    let out = "";
+    for(let i = 0; i < value.length; i++){
+      const revealed = state.forceShow || (state.revealFrom !== null && i >= state.revealFrom && i < state.revealTo);
+      out += revealed ? value[i] : PW_MASK_CHAR;
+    }
+    overlay.textContent = out;
+    overlay.scrollLeft = input.scrollLeft;
+  }
+
+  function maskAll(){
+    clearTimeout(state.timer);
+    state.timer = null;
+    state.revealFrom = null;
+    state.revealTo = null;
+    render();
+  }
+
+  function updateToggleUI(){
+    const label = state.forceShow ? t('authHidePassword','Hide password') : t('authShowPassword','Show password');
+    toggle.innerHTML = state.forceShow ? PW_ICON_EYE_OFF : PW_ICON_EYE;
+    toggle.setAttribute("aria-label", label);
+    toggle.title = label;
+    toggle.setAttribute("aria-pressed", state.forceShow ? "true" : "false");
+  }
+
+  input.addEventListener("keydown", (e)=>{
+    if(e.key === " ") e.preventDefault(); // passwords here just don't take spaces, silently
+  });
+  input.addEventListener("input", ()=>{
+    const value = stripSpaces(input);
+    const prev = state.prevValue;
+    const minLen = Math.min(prev.length, value.length);
+    let common = 0;
+    while(common < minLen && prev[common] === value[common]) common++;
+    state.prevValue = value;
+
+    if(state.forceShow){ render(); return; } // already showing everything, nothing to schedule
+
+    clearTimeout(state.timer);
+    if(value.length > common){
+      // Newly typed (or pasted) characters starting at `common` — reveal
+      // just that stretch, then let it fall back to dots on its own.
+      state.revealFrom = common;
+      state.revealTo = value.length;
+      state.timer = setTimeout(()=>{
+        state.revealFrom = null;
+        state.revealTo = null;
+        render();
+      }, PW_REVEAL_MS);
+    } else {
+      // Pure deletion — nothing new to show.
+      state.revealFrom = null;
+      state.revealTo = null;
+    }
+    render();
+  });
+  input.addEventListener("scroll", ()=>{ overlay.scrollLeft = input.scrollLeft; });
+  input.addEventListener("change", ()=>{ state.prevValue = stripSpaces(input); render(); }); // covers autofill in browsers that skip "input"
+  input.addEventListener("blur", ()=>{ if(!state.forceShow) maskAll(); });
+
+  toggle.addEventListener("mousedown", (e)=>{ e.preventDefault(); }); // keeps focus (and its ring) on the input instead of hopping to the button and back
+  toggle.addEventListener("click", ()=>{
+    state.forceShow = !state.forceShow;
+    clearTimeout(state.timer);
+    state.timer = null;
+    state.revealFrom = null;
+    state.revealTo = null;
+    // Note: we deliberately leave the input's own type="password" alone —
+    // switching it to type="text" is what a native show/hide toggle would
+    // do, but it also matches the dark-theme override CSS for
+    // input[type=text], which forces a light background and flips this
+    // field white while every other field around it stays dark. Our overlay
+    // already draws the visible characters, so the underlying type doesn't
+    // need to change for the reveal itself to work.
+    updateToggleUI();
+    render();
+    input.focus();
+  });
+
+  updateToggleUI();
+  render();
+}
+
 // Supabase returns a handful of stable English error strings we can map to
 // friendlier, translatable copy. Anything we don't recognize falls back to
 // showing Supabase's own message rather than hiding it.
@@ -2761,6 +2927,7 @@ function showAuthModal(initialMode = "signin"){
       btn.addEventListener("click", ()=>handleOAuth(btn.dataset.provider));
     });
     backdrop.querySelector("#authForm").addEventListener("submit", handleSubmit);
+    attachPasswordReveal(backdrop.querySelector("#authPassword"));
   }
 
   async function handleOAuth(provider){
@@ -2904,6 +3071,7 @@ function showNewPasswordModal(){
     }
   });
 
+  attachPasswordReveal(document.getElementById("newPassword"));
   setTimeout(()=>{ const el = document.getElementById("newPassword"); if(el) el.focus(); }, 50);
 }
 
