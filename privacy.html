@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Privacy Policy - ModBench</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<script>
+  (function(){
+    let saved = null;
+    try{ saved = localStorage.getItem("modbench-theme"); }catch(e){ /* storage blocked; fall back to system preference */ }
+    const theme = saved || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    if(theme === "dark") document.documentElement.setAttribute("data-theme","dark");
+  })();
+</script>
+<style>
+  :root{
+    --bg: #f6f5f1;
+    --surface: #ffffff;
+    --surface-2: #efece4;
+    --border: #ddd8cc;
+    --text: #262420;
+    --text-dim: #6b665c;
+    --accent: #2f6b4f;
+    --accent-dark: #234f3a;
+    --accent-soft: #e3ede7;
+    --radius: 10px;
+    --maxw: 820px;
+  }
+  html[data-theme="dark"]{
+    --bg: #1a1a17;
+    --surface: #232320;
+    --surface-2: #2c2c28;
+    --border: #3a3a35;
+    --text: #ece9e1;
+    --text-dim: #a6a196;
+    --accent: #4f9c76;
+    --accent-dark: #7fc7a2;
+    --accent-soft: #24352c;
+  }
+  *{ box-sizing: border-box; }
+  html,body{ margin:0; padding:0; }
+  body{
+    background: var(--bg);
+    color: var(--text);
+    font-family: "Atkinson Hyperlegible", system-ui, sans-serif;
+    line-height: 1.6;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+  }
+  header.site{
+    flex-shrink: 0;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+  .header-inner{
+    max-width: var(--maxw);
+    margin: 0 auto;
+    padding: 16px 20px;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+  .brand{ display:flex; align-items:center; gap:10px; text-decoration:none; color:inherit; }
+  .mark{
+    width: 30px; height: 30px; border-radius: 8px;
+    flex-shrink:0;
+  }
+  .mark img{ width:100%; height:100%; object-fit:contain; display:block; }
+  .brand-name{ font-weight: 700; font-size: 1.1rem; }
+  .header-actions{ margin-left:auto; }
+  .header-actions a{
+    color: var(--accent-dark);
+    text-decoration: none;
+    font-size: 0.9rem;
+    font-weight: 700;
+  }
+  .header-actions a:hover{ text-decoration: underline; }
+  main{
+    flex: 1;
+    max-width: var(--maxw);
+    width: 100%;
+    margin: 0 auto;
+    padding: 40px 20px 60px;
+  }
+  h1{ font-size: 1.8rem; margin-bottom: 4px; }
+  .updated{ color: var(--text-dim); font-size: 0.9rem; margin-bottom: 32px; }
+  h2{
+    font-size: 1.2rem;
+    margin-top: 36px;
+    margin-bottom: 10px;
+    color: var(--accent-dark);
+  }
+  p{ margin: 0 0 14px; }
+  ul{ margin: 0 0 14px; padding-left: 22px; }
+  li{ margin-bottom: 6px; }
+  a{ color: var(--accent-dark); }
+  .callout{
+    background: var(--accent-soft);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px 16px;
+    margin: 0 0 24px;
+    font-size: 0.92rem;
+  }
+  code{
+    background: var(--surface-2);
+    padding: 1px 6px;
+    border-radius: 4px;
+    font-size: 0.88em;
+  }
+  footer{
+    text-align: center;
+    padding: 30px 20px;
+    color: var(--text-dim);
+    font-size: 0.82rem;
+    flex-shrink: 0;
+  }
+  footer a{ color: var(--text-dim); }
+</style>
+</head>
+<body>
+
+<header class="site">
+  <div class="header-inner">
+    <a class="brand" href="https://modbench.net/">
+      <span class="mark"><img src="icons/logo.png" alt="ModBench logo"></span>
+      <span class="brand-name">ModBench</span>
+    </a>
+    <div class="header-actions">
+      <a href="https://modbench.net/">&larr; Back to ModBench</a>
+    </div>
+  </div>
+</header>
+
+<main>
+  <h1>Privacy Policy</h1>
+  <p class="updated">Last updated: August 24, 2026</p>
+
+  <div class="callout">
+    ModBench is a free tool for building and exporting Minecraft modpacks. This policy explains what information is collected when you use it, and why.
+  </div>
+
+  <h2>1. Who we are</h2>
+  <p>ModBench (<a href="https://modbench.net/">modbench.net</a>) is an independent, non-commercial project. It is not affiliated with Mojang, Microsoft, or Modrinth. If you have questions about this policy, you can reach out via the contact details on the site.</p>
+
+  <h2>2. Information you provide</h2>
+  <p>If you choose to create an account, we collect:</p>
+  <ul>
+    <li><strong>Email address and password</strong> (if you sign up directly), or</li>
+    <li><strong>Basic profile information</strong> (such as your name, email address, and profile picture) if you sign in using a third-party provider like Google.</li>
+  </ul>
+  <p>Creating an account is optional. You can browse mods and build a modpack without signing in — an account is only needed to save modpacks to your profile or sync favorites across devices.</p>
+
+  <h2>3. Information collected automatically</h2>
+  <p>We use standard, minimal technical logging to keep the site running (for example, error and performance logs). We do not use advertising trackers, and we do not sell any information to third parties.</p>
+
+  <h2>4. Local storage</h2>
+  <p>ModBench stores some data directly in your browser using <code>localStorage</code>, rather than on a server. This includes your theme preference (light/dark), language selection, and — if you're not signed in — the contents of the modpack you're currently building. This data stays on your device and is not transmitted to us.</p>
+
+  <h2>5. Third-party services</h2>
+  <p>ModBench relies on a small number of third-party services to function:</p>
+  <ul>
+    <li><strong>Modrinth API</strong> &mdash; mod listings, descriptions, and download files are pulled live from Modrinth. Your browser communicates directly with Modrinth's servers when you browse or download mods; see <a href="https://modrinth.com/legal/privacy" target="_blank" rel="noopener">Modrinth's privacy policy</a> for details.</li>
+    <li><strong>Supabase</strong> &mdash; if you create an account, your account data (email and authentication details) is stored and managed via Supabase, our backend provider.</li>
+    <li><strong>Sign-in providers</strong> (such as Google) &mdash; if you choose to sign in with a third-party provider, that provider shares basic profile information with us as permitted by your settings with them.</li>
+  </ul>
+
+  <h2>6. How we use your information</h2>
+  <p>Any information we collect is used only to:</p>
+  <ul>
+    <li>Let you sign in and save your modpacks and favorites;</li>
+    <li>Keep the site secure and working correctly;</li>
+    <li>Respond to support requests, if you contact us.</li>
+  </ul>
+  <p>We do not use your data for advertising, and we do not sell or rent your information to anyone.</p>
+
+  <h2>7. Data retention and deletion</h2>
+  <p>If you have an account, your data is kept for as long as your account exists. You can request deletion of your account and associated data at any time by contacting us; we'll remove it within a reasonable timeframe, except where we're required to retain certain records by law.</p>
+
+  <h2>8. Children's privacy</h2>
+  <p>ModBench is not directed at children under 13, and we do not knowingly collect personal information from children under 13. If you believe a child has provided us with personal information, please contact us so we can remove it.</p>
+
+  <h2>9. Changes to this policy</h2>
+  <p>We may update this policy from time to time as the site evolves. Significant changes will be reflected by updating the "Last updated" date above.</p>
+
+  <h2>10. Contact</h2>
+  <p>Questions about this policy or your data can be sent through the contact information listed on <a href="https://modbench.net/">modbench.net</a>.</p>
+</main>
+
+<footer>
+  ModBench pulls live data from the <a href="https://modrinth.com" target="_blank" rel="noopener">Modrinth</a> API. Not affiliated with Modrinth or Mojang.
+  <div style="margin-top:6px; opacity:0.6;">ModBench, 2026 — Made with ❤️ by Vik</div>
+</footer>
+
+</body>
+</html>
