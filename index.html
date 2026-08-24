@@ -4387,7 +4387,7 @@ function cardHtml(hit){
         ${icon ? `<img class="card-icon" src="${icon}" alt="" loading="lazy">` : `<div class="card-icon"></div>`}
         <div>
           <div class="card-title">${escapeHtml(hit.title)}${hit.pinned ? ` <span class="tag" style="text-transform:uppercase; font-size:0.62rem; vertical-align:1px;">Pinned</span>` : ""}</div>
-          <div class="card-author">by ${escapeHtml(hit.author || "unknown")}</div>
+          <div class="card-author">${t('cardBy','by')} ${escapeHtml(hit.author || "unknown")}</div>
         </div>
       </div>
       ${conflicts.length ? `<div class="card-conflict-note" title="${escapeHtml(tf('conflictNoteTitle','Marked incompatible with {mods} in your pack', {mods: conflictNames}))}">⚠ ${escapeHtml(tPlural(conflicts.length, 'conflictNoteOne','Conflicts with {mods}', 'conflictNoteOther','Conflicts with {mods}', {mods: conflictNames}))}</div>` : ""}
@@ -4866,7 +4866,7 @@ async function openModal(projectId, hitLookup){
         ${hit.icon_url ? `<img src="${hit.icon_url}" alt="">` : `<div style="width:72px;height:72px;border-radius:12px;background:var(--surface-2)"></div>`}
         <div style="flex:1; min-width:0;">
           <div class="name">${escapeHtml(projRes.title)}</div>
-          <div class="card-author">by ${escapeHtml(hit.author||"")}</div>
+          <div class="card-author">${t('cardBy','by')} ${escapeHtml(hit.author||"")}</div>
         </div>
         <div style="display:flex; align-items:center; gap:10px; flex-shrink:0;">
           <button class="card-fav ${modalIsFav?'faved':''}" id="modalFavBtn" title="${modalIsFav?t('favRemove','Remove from saved'):t('favAdd','Save')}" aria-label="${modalIsFav?t('favRemove','Remove from saved'):t('favAdd','Save')}">${modalIsFav ? HEART_ICON_FILLED : HEART_ICON_OUTLINE}</button>
@@ -5055,7 +5055,7 @@ function packRowHtml(mod){
       ${mod.icon_url ? `<img src="${mod.icon_url}" alt="">` : `<img alt="">`}
       <div class="info">
         <div class="name">${escapeHtml(mod.title)}${mod.isDependency ? ` <span class="tag" style="margin-left:4px;">${t('autoAddedTag','auto-added')}</span>` : ''}<span class="pack-row-issue-badge" hidden title=""></span></div>
-        <div class="sub">by ${escapeHtml(mod.author||"")} · ${escapeHtml(mod.selectedVersionNumber||"no version")}</div>
+        <div class="sub">${t('cardBy','by')} ${escapeHtml(mod.author||"")} · ${escapeHtml(mod.selectedVersionNumber||t('createNoVersion','no version'))}</div>
       </div>
       <select data-vselect="${mod.id}">
         ${displayVersions.map(v=>`<option value="${v.id}" ${v.id===mod.selectedVersionId?"selected":""}>${escapeHtml(v.version_number)} (${v.loaders.join(", ")})</option>`).join("")}
