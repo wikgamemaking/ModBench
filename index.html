@@ -916,9 +916,39 @@
     background: var(--surface); border:1px solid var(--border); border-radius:16px;
     box-shadow: 0 14px 36px rgba(0,0,0,.2), 0 2px 8px rgba(0,0,0,.08);
     width:276px; padding:8px; overflow:hidden;
-    animation: modal-pop-in .16s cubic-bezier(.2,.9,.3,1.2);
+    transform-origin: top right;
+    animation: account-menu-in .26s cubic-bezier(.16,.84,.34,1.02);
   }
-  @media (prefers-reduced-motion: reduce){ .account-menu{ animation:none; } }
+  /* Exit is deliberately faster than entry: a slow dismissal feels laggy,
+     a slow reveal feels considered. Same origin so it collapses back into
+     the avatar it came from rather than sliding off somewhere else. */
+  .account-menu.closing{
+    pointer-events:none;
+    animation: account-menu-out .16s cubic-bezier(.4,0,.7,.2) forwards;
+  }
+  @keyframes account-menu-in{
+    from{ opacity:0; transform: translateY(-6px) scale(.96); }
+    to{ opacity:1; transform: translateY(0) scale(1); }
+  }
+  @keyframes account-menu-out{
+    from{ opacity:1; transform: translateY(0) scale(1); }
+    to{ opacity:0; transform: translateY(-4px) scale(.97); }
+  }
+  /* The rows inside stagger in behind the container so the menu reads as
+     "unfolding" instead of one flat block appearing. */
+  .account-menu > *{ opacity:0; animation: account-menu-row-in .28s ease forwards; }
+  .account-menu > *:nth-child(1){ animation-delay: .04s; }
+  .account-menu > *:nth-child(2){ animation-delay: .08s; }
+  .account-menu > *:nth-child(3){ animation-delay: .11s; }
+  .account-menu > *:nth-child(4){ animation-delay: .14s; }
+  .account-menu.closing > *{ animation:none; opacity:1; }
+  @keyframes account-menu-row-in{
+    from{ opacity:0; transform: translateY(4px); }
+    to{ opacity:1; transform: translateY(0); }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .account-menu, .account-menu.closing, .account-menu > *{ animation:none; opacity:1; transform:none; }
+  }
   .account-menu-header{
     display:flex; align-items:center; gap:12px;
     margin:-8px -8px 10px; padding:16px 14px 14px;
@@ -962,9 +992,32 @@
     display:flex; align-items:center; justify-content:center;
   }
   .auth-modal-badge svg{ width:18px; height:18px; }
-  .auth-modal-body{ transition: opacity .22s ease, transform .22s ease, height .22s cubic-bezier(.2,.8,.2,1); overflow:hidden; }
-  .auth-modal-body.fading{ opacity:0; transform: translateY(-6px); }
-  @media (prefers-reduced-motion: reduce){ .auth-modal-body{ transition: height .22s cubic-bezier(.2,.8,.2,1); } .auth-modal-body.fading{ opacity:1; transform:none; } }
+  /* Three properties move here and the order matters. The old rule ran
+     height and opacity for the same .22s starting on the same frame, so the
+     new content hit full opacity while the box was still ~40% through
+     resizing — that's what read as the container "jerking" mid-animation.
+     Now the height leads and the fade trails it by 80ms, so the box has
+     mostly settled by the time the content is legible. */
+  .auth-modal-body{
+    overflow:hidden;
+    transition: height .32s cubic-bezier(.22,.61,.36,1),
+                opacity .2s ease .08s,
+                transform .26s cubic-bezier(.22,.61,.36,1) .06s;
+  }
+  /* Fading OUT is quick and undelayed — waiting to hide stale content is
+     what makes a swap feel sluggish. */
+  .auth-modal-body.fading{
+    opacity:0; transform: translateY(-5px);
+    transition: opacity .13s ease, transform .13s ease;
+  }
+  /* The header margin changes between reset mode and the others; without
+     this it snapped while the body was still animating. */
+  .auth-modal .modal-head{ transition: margin-bottom .32s cubic-bezier(.22,.61,.36,1); }
+  @media (prefers-reduced-motion: reduce){
+    .auth-modal-body{ transition: height .22s cubic-bezier(.2,.8,.2,1); }
+    .auth-modal-body.fading{ opacity:1; transform:none; }
+    .auth-modal .modal-head{ transition:none; }
+  }
   .auth-body-first-open > *{ opacity:0; animation: intro-step-in .34s ease forwards; }
   .auth-body-first-open > *:nth-child(1){ animation-delay: .02s; }
   .auth-body-first-open > *:nth-child(2){ animation-delay: .07s; }
@@ -2164,7 +2217,7 @@ const SIGNOUT_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentCo
 function renderAccountUI(){
   const slot = document.getElementById("accountSlot");
   if(!slot) return;
-  closeAccountMenu();
+  closeAccountMenu(true);
   const user = state.user;
   if(!user){
     slot.innerHTML = `<button type="button" class="signin-btn" id="signInBtn">${SIGNIN_ICON_SVG}${t('signInBtn','Sign in')}</button>`;
@@ -2200,20 +2253,38 @@ function closeAccountMenuOnOutsideClick(e){
 function closeAccountMenuOnEscape(e){
   if(e.key === "Escape") closeAccountMenu();
 }
-function closeAccountMenu(){
+// `immediate` skips the exit animation — used when the slot is about to be
+// rebuilt from scratch (renderAccountUI), where animating a node that's
+// being replaced in the same frame would just flicker.
+function closeAccountMenu(immediate){
   if(!accountMenuEl) return;
-  accountMenuEl.remove();
+  const el = accountMenuEl;
   accountMenuEl = null;
   document.removeEventListener("click", closeAccountMenuOnOutsideClick);
   document.removeEventListener("keydown", closeAccountMenuOnEscape);
   const btn = document.getElementById("accountMenuBtn");
   if(btn) btn.setAttribute("aria-expanded", "false");
+
+  const reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if(immediate || reduced){ el.remove(); return; }
+
+  // Take it out of the accessibility tree straight away — visually it's
+  // still fading, but it's already gone as far as the user is concerned.
+  el.setAttribute("aria-hidden", "true");
+  el.classList.add("closing");
+  let done = false;
+  const drop = ()=>{ if(done) return; done = true; el.remove(); };
+  el.addEventListener("animationend", drop, { once: true });
+  setTimeout(drop, 260); // safety net if animationend never fires
 }
 function toggleAccountMenu(){
   if(accountMenuEl){ closeAccountMenu(); return; }
   const slot = document.getElementById("accountSlot");
   const btn = document.getElementById("accountMenuBtn");
   if(!slot || !btn) return;
+  // A menu from a previous close may still be fading out; drop it now so we
+  // never briefly show two stacked menus.
+  slot.querySelectorAll(".account-menu.closing").forEach(el=>el.remove());
   const user = state.user;
   const email = (user && user.email) || "";
   const provider = getAuthProvider(user);
@@ -2397,9 +2468,14 @@ function showAuthModal(initialMode = "signin"){
   // the new content's size instantly) since signin/signup/reset all have
   // different heights, and a same-frame resize reads as another "jump."
   function switchMode(newMode){
+    if(mode === newMode) return; // ignore re-clicks on the active tab
     mode = newMode;
     const bodyEl = backdrop.querySelector("#authBody");
     if(!bodyEl){ renderTitle(); renderBody(); return; }
+    // Kill the staggered first-open reveal if it's still playing — otherwise
+    // its per-child opacity animation runs on top of the swap and the two
+    // fight for the same frames.
+    bodyEl.classList.remove("auth-body-first-open");
     const startHeight = bodyEl.offsetHeight;
     bodyEl.style.height = startHeight + "px";
     bodyEl.style.overflow = "hidden";
@@ -2408,7 +2484,15 @@ function showAuthModal(initialMode = "signin"){
     setTimeout(()=>{
       renderTitle();
       renderBody();
-      const targetHeight = bodyEl.scrollHeight;
+      // Measure at natural size rather than trusting scrollHeight: with a
+      // fixed height already applied, scrollHeight reports content overflow,
+      // which is off by the child margins the old code kept fighting. Going
+      // through height:auto and reading offsetHeight gives the true resting
+      // layout, then we snap back to the start value and animate from there.
+      bodyEl.style.height = "auto";
+      const targetHeight = bodyEl.offsetHeight;
+      bodyEl.style.height = startHeight + "px";
+      void bodyEl.offsetHeight; // commit the start value before transitioning
       requestAnimationFrame(()=>{
         bodyEl.classList.remove("fading");
         bodyEl.style.height = targetHeight + "px";
@@ -2436,8 +2520,8 @@ function showAuthModal(initialMode = "signin"){
       };
       const onTransitionEnd = (e)=>{ if(e.target === bodyEl && e.propertyName === "height") release(); };
       bodyEl.addEventListener("transitionend", onTransitionEnd);
-      setTimeout(release, 320); // safety net (matches reduced-motion / no-transition cases)
-    }, 160);
+      setTimeout(release, 420); // safety net (matches reduced-motion / no-transition cases)
+    }, 130);
   }
 
   function showError(msg){
@@ -2655,16 +2739,37 @@ function buildSettingsSnapshot(){
   return { packIcon: state.packIcon || "", autoCompatCheck: !!state.autoCompatCheck, lang: state.lang };
 }
 function buildFullSnapshot(){
+  return buildSyncRow();
+}
+/* Builds a COMPLETE user_data row, with `overrides` applied on top.
+ *
+ * This is the fix for the "my favorites vanished" bug. PostgREST's
+ * `Prefer: resolution=merge-duplicates` upsert is an INSERT ... ON CONFLICT
+ * DO UPDATE over the *whole* row: any column missing from the JSON body is
+ * written as its column DEFAULT, not left alone. So the old code, which
+ * posted only `{favorites, favorites_updated_at}` after a favorite change
+ * and only `{settings, settings_updated_at}` after a settings change, was
+ * resetting every other column on every push. Change the language, and the
+ * server-side favorites list was silently blanked; if the column defaults to
+ * now() on its timestamp, that blank then looks NEWER than the local copy and
+ * the next reconcile deletes the local favorites too. Both halves of what you
+ * saw, from one missing property.
+ *
+ * Sending the full row every time costs a few hundred bytes and makes the
+ * write idempotent regardless of what the column defaults happen to be.
+ */
+function buildSyncRow(overrides){
   const now = nowIso();
-  return {
+  const row = {
     user_id: state.user.id,
-    pack: state.pack,
+    pack: Array.isArray(state.pack) ? state.pack : [],
     pack_updated_at: getLocalTimestamp("pack") || now,
-    favorites: state.favorites,
+    favorites: Array.isArray(state.favorites) ? state.favorites : [],
     favorites_updated_at: getLocalTimestamp("favorites") || now,
     settings: buildSettingsSnapshot(),
     settings_updated_at: getLocalTimestamp("settings") || now
   };
+  return Object.assign(row, overrides || {});
 }
 function seedLocalTimestampsNow(){
   SYNC_FIELDS.forEach(bumpLocalTimestamp);
@@ -2728,10 +2833,14 @@ function resetSyncState(){
   syncStatus = "idle";
 }
 
+let syncErrorNotified = false;
 async function pushUserData(partial, opts = {}){
   if(!authConfigured() || !state.session) return;
   setSyncStatus("syncing");
   try{
+    // Always a full row — see buildSyncRow() for why a partial body here
+    // silently destroys the columns it omits.
+    const body = buildSyncRow(partial);
     const res = await fetch(`${SUPABASE_URL}/rest/v1/${USER_DATA_TABLE}`, {
       method: "POST",
       keepalive: !!opts.keepalive,
@@ -2741,13 +2850,27 @@ async function pushUserData(partial, opts = {}){
         "Content-Type": "application/json",
         "Prefer": "resolution=merge-duplicates,return=minimal"
       },
-      body: JSON.stringify(Object.assign({ user_id: state.user.id }, partial))
+      body: JSON.stringify(body)
     });
-    if(!res.ok) throw new Error(`Supabase user_data upsert failed (${res.status})`);
+    if(!res.ok){
+      // Surface Postgres's own message. A silent 400 here is what made this
+      // look like "syncing just doesn't work" instead of a nameable fault:
+      // 404 = table missing, 401/403 = RLS policy, 42P10 = no unique
+      // constraint on user_id so the upsert has nothing to conflict on.
+      let detail = "";
+      try{ detail = await res.text(); }catch(e){ /* body already consumed */ }
+      throw new Error(`Supabase user_data upsert failed (${res.status}) ${detail}`);
+    }
     setSyncStatus("synced");
+    syncErrorNotified = false;
   }catch(e){
     console.warn("Cloud sync push failed", e);
     setSyncStatus("error");
+    // Tell the user once per failure streak rather than never.
+    if(!syncErrorNotified){
+      syncErrorNotified = true;
+      showToast(t('toastSyncPushFailed',"Couldn't save to your account — changes are safe on this device."), { duration: 6000 });
+    }
   }
 }
 
@@ -2767,6 +2890,13 @@ async function fetchUserDataRow(){
 // Applies one remote field to local state + storage without re-queuing a
 // sync push (that would just bounce the value straight back to Supabase).
 function applyRemoteField(field, value, updatedAtIso){
+  // A missing column reads as null, which is not the same as "the user
+  // emptied this list" (that arrives as []). Treat null as no-data and keep
+  // whatever is on this device.
+  if(value === null || value === undefined){
+    if(updatedAtIso) setLocalTimestamp(field, updatedAtIso);
+    return;
+  }
   if(field === "pack"){
     state.pack = Array.isArray(value) ? value : [];
     savePack(false);
@@ -2793,6 +2923,10 @@ function reconcileRemoteRow(row){
   SYNC_FIELDS.forEach(field=>{
     const remoteTs = row[field + "_updated_at"];
     if(!remoteTs) return;
+    // An edit made in the last few hundred ms may still be sitting in the
+    // debounce queue. Pulling over it would discard a change the user just
+    // made and watched appear on screen.
+    if(Object.prototype.hasOwnProperty.call(syncPending, field)) return;
     const localTs = getLocalTimestamp(field);
     if(!localTs || new Date(remoteTs) > new Date(localTs)){
       applyRemoteField(field, row[field], remoteTs);
@@ -2849,8 +2983,12 @@ async function handleAuthReady(){
     const row = await fetchUserDataRow();
     if(!row){
       // No remote row yet: nothing to conflict with, just upload what's here.
-      await pushUserData(buildFullSnapshot());
-      seedLocalTimestampsNow();
+      // Seed from the snapshot's own timestamps rather than bumping to "now"
+      // afterwards — the old order left every local field looking newer than
+      // the copy we'd just written, so other devices could never win a pull.
+      const snapshot = buildFullSnapshot();
+      await pushUserData(snapshot);
+      seedLocalTimestampsFrom(snapshot);
       return;
     }
     if(!hasNonDefaultLocalData()){
@@ -2869,8 +3007,9 @@ async function handleAuthReady(){
     }
     const choice = await promptMergeChoice(row);
     if(choice === "device"){
-      await pushUserData(buildFullSnapshot());
-      seedLocalTimestampsNow();
+      const snapshot = buildFullSnapshot();
+      await pushUserData(snapshot);
+      seedLocalTimestampsFrom(snapshot);
     } else if(choice === "account"){
       SYNC_FIELDS.forEach(f=>applyRemoteField(f, row[f], row[f + "_updated_at"]));
     } else if(choice === "both"){
@@ -2896,6 +3035,31 @@ async function handleAuthReady(){
     showToast(t('toastSyncFailed',"Couldn't sync your account data. It'll retry automatically."));
   }
 }
+
+/* Run modbenchSyncCheck() in the browser console while signed in to find out
+ * in one shot whether the backend half of accounts is actually set up. Prints
+ * the real HTTP status and Postgres error for a read and a write. */
+window.modbenchSyncCheck = async function(){
+  if(!authConfigured()) return console.error("Supabase client not initialised.");
+  if(!state.session) return console.error("Not signed in — sign in first, then re-run.");
+  const url = `${SUPABASE_URL}/rest/v1/${USER_DATA_TABLE}`;
+  const headers = {
+    "apikey": SUPABASE_ANON_KEY,
+    "Authorization": `Bearer ${state.session.access_token}`,
+    "Content-Type": "application/json"
+  };
+  console.log("user id:", state.user.id);
+  const r = await fetch(`${url}?user_id=eq.${state.user.id}&select=*`, { headers });
+  console.log("READ", r.status, await r.text());
+  const w = await fetch(url, {
+    method: "POST",
+    headers: Object.assign({ "Prefer": "resolution=merge-duplicates,return=representation" }, headers),
+    body: JSON.stringify(buildSyncRow())
+  });
+  console.log("WRITE", w.status, await w.text());
+  console.log("local timestamps:", SYNC_FIELDS.map(f=>f+"="+getLocalTimestamp(f)).join("  "));
+  console.log("local favorites:", state.favorites.length, "pack:", state.pack.length);
+};
 
 let lastPullAt = 0;
 async function maybePullOnFocus(){
