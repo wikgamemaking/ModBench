@@ -1183,7 +1183,7 @@
      but its own text is made invisible so we can draw our own masked
      characters on top via .pw-reveal-overlay, which briefly shows a just-typed
      character before turning it into a dot. */
-  .pw-reveal-input{ color: transparent !important; caret-color: var(--text) !important; padding-right:36px !important; }
+  .pw-reveal-input{ color: transparent !important; caret-color: transparent !important; padding-right:36px !important; }
   .pw-reveal-input::-ms-reveal, .pw-reveal-input::-ms-clear{ display:none; }
   .pw-reveal-input:-webkit-autofill,
   .pw-reveal-input:-webkit-autofill:hover,
@@ -1213,6 +1213,47 @@
     width:18px; height:18px; display:block; pointer-events:none;
   }
   .pw-reveal-toggle:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
+  /* Synthetic caret: the real <input>'s native caret is positioned using the
+     browser's own internal password-mask glyph width, which never matches
+     our overlay's rendered text (dots OR, especially, the fully-revealed
+     characters, which are far wider than a row of dots). We hide the real
+     caret entirely and draw our own, positioned from the overlay's own
+     measured text — see attachPasswordReveal(). */
+  .pw-fake-caret{
+    position:absolute; top:50%; width:1px; height:1.05em;
+    background: var(--text); transform: translateY(-50%);
+    pointer-events:none; opacity:0;
+  }
+  .pw-fake-caret.active{ opacity:1; animation: pw-caret-blink 1.05s steps(1) infinite; }
+  @keyframes pw-caret-blink{ 0%,50%{ opacity:1; } 50.01%,100%{ opacity:0; } }
+  @media (prefers-reduced-motion: reduce){
+    .pw-fake-caret.active{ animation:none; opacity:1; }
+  }
+  /* Password strength meter + requirements checklist, shown under the
+     password field wherever the user is choosing a new password (sign-up,
+     set-new-password) — not on sign-in, since that field holds an existing
+     password and there's nothing to grade. */
+  .pw-strength{ margin:8px 0 22px; }
+  .pw-strength-bar{ display:flex; gap:4px; margin-bottom:7px; }
+  .pw-strength-seg{ height:4px; flex:1; border-radius:2px; background: var(--border); transition: background .2s ease; }
+  .pw-strength-seg.filled-weak{ background: var(--danger); }
+  .pw-strength-seg.filled-fair{ background: var(--warn); }
+  .pw-strength-seg.filled-good{ background: var(--accent); }
+  .pw-strength-seg.filled-strong{ background: var(--accent-dark); }
+  .pw-strength-label{ font-size:0.78rem; font-weight:700; min-height:1.1em; }
+  .pw-strength-label.weak{ color: var(--danger); }
+  .pw-strength-label.fair{ color: var(--warn); }
+  .pw-strength-label.good{ color: var(--accent); }
+  .pw-strength-label.strong{ color: var(--accent-dark); }
+  .pw-requirements{ list-style:none; display:grid; grid-template-columns:1fr 1fr; gap:5px 12px; margin:8px 0 0; padding:0; }
+  .pw-requirements li{
+    font-size:0.78rem; color: var(--text-dim); display:flex; align-items:flex-start; gap:6px;
+    transition: color .15s ease; line-height:1.3;
+  }
+  .pw-req-icon{ width:14px; height:14px; flex-shrink:0; margin-top:1px; display:flex; align-items:center; justify-content:center; color: var(--text-dim); transition: color .15s ease; }
+  .pw-req-icon svg{ width:100%; height:100%; display:block; }
+  .pw-requirements li.met{ color: var(--text); }
+  .pw-requirements li.met .pw-req-icon{ color: var(--accent); }
   .auth-error{
     display:flex; gap:8px; align-items:flex-start; background: var(--danger-soft); color: var(--danger-text);
     border:1px solid var(--danger-border); border-radius:8px; padding:9px 11px; font-size:0.84rem;
@@ -2404,9 +2445,6 @@ function getInitials(email){
   return namePart.slice(0, 2).toUpperCase();
 }
 
-// Google and Discord logins both come back through Supabase with the
-// provider's picture mapped onto user_metadata.avatar_url; Google also
-// duplicates it under .picture, which we fall back to just in case.
 function getAvatarUrl(user){
   const meta = user && user.user_metadata;
   return (meta && (meta.avatar_url || meta.picture)) || null;
@@ -2414,11 +2452,6 @@ function getAvatarUrl(user){
 function getAuthProvider(user){
   return (user && user.app_metadata && user.app_metadata.provider) || "email";
 }
-// Field names below are Supabase's normalized user_metadata for these
-// providers, with a couple of fallbacks since the exact keys aren't
-// pinned down in Supabase's own docs — if a provider ever comes back
-// looking wrong here, the safest debug step is signing in and checking
-// state.user.user_metadata in the console to see the real shape.
 function getDisplayName(user){
   const meta = user && user.user_metadata;
   return (meta && (meta.full_name || meta.name)) || null;
@@ -2477,9 +2510,6 @@ function closeAccountMenuOnOutsideClick(e){
 function closeAccountMenuOnEscape(e){
   if(e.key === "Escape") closeAccountMenu();
 }
-// `immediate` skips the exit animation — used when the slot is about to be
-// rebuilt from scratch (renderAccountUI), where animating a node that's
-// being replaced in the same frame would just flicker.
 function closeAccountMenu(immediate){
   if(!accountMenuEl) return;
   const el = accountMenuEl;
@@ -2582,21 +2612,11 @@ async function handleSignOut(){
   }
 }
 
-// Password fields normally mask every character the instant it's typed,
-// which makes it easy to miss a typo. This keeps the native <input
-// type="password"> (so autofill/password managers still work) but hides its
-// text and draws our own overlay on top: a newly typed character is shown in
-// the clear for a moment, then swapped for the same dot the rest of the
-// field already uses. An eye button lets the user reveal the whole field on
-// demand instead of waiting character-by-character.
 const PW_REVEAL_MS = 650;
 const PW_MASK_CHAR = "\u2022"; // same bullet the browser's own password mask uses
 const PW_ICON_EYE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
 const PW_ICON_EYE_OFF = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a20.7 20.7 0 0 1 5.06-6.06M9.9 4.24A10.4 10.4 0 0 1 12 4c7 0 11 8 11 8a20.6 20.6 0 0 1-3.22 4.66M14.12 14.12a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>`;
 
-// Removes any spaces that made it into a password field (paste, drag-drop,
-// autofill — keydown alone only stops typed spaces) and keeps the caret
-// where the user would expect it, rather than letting it jump to the end.
 function stripSpaces(input){
   const value = input.value;
   if(!/\s/.test(value)) return value;
@@ -2626,7 +2646,19 @@ function attachPasswordReveal(input){
   toggle.className = "pw-reveal-toggle";
   wrap.appendChild(toggle);
 
+  const caret = document.createElement("div");
+  caret.className = "pw-fake-caret";
+  caret.setAttribute("aria-hidden", "true");
+  wrap.appendChild(caret);
+
   const state = { prevValue: input.value || "", revealFrom: null, revealTo: null, timer: null, forceShow: false };
+
+  const measureCanvas = document.createElement("canvas");
+  const measureCtx = measureCanvas.getContext("2d");
+  function textWidth(str){
+    measureCtx.font = getComputedStyle(overlay).font;
+    return measureCtx.measureText(str).width;
+  }
 
   function render(){
     const value = input.value;
@@ -2636,7 +2668,27 @@ function attachPasswordReveal(input){
       out += revealed ? value[i] : PW_MASK_CHAR;
     }
     overlay.textContent = out;
-    overlay.scrollLeft = input.scrollLeft;
+    syncScroll();
+  }
+
+  // Keeps the caret's position (per input.selectionEnd, which reflects the
+  // real character index regardless of masking) inside the overlay's
+  // visible window, the same way a native input scrolls to keep its caret
+  // in view — then draws our synthetic caret at that same resolved spot.
+  function syncScroll(){
+    const text = overlay.textContent;
+    const caretIndex = Math.max(0, Math.min(text.length, input.selectionEnd ?? text.length));
+    const caretX = textWidth(text.slice(0, caretIndex));
+    const visible = overlay.clientWidth;
+    const maxScroll = Math.max(0, overlay.scrollWidth - visible);
+    const pad = 2;
+    let target = overlay.scrollLeft;
+    if(caretX - target > visible - pad) target = caretX - visible + pad;
+    if(caretX - target < pad) target = caretX - pad;
+    target = Math.max(0, Math.min(target, maxScroll));
+    overlay.scrollLeft = target;
+    const padLeft = parseFloat(getComputedStyle(overlay).paddingLeft) || 0;
+    caret.style.left = (padLeft + caretX - target) + "px";
   }
 
   function maskAll(){
@@ -2686,9 +2738,15 @@ function attachPasswordReveal(input){
     }
     render();
   });
-  input.addEventListener("scroll", ()=>{ overlay.scrollLeft = input.scrollLeft; });
+  input.addEventListener("click", syncScroll);
+  input.addEventListener("keyup", (e)=>{
+    // Only reposition on keys that can move the caret without changing
+    // the value — "input" already handles anything that edits text.
+    if(["ArrowLeft","ArrowRight","Home","End"].includes(e.key)) syncScroll();
+  });
   input.addEventListener("change", ()=>{ state.prevValue = stripSpaces(input); render(); }); // covers autofill in browsers that skip "input"
-  input.addEventListener("blur", ()=>{ if(!state.forceShow) maskAll(); });
+  input.addEventListener("focus", ()=>{ caret.classList.add("active"); syncScroll(); });
+  input.addEventListener("blur", ()=>{ caret.classList.remove("active"); if(!state.forceShow) maskAll(); });
 
   toggle.addEventListener("mousedown", (e)=>{ e.preventDefault(); }); // keeps focus (and its ring) on the input instead of hopping to the button and back
   toggle.addEventListener("click", ()=>{
@@ -2697,13 +2755,6 @@ function attachPasswordReveal(input){
     state.timer = null;
     state.revealFrom = null;
     state.revealTo = null;
-    // Note: we deliberately leave the input's own type="password" alone —
-    // switching it to type="text" is what a native show/hide toggle would
-    // do, but it also matches the dark-theme override CSS for
-    // input[type=text], which forces a light background and flips this
-    // field white while every other field around it stays dark. Our overlay
-    // already draws the visible characters, so the underlying type doesn't
-    // need to change for the reveal itself to work.
     updateToggleUI();
     render();
     input.focus();
@@ -2713,9 +2764,90 @@ function attachPasswordReveal(input){
   render();
 }
 
-// Supabase returns a handful of stable English error strings we can map to
-// friendlier, translatable copy. Anything we don't recognize falls back to
-// showing Supabase's own message rather than hiding it.
+function gradePassword(pw){
+  const hasLower = /[a-z]/.test(pw);
+  const hasUpper = /[A-Z]/.test(pw);
+  const hasNumber = /[0-9]/.test(pw);
+  const hasSymbol = /[^A-Za-z0-9]/.test(pw);
+  const reqs = {
+    length: pw.length >= 8,
+    case: hasUpper,
+    number: hasNumber,
+    symbol: hasSymbol
+  };
+  let points = 0;
+  if(pw.length >= 8) points++;
+  if(pw.length >= 12) points++;
+  if(hasLower) points++;
+  if(hasUpper) points++;
+  if(hasNumber) points++;
+  if(hasSymbol) points++;
+  // points tops out at 6 (2 for length, 4 for variety); bucket into the
+  // 4 levels the meter displays. Empty field -> level 0 (meter at rest).
+  let level = 0;
+  if(pw.length > 0){
+    if(points <= 1) level = 1;
+    else if(points <= 3) level = 2;
+    else if(points === 4) level = 3;
+    else level = 4;
+  }
+  return { level, reqs };
+}
+
+const PW_STRENGTH_LEVELS = [
+  null,
+  { key:'weak',   label: ()=>t('authPwStrengthWeak','Weak') },
+  { key:'fair',   label: ()=>t('authPwStrengthFair','Fair') },
+  { key:'good',   label: ()=>t('authPwStrengthGood','Good') },
+  { key:'strong', label: ()=>t('authPwStrengthStrong','Strong') }
+];
+const PW_REQ_ICON_CHECK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+const PW_REQ_ICON_DOT = `<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="4"></circle></svg>`;
+
+function pwStrengthMarkup(idPrefix){
+  return `
+    <div class="pw-strength" id="${idPrefix}Strength" aria-live="polite">
+      <div class="pw-strength-bar">
+        <div class="pw-strength-seg"></div>
+        <div class="pw-strength-seg"></div>
+        <div class="pw-strength-seg"></div>
+        <div class="pw-strength-seg"></div>
+      </div>
+      <div class="pw-strength-label"></div>
+      <ul class="pw-requirements">
+        <li data-req="length"><span class="pw-req-icon">${PW_REQ_ICON_DOT}</span><span>${t('authPwReqLength','8 characters or more')}</span></li>
+        <li data-req="case"><span class="pw-req-icon">${PW_REQ_ICON_DOT}</span><span>${t('authPwReqCase','At least one uppercase letter')}</span></li>
+        <li data-req="number"><span class="pw-req-icon">${PW_REQ_ICON_DOT}</span><span>${t('authPwReqNumber','At least one number')}</span></li>
+        <li data-req="symbol"><span class="pw-req-icon">${PW_REQ_ICON_DOT}</span><span>${t('authPwReqSymbol','At least one symbol')}</span></li>
+      </ul>
+    </div>`;
+}
+
+function attachPasswordStrength(input, container){
+  if(!input || !container || input.dataset.pwStrengthAttached) return;
+  input.dataset.pwStrengthAttached = "1";
+  const segs = container.querySelectorAll(".pw-strength-seg");
+  const labelEl = container.querySelector(".pw-strength-label");
+  const reqEls = container.querySelectorAll(".pw-requirements li");
+
+  function update(){
+    const { level, reqs } = gradePassword(input.value);
+    const meta = level > 0 ? PW_STRENGTH_LEVELS[level] : null;
+    segs.forEach((seg, i)=>{
+      seg.className = "pw-strength-seg" + (meta && i < level ? " filled-" + meta.key : "");
+    });
+    labelEl.textContent = meta ? meta.label() : "";
+    labelEl.className = "pw-strength-label" + (meta ? " " + meta.key : "");
+    reqEls.forEach(li=>{
+      const met = !!reqs[li.dataset.req];
+      li.classList.toggle("met", met);
+      li.querySelector(".pw-req-icon").innerHTML = met ? PW_REQ_ICON_CHECK : PW_REQ_ICON_DOT;
+    });
+  }
+  input.addEventListener("input", update);
+  update();
+}
+
 function friendlyAuthError(err){
   if(!err) return t('authErrGeneric','Something went wrong. Try again.');
   const msg = err.message || String(err);
@@ -2728,9 +2860,6 @@ function friendlyAuthError(err){
   return msg;
 }
 
-// Plays the backdrop fade-out and the modal's own pop-out, then removes the
-// node. Guarded against double-calls (click the X while Escape is already
-// mid-animation) and against the animationend never arriving.
 function dismissModalBackdrop(backdrop){
   if(!backdrop || backdrop.dataset.closing === "1"){ return; }
   const reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
@@ -2809,6 +2938,7 @@ function showAuthModal(initialMode = "signin"){
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
               <input type="password" id="authPassword" autocomplete="${mode==='signup' ? 'new-password' : 'current-password'}" minlength="6" required>
             </div>
+            ${mode==='signup' ? pwStrengthMarkup('authPassword') : ""}
           </div>`}
           ${mode==='signin' ? `<p class="auth-forgot"><button type="button" class="linklike" id="forgotPasswordBtn">${t('authForgotPassword','Forgot password?')}</button></p>` : ""}
           <button type="submit" class="export-btn" id="authSubmitBtn" style="margin-top:0;">${isReset ? t('authSendResetBtn','Send reset link') : (mode==='signup' ? t('authCreateAccountBtn','Create account') : t('authSignInBtn','Sign in'))}</button>
@@ -2836,9 +2966,6 @@ function showAuthModal(initialMode = "signin"){
     renderShell();
     renderTitle();
     renderBody();
-    // Reuses the onboarding modal's staggered reveal for the initial open
-    // only — the class is dropped once it's played so switchMode()'s own
-    // fade/resize transition governs every later tab switch instead.
     const bodyEl = backdrop.querySelector("#authBody");
     if(bodyEl){
       bodyEl.classList.add("auth-body-first-open");
@@ -2846,19 +2973,11 @@ function showAuthModal(initialMode = "signin"){
     }
   }
 
-  // Fades #authBody out, swaps its content once the mode has changed, then
-  // fades back in — avoids the jarring full-popup flash a plain re-render causes.
-  // Also animates the height between the two states (rather than snapping to
-  // the new content's size instantly) since signin/signup/reset all have
-  // different heights, and a same-frame resize reads as another "jump."
   function switchMode(newMode){
     if(mode === newMode) return; // ignore re-clicks on the active tab
     mode = newMode;
     const bodyEl = backdrop.querySelector("#authBody");
     if(!bodyEl){ renderTitle(); renderBody(); return; }
-    // Kill the staggered first-open reveal if it's still playing — otherwise
-    // its per-child opacity animation runs on top of the swap and the two
-    // fight for the same frames.
     bodyEl.classList.remove("auth-body-first-open");
     const startHeight = bodyEl.offsetHeight;
     bodyEl.style.height = startHeight + "px";
@@ -2928,6 +3047,10 @@ function showAuthModal(initialMode = "signin"){
     });
     backdrop.querySelector("#authForm").addEventListener("submit", handleSubmit);
     attachPasswordReveal(backdrop.querySelector("#authPassword"));
+    if(mode === "signup"){
+      const strengthEl = backdrop.querySelector("#authPasswordStrength");
+      if(strengthEl) attachPasswordStrength(backdrop.querySelector("#authPassword"), strengthEl);
+    }
   }
 
   async function handleOAuth(provider){
@@ -3031,6 +3154,7 @@ function showNewPasswordModal(){
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
             <input type="password" id="newPassword" autocomplete="new-password" minlength="6" required>
           </div>
+          ${pwStrengthMarkup('newPassword')}
         </div>
         <button type="submit" class="export-btn" id="newPasswordSubmitBtn" style="margin-top:0;">${t('authSetPasswordBtn','Set new password')}</button>
       </form>
@@ -3072,6 +3196,7 @@ function showNewPasswordModal(){
   });
 
   attachPasswordReveal(document.getElementById("newPassword"));
+  attachPasswordStrength(document.getElementById("newPassword"), document.getElementById("newPasswordStrength"));
   setTimeout(()=>{ const el = document.getElementById("newPassword"); if(el) el.focus(); }, 50);
 }
 
@@ -3102,16 +3227,6 @@ async function initAuth(){
   });
 }
 
-/* ================= Cloud sync (pack / favorites / settings) =================
- * Strategy: last-write-wins, per field, using a *_updated_at timestamp we
- * track locally (mirrored in localStorage) and compare against the same
- * columns in Supabase. "settings" bundles packIcon / autoCompatCheck / lang
- * into one jsonb column — theme is intentionally left as a device-local
- * preference and never synced.
- * The user_data table + RLS policies need to exist in Supabase first (SQL
- * given separately) — everything here fails soft (console.warn + a toast)
- * if the table isn't there yet, so it won't break the app.
- */
 const USER_DATA_TABLE = "user_data";
 const SYNC_FIELDS = ["pack", "favorites", "settings", "saved_packs"];
 
@@ -3127,23 +3242,6 @@ function buildSettingsSnapshot(){
 function buildFullSnapshot(){
   return buildSyncRow();
 }
-/* Builds a COMPLETE user_data row, with `overrides` applied on top.
- *
- * This is the fix for the "my favorites vanished" bug. PostgREST's
- * `Prefer: resolution=merge-duplicates` upsert is an INSERT ... ON CONFLICT
- * DO UPDATE over the *whole* row: any column missing from the JSON body is
- * written as its column DEFAULT, not left alone. So the old code, which
- * posted only `{favorites, favorites_updated_at}` after a favorite change
- * and only `{settings, settings_updated_at}` after a settings change, was
- * resetting every other column on every push. Change the language, and the
- * server-side favorites list was silently blanked; if the column defaults to
- * now() on its timestamp, that blank then looks NEWER than the local copy and
- * the next reconcile deletes the local favorites too. Both halves of what you
- * saw, from one missing property.
- *
- * Sending the full row every time costs a few hundred bytes and makes the
- * write idempotent regardless of what the column defaults happen to be.
- */
 function buildSyncRow(overrides){
   const now = nowIso();
   const row = {
@@ -3198,9 +3296,6 @@ function describeSyncError(status, body){
 
 let syncPending = {};
 let syncTimer = null;
-// Called from savePack/saveFavorites/settings setters on every local change,
-// signed in or not — bumping the local timestamp always happens so LWW has
-// something real to compare against later, even before the user ever signs in.
 function queueSync(field, value){
   bumpLocalTimestamp(field);
   if(!state.session) return;
@@ -3216,11 +3311,6 @@ function flushSync(opts){
   syncPending = {};
   pushUserData(body, opts);
 }
-// Mobile browsers can suspend a backgrounded tab's timers almost immediately,
-// so the normal 800ms debounce may never get to fire before the app is put
-// away — e.g. add a mod, then switch apps within under a second. Flush
-// right away (with keepalive so the request can outlive the page) whenever
-// the tab is about to go away, instead of waiting on the debounce.
 function flushSyncImmediately(){
   flushSync({ keepalive: true });
 }
@@ -3256,10 +3346,6 @@ async function pushUserData(partial, opts = {}){
       body: JSON.stringify(body)
     });
     if(!res.ok){
-      // Surface Postgres's own message. A silent 400 here is what made this
-      // look like "syncing just doesn't work" instead of a nameable fault:
-      // 404 = table missing, 401/403 = RLS policy, 42P10 = no unique
-      // constraint on user_id so the upsert has nothing to conflict on.
       let detail = "";
       try{ detail = await res.text(); }catch(e){ /* body already consumed */ }
       lastSyncError = describeSyncError(res.status, detail);
@@ -3296,9 +3382,6 @@ async function fetchUserDataRow(){
 // Applies one remote field to local state + storage without re-queuing a
 // sync push (that would just bounce the value straight back to Supabase).
 function applyRemoteField(field, value, updatedAtIso){
-  // A missing column reads as null, which is not the same as "the user
-  // emptied this list" (that arrives as []). Treat null as no-data and keep
-  // whatever is on this device.
   if(value === null || value === undefined){
     if(updatedAtIso) setLocalTimestamp(field, updatedAtIso);
     return;
@@ -3333,9 +3416,6 @@ function reconcileRemoteRow(row){
   SYNC_FIELDS.forEach(field=>{
     const remoteTs = row[field + "_updated_at"];
     if(!remoteTs) return;
-    // An edit made in the last few hundred ms may still be sitting in the
-    // debounce queue. Pulling over it would discard a change the user just
-    // made and watched appear on screen.
     if(Object.prototype.hasOwnProperty.call(syncPending, field)) return;
     const localTs = getLocalTimestamp(field);
     if(!localTs || new Date(remoteTs) > new Date(localTs)){
@@ -3386,18 +3466,11 @@ function promptMergeChoice(row){
   });
 }
 
-// Runs once per real sign-in (not on token refresh). Decides between a pure
-// upload (brand-new account), a pure download (new device / cleared storage),
-// or — the ambiguous case — asking the user, per the migration plan.
 async function handleAuthReady(){
   if(!state.session) return;
   try{
     const row = await fetchUserDataRow();
     if(!row){
-      // No remote row yet: nothing to conflict with, just upload what's here.
-      // Seed from the snapshot's own timestamps rather than bumping to "now"
-      // afterwards — the old order left every local field looking newer than
-      // the copy we'd just written, so other devices could never win a pull.
       const snapshot = buildFullSnapshot();
       await pushUserData(snapshot);
       seedLocalTimestampsFrom(snapshot);
@@ -3408,10 +3481,6 @@ async function handleAuthReady(){
       reconcileRemoteRow(row);
       return;
     }
-    // Both sides have real data. If we've been tracking local timestamps
-    // already (i.e. this device has synced before), trust the normal LWW
-    // comparison. Otherwise this is a pre-existing local user meeting their
-    // account for the first time — ask, rather than guess.
     const neverSyncedLocally = !getLocalTimestamp("pack") && !getLocalTimestamp("favorites");
     if(!neverSyncedLocally){
       reconcileRemoteRow(row);
@@ -6041,9 +6110,6 @@ function jumpToPackMod(id){
   });
 }
 
-/* The most recently generated share code, remembered with the pack signature
- * it was generated from. A code describes an exact mod list, so once the pack
- * changes the code is stale and must not be pinned to a new save. */
 let lastGeneratedShare = { code: "", sig: "" };
 function rememberShareCode(code){
   lastGeneratedShare = { code, sig: packSignature(state.pack) };
@@ -6052,9 +6118,6 @@ function rememberShareCode(code){
 
 const PACK_CODE_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
 
-/* Saves the pack currently open in Create as a named entry in Saved. Re-saving
- * under a name that already exists overwrites that entry rather than piling up
- * near-duplicates — the name is the identity here, same as a file. */
 function saveCurrentPack(){
   if(!state.pack.length){
     showToast(t('toastSavePackEmpty',"Add mods to your pack before saving it."));
