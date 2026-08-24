@@ -15,6 +15,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <!-- i18n: add a script tag per language file here -->
 <script src="i18n/fr.js"></script>
 <script>
@@ -886,6 +887,91 @@
 
   .header-actions{ display:flex; align-items:center; gap:8px; margin-left:auto; flex-shrink:0; }
 
+  /* --- Accounts: header button, avatar menu, auth modal --- */
+  .signin-btn{
+    display:flex; align-items:center; gap:6px; white-space:nowrap; flex-shrink:0;
+    background: var(--surface-2); border:1px solid var(--border); color: var(--text);
+    font-family:inherit; font-weight:700; font-size:0.88rem;
+    padding:8px 14px; border-radius:8px; cursor:pointer;
+    transition: background .18s ease, border-color .18s ease, transform .12s ease;
+  }
+  .signin-btn:hover{ background: var(--accent-soft); border-color: var(--accent-soft); color: var(--accent-dark); transform: translateY(-1px); }
+  .signin-btn:active{ transform: translateY(0) scale(.96); }
+
+  .account-slot{ position:relative; flex-shrink:0; }
+  .account-btn{
+    display:flex; align-items:center; justify-content:center;
+    width:36px; height:36px; border-radius:50%; flex-shrink:0;
+    background: var(--accent); color:#fff; border:1px solid var(--accent-dark);
+    font-family:inherit; font-weight:700; font-size:0.95rem; cursor:pointer;
+    transition: transform .15s ease, box-shadow .15s ease;
+  }
+  .account-btn:hover{ transform: scale(1.05); box-shadow: 0 1px 4px rgba(0,0,0,.2); }
+  .account-btn:active{ transform: scale(.94); }
+  .account-menu{
+    position:absolute; top:calc(100% + 8px); right:0; z-index:40;
+    background: var(--surface); border:1px solid var(--border); border-radius:12px;
+    box-shadow: 0 6px 24px rgba(0,0,0,.16); width:240px; padding:6px;
+    animation: modal-pop-in .16s cubic-bezier(.2,.9,.3,1.2);
+  }
+  @media (prefers-reduced-motion: reduce){ .account-menu{ animation:none; } }
+  .account-menu-email{
+    padding:10px 10px 8px; font-size:0.82rem; color: var(--text-dim);
+    overflow-wrap:break-word; border-bottom:1px solid var(--border); margin-bottom:6px;
+  }
+  .account-menu-email strong{ display:block; color: var(--text); font-size:0.92rem; margin-bottom:1px; }
+  .account-menu button.menu-item{
+    display:flex; align-items:center; gap:8px; width:100%; text-align:left;
+    background:none; border:none; padding:9px 10px; border-radius:8px; cursor:pointer;
+    font-family:inherit; font-size:0.88rem; color: var(--text); font-weight:700;
+    transition: background .15s ease;
+  }
+  .account-menu button.menu-item:hover{ background: var(--surface-2); }
+  .account-menu button.menu-item.danger{ color: var(--danger-text); }
+  .account-menu button.menu-item.danger:hover{ background: var(--danger-soft); }
+  .account-sync-note{ display:flex; align-items:center; gap:6px; padding:2px 10px 8px; font-size:0.76rem; color: var(--text-dim); }
+  .account-sync-note .dot{ width:6px; height:6px; border-radius:50%; background: var(--accent); flex-shrink:0; }
+  .account-sync-note.err .dot{ background: var(--danger); }
+
+  .auth-modal{ max-width:380px; }
+  .auth-tabs{ display:flex; gap:4px; background: var(--surface-2); border-radius:9px; padding:3px; margin-bottom:18px; }
+  .auth-tabs button{
+    flex:1; font-family:inherit; font-size:0.88rem; font-weight:700; color: var(--text-dim);
+    background:none; border:none; padding:8px; border-radius:7px; cursor:pointer;
+    transition: background .15s ease, color .15s ease;
+  }
+  .auth-tabs button.active{ background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+  .auth-field{ margin-bottom:14px; }
+  .auth-field label{ display:block; font-weight:700; font-size:0.85rem; margin-bottom:6px; }
+  .auth-field input{
+    width:100%; padding:10px 12px; border-radius:8px; border:1px solid var(--border);
+    font-family:inherit; font-size:0.95rem; background: var(--surface); color: var(--text);
+  }
+  .auth-field input:focus{ outline:2px solid var(--accent); outline-offset:-1px; }
+  .auth-error{
+    display:flex; gap:8px; align-items:flex-start; background: var(--danger-soft); color: var(--danger-text);
+    border:1px solid var(--danger-border); border-radius:8px; padding:9px 11px; font-size:0.84rem;
+    margin-bottom:14px; text-wrap:pretty;
+  }
+  .auth-note{ font-size:0.82rem; color: var(--text-dim); margin-top:14px; text-align:center; text-wrap:pretty; }
+  .linklike{
+    background:none; border:none; padding:0; font:inherit; font-weight:700; color: var(--accent-dark);
+    cursor:pointer; text-decoration:underline;
+  }
+  .auth-forgot{ text-align:right; margin-bottom:14px; font-size:0.82rem; }
+  .auth-divider{ display:flex; align-items:center; gap:10px; margin:16px 0; color: var(--text-dim); font-size:0.78rem; }
+  .auth-divider::before, .auth-divider::after{ content:""; flex:1; height:1px; background: var(--border); }
+  .oauth-row{ display:flex; flex-direction:column; gap:8px; }
+  .oauth-btn{
+    display:flex; align-items:center; justify-content:center; gap:10px; width:100%;
+    background: var(--surface); color: var(--text); border:1px solid var(--border);
+    padding:10px; border-radius:8px; font-family:inherit; font-weight:700; font-size:0.9rem;
+    cursor:pointer; transition: background .15s ease, transform .12s ease;
+  }
+  .oauth-btn:hover{ background: var(--surface-2); transform: translateY(-1px); }
+  .oauth-btn:active{ transform: translateY(0) scale(.97); }
+  .oauth-btn svg, .oauth-btn img{ width:18px; height:18px; flex-shrink:0; }
+
   .intro-modal{ max-width:600px; }
   .intro-modal .modal-head{ align-items:flex-start; }
   .intro-logo{
@@ -1363,6 +1449,7 @@
         <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path></svg>
         <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
       </button>
+      <div class="account-slot" id="accountSlot"></div>
     </div>
   </div>
 </header>
@@ -1974,6 +2061,553 @@ function shareBackendConfigured(){
   return Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
 }
 
+/* ================= Accounts (Supabase Auth) ================= */
+const sb = (SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase)
+  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  : null;
+
+function authConfigured(){ return Boolean(sb); }
+
+function getInitials(email){
+  if(!email) return "?";
+  const namePart = email.split("@")[0];
+  const parts = namePart.split(/[._-]+/).filter(Boolean);
+  if(parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return namePart.slice(0, 2).toUpperCase();
+}
+
+function renderAccountUI(){
+  const slot = document.getElementById("accountSlot");
+  if(!slot) return;
+  closeAccountMenu();
+  const user = state.user;
+  if(!user){
+    slot.innerHTML = `<button type="button" class="signin-btn" id="signInBtn">${t('signInBtn','Sign in')}</button>`;
+    document.getElementById("signInBtn").addEventListener("click", ()=>showAuthModal("signin"));
+    return;
+  }
+  const email = user.email || "";
+  slot.innerHTML = `<button type="button" class="account-btn" id="accountMenuBtn" aria-haspopup="true" aria-expanded="false" aria-label="${t('accountMenuLabel','Account menu')}" title="${escapeHtml(email)}">${escapeHtml(getInitials(email))}</button>`;
+  document.getElementById("accountMenuBtn").addEventListener("click", (e)=>{
+    e.stopPropagation();
+    toggleAccountMenu();
+  });
+}
+
+let accountMenuEl = null;
+function closeAccountMenuOnOutsideClick(e){
+  if(accountMenuEl && !accountMenuEl.contains(e.target)) closeAccountMenu();
+}
+function closeAccountMenuOnEscape(e){
+  if(e.key === "Escape") closeAccountMenu();
+}
+function closeAccountMenu(){
+  if(!accountMenuEl) return;
+  accountMenuEl.remove();
+  accountMenuEl = null;
+  document.removeEventListener("click", closeAccountMenuOnOutsideClick);
+  document.removeEventListener("keydown", closeAccountMenuOnEscape);
+  const btn = document.getElementById("accountMenuBtn");
+  if(btn) btn.setAttribute("aria-expanded", "false");
+}
+function toggleAccountMenu(){
+  if(accountMenuEl){ closeAccountMenu(); return; }
+  const slot = document.getElementById("accountSlot");
+  const btn = document.getElementById("accountMenuBtn");
+  if(!slot || !btn) return;
+  const email = (state.user && state.user.email) || "";
+  accountMenuEl = document.createElement("div");
+  accountMenuEl.className = "account-menu";
+  accountMenuEl.innerHTML = `
+    <div class="account-menu-email"><strong>${t('accountSignedInAs','Signed in as')}</strong>${escapeHtml(email)}</div>
+    <div class="account-sync-note ${syncStatus === 'error' ? 'err' : ''}" id="accountSyncNote"><span class="dot"></span><span>${syncStatusLabel()}</span></div>
+    <button type="button" class="menu-item danger" id="signOutBtn">${t('signOutBtn','Sign out')}</button>
+  `;
+  slot.appendChild(accountMenuEl);
+  btn.setAttribute("aria-expanded", "true");
+  document.getElementById("signOutBtn").addEventListener("click", handleSignOut);
+  setTimeout(()=>{
+    document.addEventListener("click", closeAccountMenuOnOutsideClick);
+    document.addEventListener("keydown", closeAccountMenuOnEscape);
+  }, 0);
+}
+
+async function handleSignOut(){
+  closeAccountMenu();
+  if(!sb) return;
+  try{
+    await sb.auth.signOut();
+    showToast(t('toastSignedOut','Signed out.'));
+  }catch(e){
+    console.error("Sign out failed", e);
+    showToast(t('toastSignOutError',"Couldn't sign out, try again."));
+  }
+}
+
+// Supabase returns a handful of stable English error strings we can map to
+// friendlier, translatable copy. Anything we don't recognize falls back to
+// showing Supabase's own message rather than hiding it.
+function friendlyAuthError(err){
+  if(!err) return t('authErrGeneric','Something went wrong. Try again.');
+  const msg = err.message || String(err);
+  if(msg.includes("Invalid login credentials")) return t('authErrInvalidCreds','Incorrect email or password.');
+  if(msg.includes("User already registered")) return t('authErrAlreadyRegistered','An account with that email already exists — try signing in instead.');
+  if(msg.includes("Email not confirmed")) return t('authErrEmailNotConfirmed','Check your inbox and confirm your email before signing in.');
+  if(/password/i.test(msg) && /(least|short|6 char)/i.test(msg)) return t('authErrWeakPassword','Password must be at least 6 characters.');
+  if(/email/i.test(msg) && /invalid/i.test(msg)) return t('authErrInvalidEmail',"That doesn't look like a valid email address.");
+  if(/rate limit/i.test(msg)) return t('authErrRateLimited','Too many attempts — wait a bit and try again.');
+  return msg;
+}
+
+function showAuthModal(initialMode = "signin"){
+  if(!authConfigured()){
+    showToast(t('toastAuthNotConfigured',"Accounts aren't set up on this copy of ModBench."));
+    return;
+  }
+  document.querySelectorAll(".modal-backdrop").forEach(b=>b.remove());
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  backdrop.style.alignItems = "center";
+  document.body.appendChild(backdrop);
+
+  let mode = initialMode; // "signin" | "signup" | "reset"
+
+  function render(){
+    const isReset = mode === "reset";
+    backdrop.innerHTML = `
+      <div class="modal auth-modal">
+        <div class="modal-head" style="margin-bottom:${isReset ? 4 : 16}px;">
+          <div class="name" style="font-size:1.15rem;">${isReset ? t('authResetTitle','Reset your password') : t('authTitle','Your ModBench account')}</div>
+          <button class="modal-close" aria-label="${t('close','Close')}">✕</button>
+        </div>
+        ${isReset ? `<p style="margin:0 0 16px; font-size:0.86rem; color:var(--text-dim);">${t('authResetDesc',"We'll email you a link to reset your password.")}</p>` : `
+        <div class="auth-tabs" role="tablist">
+          <button type="button" data-mode="signin" role="tab" aria-selected="${mode==='signin'}" class="${mode==='signin'?'active':''}">${t('authSignInTab','Sign in')}</button>
+          <button type="button" data-mode="signup" role="tab" aria-selected="${mode==='signup'}" class="${mode==='signup'?'active':''}">${t('authSignUpTab','Create account')}</button>
+        </div>`}
+        <div id="authErrorSlot"></div>
+        <form id="authForm" novalidate>
+          <div class="auth-field">
+            <label for="authEmail">${t('authEmailLabel','Email')}</label>
+            <input type="email" id="authEmail" autocomplete="email" required>
+          </div>
+          ${isReset ? "" : `
+          <div class="auth-field" style="margin-bottom:${mode==='signin' ? 6 : 14}px;">
+            <label for="authPassword">${t('authPasswordLabel','Password')}</label>
+            <input type="password" id="authPassword" autocomplete="${mode==='signup' ? 'new-password' : 'current-password'}" minlength="6" required>
+          </div>`}
+          ${mode==='signin' ? `<p class="auth-forgot"><button type="button" class="linklike" id="forgotPasswordBtn">${t('authForgotPassword','Forgot password?')}</button></p>` : ""}
+          <button type="submit" class="export-btn" id="authSubmitBtn" style="margin-top:0;">${isReset ? t('authSendResetBtn','Send reset link') : (mode==='signup' ? t('authCreateAccountBtn','Create account') : t('authSignInBtn','Sign in'))}</button>
+        </form>
+        ${isReset ? `<p class="auth-note"><button type="button" class="linklike" id="backToSignInBtn">${t('authBackToSignIn','Back to sign in')}</button></p>` : `
+        <div class="auth-divider">${t('authOrDivider','or')}</div>
+        <div class="oauth-row">
+          <button type="button" class="oauth-btn" data-provider="google">
+            <svg viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.6-6 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.5 6 29.5 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.9 18.9 13 24 13c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.5 6 29.5 4 24 4c-7.4 0-13.8 4.1-17.1 10.1z"/><path fill="#4CAF50" d="M24 44c5.4 0 10.3-1.8 14.1-5.2l-6.5-5.5C29.5 34.9 26.9 36 24 36c-5.2 0-9.6-3.4-11.2-8.1l-6.5 5C9.9 39.6 16.4 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.2-4.1 5.5l6.5 5.5c-.5.4 6.9-5 6.9-15.5 0-1.3-.1-2.7-.4-3.5z"/></svg>
+            ${t('authContinueGoogle','Continue with Google')}
+          </button>
+          <button type="button" class="oauth-btn" data-provider="discord">
+            <svg viewBox="0 0 24 24" fill="#5865F2"><path d="M20.317 4.37a19.79 19.79 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.74 19.74 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.058a.082.082 0 0 0 .031.056 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128c.126-.094.252-.192.373-.291a.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.009c.121.099.247.198.373.292a.077.077 0 0 1-.006.127 12.3 12.3 0 0 1-1.873.892.076.076 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.029 19.84 19.84 0 0 0 6.002-3.03.077.077 0 0 0 .032-.055c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.211 0 2.176 1.096 2.157 2.42 0 1.333-.955 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.211 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>
+            ${t('authContinueDiscord','Continue with Discord')}
+          </button>
+        </div>
+        <p class="auth-note">${mode==='signin'
+          ? tf('authNoAccountYet',"Don't have an account? {link}", {link:`<button type="button" class="linklike" id="switchModeBtn">${t('authSignUpTab','Create account')}</button>`})
+          : tf('authHaveAccount','Already have an account? {link}', {link:`<button type="button" class="linklike" id="switchModeBtn">${t('authSignInTab','Sign in')}</button>`})}
+        </p>`}
+      </div>`;
+    wire();
+  }
+
+  function showError(msg){
+    const slot = backdrop.querySelector("#authErrorSlot");
+    if(!slot) return;
+    slot.innerHTML = msg ? `<div class="auth-error"><span>⚠️</span><span>${escapeHtml(msg)}</span></div>` : "";
+  }
+
+  function wire(){
+    backdrop.querySelector(".modal-close").addEventListener("click", close);
+    const tabs = backdrop.querySelectorAll(".auth-tabs [data-mode]");
+    tabs.forEach(btn=>btn.addEventListener("click", ()=>{ mode = btn.dataset.mode; render(); }));
+    const switchBtn = backdrop.querySelector("#switchModeBtn");
+    if(switchBtn) switchBtn.addEventListener("click", ()=>{ mode = mode === "signin" ? "signup" : "signin"; render(); });
+    const forgotBtn = backdrop.querySelector("#forgotPasswordBtn");
+    if(forgotBtn) forgotBtn.addEventListener("click", ()=>{ mode = "reset"; render(); });
+    const backBtn = backdrop.querySelector("#backToSignInBtn");
+    if(backBtn) backBtn.addEventListener("click", ()=>{ mode = "signin"; render(); });
+    backdrop.querySelectorAll(".oauth-btn").forEach(btn=>{
+      btn.addEventListener("click", ()=>handleOAuth(btn.dataset.provider));
+    });
+    backdrop.querySelector("#authForm").addEventListener("submit", handleSubmit);
+  }
+
+  async function handleOAuth(provider){
+    showError("");
+    try{
+      const { error } = await sb.auth.signInWithOAuth({
+        provider,
+        options: { redirectTo: location.origin + location.pathname }
+      });
+      if(error) throw error;
+      // Browser navigates away to the provider here; nothing else to do.
+    }catch(e){
+      console.error("OAuth sign-in failed", e);
+      showError(friendlyAuthError(e));
+    }
+  }
+
+  async function handleSubmit(e){
+    e.preventDefault();
+    showError("");
+    const submitBtn = backdrop.querySelector("#authSubmitBtn");
+    const email = backdrop.querySelector("#authEmail").value.trim();
+    const passwordInput = backdrop.querySelector("#authPassword");
+    const password = passwordInput ? passwordInput.value : "";
+
+    if(!email){ showError(t('authErrMissingEmail','Enter your email.')); return; }
+    if(mode !== "reset" && password.length < 6){ showError(t('authErrWeakPassword','Password must be at least 6 characters.')); return; }
+    if(isLoadingButton(submitBtn)) return;
+
+    startLoadingButton(submitBtn);
+    try{
+      if(mode === "signin"){
+        const { error } = await sb.auth.signInWithPassword({ email, password });
+        if(error) throw error;
+        close();
+        showToast(t('toastSignedIn','Signed in.'));
+      } else if(mode === "signup"){
+        const { data, error } = await sb.auth.signUp({ email, password });
+        if(error) throw error;
+        if(data && data.user && !data.session){
+          // Email confirmation is on: no session yet, so tell the user to check their inbox.
+          mode = "signin";
+          render();
+          showToast(t('toastConfirmEmailSent','Check your inbox to confirm your email, then sign in.'), { duration: 9000 });
+        } else {
+          close();
+          showToast(t('toastSignedIn','Signed in.'));
+        }
+      } else if(mode === "reset"){
+        const { error } = await sb.auth.resetPasswordForEmail(email, {
+          redirectTo: location.origin + location.pathname
+        });
+        if(error) throw error;
+        showToast(t('toastResetEmailSent','Password reset email sent — check your inbox.'), { duration: 8000 });
+        mode = "signin";
+        render();
+      }
+    }catch(err){
+      console.error("Auth error", err);
+      showError(friendlyAuthError(err));
+    }finally{
+      stopLoadingButton(submitBtn);
+    }
+  }
+
+  function close(){
+    document.removeEventListener("keydown", onEscape);
+    backdrop.remove();
+  }
+  function onEscape(e){ if(e.key === "Escape") close(); }
+  backdrop.addEventListener("click", (e)=>{ if(e.target === backdrop) close(); });
+  document.addEventListener("keydown", onEscape);
+
+  render();
+  setTimeout(()=>{ const el = backdrop.querySelector("#authEmail"); if(el) el.focus(); }, 50);
+}
+
+async function initAuth(){
+  if(!authConfigured()){
+    renderAccountUI();
+    return;
+  }
+  const { data } = await sb.auth.getSession();
+  state.session = data.session;
+  state.user = data.session ? data.session.user : null;
+  renderAccountUI();
+  if(state.session) handleAuthReady().catch(e=>console.warn("Initial account sync failed", e));
+
+  sb.auth.onAuthStateChange((event, session)=>{
+    state.session = session;
+    state.user = session ? session.user : null;
+    renderAccountUI();
+    if(event === "SIGNED_IN"){
+      handleAuthReady().catch(e=>console.warn("Account sync failed", e));
+    } else if(event === "SIGNED_OUT"){
+      resetSyncState();
+    }
+    // TOKEN_REFRESHED / INITIAL_SESSION / USER_UPDATED intentionally don't
+    // re-run the merge flow — it should only fire on an actual new sign-in.
+  });
+}
+
+/* ================= Cloud sync (pack / favorites / settings) =================
+ * Strategy: last-write-wins, per field, using a *_updated_at timestamp we
+ * track locally (mirrored in localStorage) and compare against the same
+ * columns in Supabase. "settings" bundles packIcon / autoCompatCheck / lang
+ * into one jsonb column — theme is intentionally left as a device-local
+ * preference and never synced.
+ * The user_data table + RLS policies need to exist in Supabase first (SQL
+ * given separately) — everything here fails soft (console.warn + a toast)
+ * if the table isn't there yet, so it won't break the app.
+ */
+const USER_DATA_TABLE = "user_data";
+const SYNC_FIELDS = ["pack", "favorites", "settings"];
+
+function nowIso(){ return new Date().toISOString(); }
+function localTsKey(field){ return `modbench_${field}_updated_at`; }
+function getLocalTimestamp(field){ return safeLocalStorageGet(localTsKey(field)); }
+function setLocalTimestamp(field, iso){ safeLocalStorageSet(localTsKey(field), iso); }
+function bumpLocalTimestamp(field){ const iso = nowIso(); setLocalTimestamp(field, iso); return iso; }
+
+function buildSettingsSnapshot(){
+  return { packIcon: state.packIcon || "", autoCompatCheck: !!state.autoCompatCheck, lang: state.lang };
+}
+function buildFullSnapshot(){
+  const now = nowIso();
+  return {
+    user_id: state.user.id,
+    pack: state.pack,
+    pack_updated_at: getLocalTimestamp("pack") || now,
+    favorites: state.favorites,
+    favorites_updated_at: getLocalTimestamp("favorites") || now,
+    settings: buildSettingsSnapshot(),
+    settings_updated_at: getLocalTimestamp("settings") || now
+  };
+}
+function seedLocalTimestampsNow(){
+  SYNC_FIELDS.forEach(bumpLocalTimestamp);
+}
+function seedLocalTimestampsFrom(row){
+  SYNC_FIELDS.forEach(f=>{ if(row[f + "_updated_at"]) setLocalTimestamp(f, row[f + "_updated_at"]); });
+}
+
+let syncStatus = "idle"; // idle | syncing | synced | error
+function syncStatusLabel(){
+  if(syncStatus === "syncing") return t('accountSyncing','Syncing…');
+  if(syncStatus === "error") return t('accountSyncError',"Sync failed — will retry");
+  return t('accountSyncedNow','Synced');
+}
+function setSyncStatus(s){
+  syncStatus = s;
+  const note = document.getElementById("accountSyncNote");
+  if(!note) return;
+  note.classList.toggle("err", s === "error");
+  const label = note.querySelector("span:last-child");
+  if(label) label.textContent = syncStatusLabel();
+}
+
+let syncPending = {};
+let syncTimer = null;
+// Called from savePack/saveFavorites/settings setters on every local change,
+// signed in or not — bumping the local timestamp always happens so LWW has
+// something real to compare against later, even before the user ever signs in.
+function queueSync(field, value){
+  bumpLocalTimestamp(field);
+  if(!state.session) return;
+  syncPending[field] = value;
+  syncPending[field + "_updated_at"] = getLocalTimestamp(field);
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(flushSync, 800);
+}
+function flushSync(){
+  if(!state.session || !Object.keys(syncPending).length) return;
+  const body = syncPending;
+  syncPending = {};
+  pushUserData(body);
+}
+function resetSyncState(){
+  clearTimeout(syncTimer);
+  syncTimer = null;
+  syncPending = {};
+  lastPullAt = 0;
+  syncStatus = "idle";
+}
+
+async function pushUserData(partial){
+  if(!authConfigured() || !state.session) return;
+  setSyncStatus("syncing");
+  try{
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${USER_DATA_TABLE}`, {
+      method: "POST",
+      headers: {
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": `Bearer ${state.session.access_token}`,
+        "Content-Type": "application/json",
+        "Prefer": "resolution=merge-duplicates,return=minimal"
+      },
+      body: JSON.stringify(Object.assign({ user_id: state.user.id }, partial))
+    });
+    if(!res.ok) throw new Error(`Supabase user_data upsert failed (${res.status})`);
+    setSyncStatus("synced");
+  }catch(e){
+    console.warn("Cloud sync push failed", e);
+    setSyncStatus("error");
+  }
+}
+
+async function fetchUserDataRow(){
+  if(!authConfigured() || !state.session) return null;
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${USER_DATA_TABLE}?user_id=eq.${state.user.id}&select=*`, {
+    headers: {
+      "apikey": SUPABASE_ANON_KEY,
+      "Authorization": `Bearer ${state.session.access_token}`
+    }
+  });
+  if(!res.ok) throw new Error(`Supabase user_data fetch failed (${res.status})`);
+  const rows = await res.json();
+  return rows.length ? rows[0] : null;
+}
+
+// Applies one remote field to local state + storage without re-queuing a
+// sync push (that would just bounce the value straight back to Supabase).
+function applyRemoteField(field, value, updatedAtIso){
+  if(field === "pack"){
+    state.pack = Array.isArray(value) ? value : [];
+    savePack(false);
+    if(state.tab === "pack") renderPack();
+  } else if(field === "favorites"){
+    state.favorites = Array.isArray(value) ? value : [];
+    saveFavorites(false);
+    if(state.tab === "favorites") renderFavorites();
+  } else if(field === "settings" && value && typeof value === "object"){
+    if(typeof value.packIcon === "string"){ state.packIcon = value.packIcon; savePackIcon(false); renderLogoPicker(); }
+    if(typeof value.autoCompatCheck === "boolean"){
+      state.autoCompatCheck = value.autoCompatCheck;
+      safeLocalStorageSet("modbench_auto_compat_check", state.autoCompatCheck ? "on" : "off");
+      const el = document.getElementById("autoCompatToggle");
+      if(el) el.checked = state.autoCompatCheck;
+    }
+    if(typeof value.lang === "string" && LANGUAGES.includes(value.lang) && value.lang !== state.lang) applyLanguage(value.lang, false);
+  }
+  if(updatedAtIso) setLocalTimestamp(field, updatedAtIso);
+}
+
+// Applies remote fields that are strictly newer than what we have locally.
+function reconcileRemoteRow(row){
+  SYNC_FIELDS.forEach(field=>{
+    const remoteTs = row[field + "_updated_at"];
+    if(!remoteTs) return;
+    const localTs = getLocalTimestamp(field);
+    if(!localTs || new Date(remoteTs) > new Date(localTs)){
+      applyRemoteField(field, row[field], remoteTs);
+    }
+  });
+}
+
+function hasNonDefaultLocalData(){
+  return (state.pack && state.pack.length > 0) || (state.favorites && state.favorites.length > 0);
+}
+
+function promptMergeChoice(row){
+  return new Promise(resolve=>{
+    document.querySelectorAll(".modal-backdrop").forEach(b=>b.remove());
+    const backdrop = document.createElement("div");
+    backdrop.className = "modal-backdrop";
+    backdrop.style.alignItems = "center";
+    const remotePackCount = Array.isArray(row.pack) ? row.pack.length : 0;
+    const remoteFavCount = Array.isArray(row.favorites) ? row.favorites.length : 0;
+    backdrop.innerHTML = `
+      <div class="modal" style="max-width:440px;">
+        <div class="modal-head" style="margin-bottom:10px;">
+          <div class="name" style="font-size:1.1rem;">${t('mergeTitle','Which data do you want to keep?')}</div>
+        </div>
+        <p style="margin:0 0 16px; font-size:0.88rem; color:var(--text-dim); text-wrap:pretty;">${t('mergeDesc',"This device has a pack and favorites, and your account already has some saved too.")}</p>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <button type="button" class="page-btn" data-choice="device" style="width:100%; text-align:left; height:auto; padding:12px;">
+            <strong style="display:block;">${t('mergeKeepDevice','Keep this device')}</strong>
+            <span style="font-size:0.8rem; color:var(--text-dim);">${tPlural(state.pack.length,'mergePackCountOne','{n} mod in pack','mergePackCountOther','{n} mods in pack')} · ${tPlural(state.favorites.length,'mergeFavCountOne','{n} favorite','mergeFavCountOther','{n} favorites')}</span>
+          </button>
+          <button type="button" class="page-btn" data-choice="account" style="width:100%; text-align:left; height:auto; padding:12px;">
+            <strong style="display:block;">${t('mergeKeepAccount','Keep my account')}</strong>
+            <span style="font-size:0.8rem; color:var(--text-dim);">${tPlural(remotePackCount,'mergePackCountOne','{n} mod in pack','mergePackCountOther','{n} mods in pack')} · ${tPlural(remoteFavCount,'mergeFavCountOne','{n} favorite','mergeFavCountOther','{n} favorites')}</span>
+          </button>
+          <button type="button" class="page-btn" data-choice="both" style="width:100%; text-align:left; height:auto; padding:12px;">
+            <strong style="display:block;">${t('mergeKeepBoth','Keep both')}</strong>
+            <span style="font-size:0.8rem; color:var(--text-dim);">${t('mergeKeepBothDesc','Merges favorites. Keeps this device\u2019s pack active and leaves your account\u2019s pack untouched for now.')}</span>
+          </button>
+        </div>
+      </div>`;
+    document.body.appendChild(backdrop);
+    backdrop.querySelectorAll("[data-choice]").forEach(btn=>{
+      btn.addEventListener("click", ()=>{ backdrop.remove(); resolve(btn.dataset.choice); });
+    });
+  });
+}
+
+// Runs once per real sign-in (not on token refresh). Decides between a pure
+// upload (brand-new account), a pure download (new device / cleared storage),
+// or — the ambiguous case — asking the user, per the migration plan.
+async function handleAuthReady(){
+  if(!state.session) return;
+  try{
+    const row = await fetchUserDataRow();
+    if(!row){
+      // No remote row yet: nothing to conflict with, just upload what's here.
+      await pushUserData(buildFullSnapshot());
+      seedLocalTimestampsNow();
+      return;
+    }
+    if(!hasNonDefaultLocalData()){
+      // Remote has a row, this device doesn't have real data: pure download.
+      reconcileRemoteRow(row);
+      return;
+    }
+    // Both sides have real data. If we've been tracking local timestamps
+    // already (i.e. this device has synced before), trust the normal LWW
+    // comparison. Otherwise this is a pre-existing local user meeting their
+    // account for the first time — ask, rather than guess.
+    const neverSyncedLocally = !getLocalTimestamp("pack") && !getLocalTimestamp("favorites");
+    if(!neverSyncedLocally){
+      reconcileRemoteRow(row);
+      return;
+    }
+    const choice = await promptMergeChoice(row);
+    if(choice === "device"){
+      await pushUserData(buildFullSnapshot());
+      seedLocalTimestampsNow();
+    } else if(choice === "account"){
+      SYNC_FIELDS.forEach(f=>applyRemoteField(f, row[f], row[f + "_updated_at"]));
+    } else if(choice === "both"){
+      const remoteFavs = Array.isArray(row.favorites) ? row.favorites : [];
+      const seen = new Set(state.favorites.map(f=>f.id));
+      remoteFavs.forEach(f=>{ if(!seen.has(f.id)){ state.favorites.push(f); seen.add(f.id); } });
+      saveFavorites(false);
+      if(state.tab === "favorites") renderFavorites();
+      // Deliberately don't push "pack" here — the account's existing pack is
+      // left as-is in Supabase rather than silently overwritten by this
+      // device's pack, since the app has no way to merge two mod lists.
+      await pushUserData({
+        favorites: state.favorites,
+        favorites_updated_at: bumpLocalTimestamp("favorites"),
+        settings: buildSettingsSnapshot(),
+        settings_updated_at: bumpLocalTimestamp("settings")
+      });
+      bumpLocalTimestamp("pack");
+      showToast(t('toastMergeBothDone',"Merged your favorites. This device's pack stays active locally — your account's previous pack is safe and will sync next time you edit a pack here."), { duration: 9000 });
+    }
+  }catch(e){
+    console.warn("Account sync init failed", e);
+    showToast(t('toastSyncFailed',"Couldn't sync your account data. It'll retry automatically."));
+  }
+}
+
+let lastPullAt = 0;
+async function maybePullOnFocus(){
+  if(!state.session) return;
+  if(Date.now() - lastPullAt < 30000) return;
+  lastPullAt = Date.now();
+  try{
+    const row = await fetchUserDataRow();
+    if(row) reconcileRemoteRow(row);
+  }catch(e){
+    console.warn("Background sync pull failed", e);
+  }
+}
+document.addEventListener("visibilitychange", ()=>{
+  if(document.visibilityState === "visible") maybePullOnFocus();
+});
+
 const DAILY_SHARE_LIMIT = 10;
 function getShareUsageState(){
   const today = new Date().toDateString();
@@ -2124,7 +2758,9 @@ let state = {
   expLoaderTouched: false,
   expMcTouched: false,
   lang: safeLocalStorageGet("modbench-lang", "en"),
-  importingCount: 0
+  importingCount: 0,
+  user: null,
+  session: null
 };
 
 function t(key, fallback){
@@ -2174,14 +2810,16 @@ function safeLocalStorageRemove(key){
   try{ localStorage.removeItem(key); }catch(e){ console.warn(`Couldn't remove "${key}" from local storage:`, e); }
 }
 
-function savePackIcon(){
+function savePackIcon(sync = true){
   if(state.packIcon) safeLocalStorageSet("modbench_pack_icon", state.packIcon);
   else safeLocalStorageRemove("modbench_pack_icon");
+  if(sync) queueSync("settings", buildSettingsSnapshot());
 }
 
-function savePack(){
+function savePack(sync = true){
   safeLocalStorageSet("packsmith_pack", JSON.stringify(state.pack));
   updatePackCount();
+  if(sync) queueSync("pack", state.pack);
 }
 function updatePackCount(){
   const el = document.getElementById("packCount");
@@ -2193,9 +2831,10 @@ function updatePackCount(){
     el.classList.add("bump");
   }
 }
-function saveFavorites(){
+function saveFavorites(sync = true){
   safeLocalStorageSet("packsmith_favorites", JSON.stringify(state.favorites));
   updateFavCount();
+  if(sync) queueSync("favorites", state.favorites);
 }
 function updateFavCount(){
   const el = document.getElementById("favCount");
@@ -2240,7 +2879,7 @@ document.querySelectorAll("[data-i18n-attr]").forEach(el=>{
   englishSnapshot.attrs.set(el, orig);
 });
 
-function applyLanguage(lang){
+function applyLanguage(lang, sync = true){
   if(lang !== "en" && (!window.i18n || !window.i18n[lang])) lang = "en";
   state.lang = lang;
   const dict = lang === "en" ? null : window.i18n[lang];
@@ -2268,6 +2907,7 @@ function applyLanguage(lang){
   }
 
   safeLocalStorageSet("modbench-lang", lang);
+  if(sync) queueSync("settings", buildSettingsSnapshot());
   refreshDynamicContentForLanguage();
 }
 
@@ -2287,7 +2927,7 @@ document.getElementById("langToggle").addEventListener("click", ()=>{
   applyLanguage(next);
 });
 
-applyLanguage(state.lang);
+applyLanguage(state.lang, false);
 
 document.querySelectorAll("nav.tabs button").forEach(btn=>{
   btn.addEventListener("click", ()=>{
@@ -5225,10 +5865,6 @@ async function addModpackToCreate(projectId, btn){
   try{
     const versions = await fetchVersionsRaw(projectId);
     if(!versions.length) throw new Error("No versions available");
-    // Pausing here (rather than leaving the button "loading") is deliberate: the slow-load
-    // toast is meant to reassure the user during actual network/import work, not while they're
-    // sitting on the version-picker modal deciding what to import. Without this, someone who
-    // takes >15s to pick a version would get a "still working on it" toast for no reason.
     if(btn._slowLoadTimer){ clearTimeout(btn._slowLoadTimer); btn._slowLoadTimer = null; }
     const chosen = await pickModpackVersion(versions);
     if(!chosen){
@@ -5575,6 +6211,7 @@ autoCompatToggleEl.addEventListener("change", ()=>{
   state.autoCompatCheck = autoCompatToggleEl.checked;
   safeLocalStorageSet("modbench_auto_compat_check", state.autoCompatCheck ? "on" : "off");
   updatePackIssueHighlights();
+  queueSync("settings", buildSettingsSnapshot());
 });
 document.getElementById("expLoader").addEventListener("change", ()=>{ state.expLoaderTouched = true; });
 document.getElementById("expMcVersion").addEventListener("change", ()=>{ state.expMcTouched = true; });
@@ -5957,11 +6594,17 @@ const gameVersionRankReady = loadGameVersions().then(()=>{
   if(state.tab === "pack") renderPack();
 });
 runSearch();
-if(location.hash.includes("import=")){
-  checkIncomingShareLink();
-} else {
-  showGettingStarted();
-}
+
+// initAuth() awaits sb.auth.getSession(), which is also what resolves/clears
+// any OAuth redirect tokens Supabase drops in location.hash. Run it before
+// touching location.hash ourselves so the two don't race over the same URL.
+initAuth().finally(()=>{
+  if(location.hash.includes("import=")){
+    checkIncomingShareLink();
+  } else {
+    showGettingStarted();
+  }
+});
 </script>
 </body>
 </html>
