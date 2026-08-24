@@ -332,7 +332,7 @@ window.i18n.fr = {
   // Accounts
   signInBtn: "Se connecter",
   accountMenuLabel: "Menu du compte",
-  accountSignedInAs: "Connecté en tant que",
+  accountSignedInAs: "Connecté",
   signOutBtn: "Se déconnecter",
   accountSyncing: "Synchronisation…",
   accountSyncedNow: "Synchronisé",
