@@ -7,7 +7,6 @@
 <meta property="og:title" content="ModBench">
 <meta property="og:site_name" content="ModBench">
 <meta property="og:description" content="Build and export Minecraft modpacks, right in your browser.">
-<meta name="description" content="Build and export Minecraft modpacks, right in your browser with ModBench.">
 <meta property="og:image" content="https://raw.githubusercontent.com/wikgamemaking/ModBench/main/icons/logo.png">
 <meta property="og:url" content="https://modbench.net/">
 <meta name="theme-color" content="#4e9a52">
@@ -1171,7 +1170,8 @@
     width:100%; padding:10px 12px; border-radius:8px; border:1px solid var(--border);
     font-family:inherit; font-size:0.95rem; background: var(--surface); color: var(--text);
   }
-  .auth-field input:focus{ outline:2px solid var(--accent); outline-offset:-1px; }
+  .auth-field input{ transition: box-shadow .15s ease; }
+  .auth-field input:focus{ outline:none; box-shadow: inset 0 0 0 2px var(--accent); }
   .auth-field-input-wrap{ position:relative; }
   .auth-field-input-wrap svg{
     position:absolute; left:11px; top:50%; transform:translateY(-50%);
