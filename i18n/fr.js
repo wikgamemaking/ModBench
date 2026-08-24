@@ -439,7 +439,7 @@ window.i18n.fr = {
   savedPackUntitled: "Modpack sans titre",
   savedPackModsOne: "{n} mod",
   savedPackModsOther: "{n} mods",
-  exportSavePackBtn: "Enregistrer ce modpack",
+  exportSavePackBtn: "Enregistrer le modpack",
   toastSavePackEmpty: "Ajoutez des mods à votre pack avant de l'enregistrer.",
   toastPackSaved: "« {name} » enregistré dans l'onglet Enregistrés.",
   toastPackOpened: "« {name} » ouvert dans Créer.",
@@ -456,5 +456,8 @@ window.i18n.fr = {
   mergeFavCountOne: "{n} enregistré",
   mergeFavCountOther: "{n} enregistrés",
   mergeKeepBothDesc: "Fusionne les éléments enregistrés. Garde le pack de cet appareil actif et laisse celui de votre compte intact pour le moment.",
-  toastMergeBothDone: "Éléments enregistrés fusionnés. Le pack de cet appareil reste actif, et le pack précédent de votre compte est conservé."
+  toastMergeBothDone: "Éléments enregistrés fusionnés. Le pack de cet appareil reste actif, et le pack précédent de votre compte est conservé.",
+
+  savedPackAlreadyOpen: "Déjà ouvert dans Créer",
+  toastPackAlreadyOpen: "« {name} » est déjà ouvert dans Créer."
 };
