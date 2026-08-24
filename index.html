@@ -7,6 +7,7 @@
 <meta property="og:title" content="ModBench">
 <meta property="og:site_name" content="ModBench">
 <meta property="og:description" content="Build and export Minecraft modpacks, right in your browser.">
+<meta name="description" content="Build and export Minecraft modpacks, right in your browser with ModBench.">
 <meta property="og:image" content="https://raw.githubusercontent.com/wikgamemaking/ModBench/main/icons/logo.png">
 <meta property="og:url" content="https://modbench.net/">
 <meta name="theme-color" content="#4e9a52">
@@ -1042,7 +1043,7 @@
   .account-menu button.menu-item.danger{ color: var(--danger-text); }
   .account-menu button.menu-item.danger:hover{ background: var(--danger-soft); }
 
-  .export-action-row{ display:flex; gap:10px; align-items:stretch; }
+  .export-action-row{ display:flex; gap:10px; align-items:stretch; margin-top:22px; }
   .export-action-row .export-btn{ flex:1; margin-top:0; }
   /* Saving is the lower-stakes of the two, so it reads as the quieter one —
      same size and weight, just not carrying the accent fill. */
@@ -1201,6 +1202,30 @@
   .oauth-btn:hover{ background: var(--surface-2); transform: translateY(-1px); }
   .oauth-btn:active{ transform: translateY(0) scale(.97); }
   .oauth-btn svg, .oauth-btn img{ width:18px; height:18px; flex-shrink:0; }
+
+  /* Onboarding only. The blur is animated in with the fade rather than
+     applied instantly: a backdrop-filter that snaps on reads as a flicker,
+     and it's expensive enough that easing it in also hides the first-frame
+     cost on weaker GPUs. */
+  .intro-backdrop{
+    background: rgba(15,13,10,0.62);
+    animation: intro-backdrop-in .28s ease-out forwards;
+  }
+  @keyframes intro-backdrop-in{
+    from{ opacity:0; backdrop-filter: blur(0px); -webkit-backdrop-filter: blur(0px); }
+    to{ opacity:1; backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px); }
+  }
+  .intro-backdrop.closing{
+    animation: intro-backdrop-out .18s ease-in forwards;
+  }
+  @keyframes intro-backdrop-out{
+    from{ opacity:1; backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px); }
+    to{ opacity:0; backdrop-filter: blur(0px); -webkit-backdrop-filter: blur(0px); }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .intro-backdrop{ animation:none; backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px); }
+    .intro-backdrop.closing{ animation:none; }
+  }
 
   .intro-modal{ max-width:600px; }
   .intro-modal .modal-head{ align-items:flex-start; }
@@ -7411,7 +7436,7 @@ async function checkIncomingShareLink(){
 function showGettingStarted(force){
   if(!force && safeLocalStorageGet("modbench_intro_seen")) return;
   const backdrop = document.createElement("div");
-  backdrop.className = "modal-backdrop";
+  backdrop.className = "modal-backdrop intro-backdrop";
   backdrop.innerHTML = `
     <div class="modal intro-modal">
       <div class="modal-head">
