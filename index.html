@@ -1013,6 +1013,13 @@
   /* Only interactive in the error state — there's nothing to read otherwise. */
   .account-sync-note.err{ cursor:pointer; }
   .account-sync-note.err:hover{ filter: brightness(0.96); }
+  .account-status-row{ display:flex; align-items:center; gap:7px; flex-wrap:wrap; margin:0 5px 9px; }
+  .account-status-row .account-sync-note{ margin:0; }
+  .account-share-count{
+    display:inline-flex; align-items:center; padding:5px 10px; border-radius:999px;
+    background: var(--surface-2); font-size:0.77rem; font-weight:700;
+    color: var(--text-dim); letter-spacing:.01em; white-space:nowrap;
+  }
   .account-sync-note.err{ background: var(--danger-soft); color: var(--danger-text); }
   .account-sync-note .dot{ width:6px; height:6px; border-radius:50%; background: var(--accent); flex-shrink:0; }
   .account-sync-note.err .dot{ background: var(--danger); }
@@ -1027,6 +1034,58 @@
   .account-menu button.menu-item:hover{ background: var(--surface-2); }
   .account-menu button.menu-item.danger{ color: var(--danger-text); }
   .account-menu button.menu-item.danger:hover{ background: var(--danger-soft); }
+
+  .saved-packs-title{
+    font-size:0.82rem; text-transform:uppercase; letter-spacing:.07em;
+    color: var(--text-dim); margin:4px 0 12px; font-weight:800;
+  }
+  .saved-packs-sep{ border:none; border-top:1px solid var(--border); margin:22px 0 18px; }
+  .saved-packs-grid{
+    display:grid; gap:12px;
+    grid-template-columns: repeat(auto-fill, minmax(248px, 1fr));
+  }
+  .saved-pack-card{
+    display:flex; flex-direction:column; gap:10px;
+    background: var(--surface); border:1px solid var(--border);
+    border-radius:14px; padding:14px;
+    transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+  }
+  .saved-pack-card:hover{
+    transform: translateY(-2px);
+    border-color: var(--accent-soft);
+    box-shadow: 0 8px 22px rgba(0,0,0,.10);
+  }
+  .saved-pack-head{ display:flex; align-items:center; gap:11px; min-width:0; }
+  .saved-pack-icon{
+    width:46px; height:46px; border-radius:11px; flex-shrink:0; object-fit:cover;
+    background: var(--surface-2); border:1px solid var(--border);
+  }
+  .saved-pack-meta{ min-width:0; flex:1; }
+  .saved-pack-name{
+    display:block; font-weight:800; font-size:0.95rem; color: var(--text);
+    line-height:1.25; overflow-wrap:break-word;
+  }
+  .saved-pack-sub{ display:block; font-size:0.78rem; color: var(--text-dim); margin-top:2px; }
+  .saved-pack-code{
+    display:flex; align-items:center; gap:6px; width:100%;
+    background: var(--surface-2); border:1px dashed var(--border); border-radius:8px;
+    padding:6px 9px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size:0.78rem; color: var(--text); cursor:pointer; text-align:left;
+  }
+  .saved-pack-code:hover{ border-color: var(--accent); color: var(--accent-dark); }
+  .saved-pack-code svg{ width:13px; height:13px; flex-shrink:0; opacity:.6; }
+  .saved-pack-code span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .saved-pack-actions{ display:flex; gap:7px; }
+  .saved-pack-actions button{
+    flex:1; font-family:inherit; font-size:0.82rem; font-weight:700;
+    padding:8px 10px; border-radius:9px; cursor:pointer;
+    border:1px solid var(--border); background: var(--surface-2); color: var(--text);
+    transition: background .15s ease, color .15s ease, border-color .15s ease;
+  }
+  .saved-pack-actions button.primary{ background: var(--accent); border-color: var(--accent-dark); color:#fff; }
+  .saved-pack-actions button.primary:hover{ filter: brightness(1.06); }
+  .saved-pack-actions button.danger{ flex:0 0 auto; color: var(--danger-text); }
+  .saved-pack-actions button.danger:hover{ background: var(--danger-soft); border-color: var(--danger-soft); }
 
   .auth-modal{ max-width:380px; }
   .auth-modal-title{ display:flex; align-items:center; gap:10px; }
@@ -1584,7 +1643,7 @@
       <button class="active" data-tab="browse" role="tab" aria-selected="true" data-i18n="navBrowse">Browse</button>
       <button data-tab="pack" role="tab" aria-selected="false"><span data-i18n="navCreate">Create</span> <span class="pack-count" id="packCount">0</span></button>
       <button data-tab="modpacks" role="tab" aria-selected="false" data-i18n="navModpacks">Modpacks</button>
-      <button data-tab="favorites" role="tab" aria-selected="false" data-i18n="navFavorites">Favorites</button>
+      <button data-tab="favorites" role="tab" aria-selected="false" data-i18n="navFavorites">Saved</button>
       <button data-tab="export" role="tab" aria-selected="false" data-i18n="navExport">Export</button>
     </nav>
     <div class="header-actions">
@@ -1730,7 +1789,7 @@
     <div class="toolbar">
       <div class="search-box">
         <span aria-hidden="true">🔍</span>
-        <input type="text" id="favSearchInput" placeholder="Search your favorites…" aria-label="Search favorites" data-i18n-attr="placeholder:favSearchPlaceholder,aria-label:favSearchLabel">
+        <input type="text" id="favSearchInput" placeholder="Search your saved mods…" aria-label="Search saved mods" data-i18n-attr="placeholder:favSearchPlaceholder,aria-label:favSearchLabel">
         <kbd class="kbd-hint" aria-hidden="true">/</kbd>
       </div>
       <button class="page-btn" id="favSortBtn" style="display:none;" data-i18n="favSortAZ">Sort A→Z</button>
@@ -1743,10 +1802,16 @@
         </button>
       </div>
     </div>
+    <div id="savedPacksSection" style="display:none;">
+      <h3 class="saved-packs-title" data-i18n="savedPacksTitle">Your modpacks</h3>
+      <div id="savedPacksList" class="saved-packs-grid"></div>
+      <hr class="saved-packs-sep">
+      <h3 class="saved-packs-title" data-i18n="savedModsTitle">Saved mods</h3>
+    </div>
     <div id="favResults" class="grid"></div>
     <div id="favEmpty" class="empty-state" style="display:none;">
       <div class="big">⭐</div>
-      <p data-i18n="favEmptyText">No favorites yet. Tap the heart on any mod in <strong>Browse</strong> or <strong>Modpacks</strong> to save it here.</p>
+      <p data-i18n="favEmptyText">Nothing saved yet. Tap the heart on any mod in <strong>Browse</strong> or <strong>Modpacks</strong>, or save a modpack you built in <strong>Export</strong>.</p>
     </div>
   </section>
 
@@ -1996,6 +2061,10 @@
       </select>
       <p style="color:var(--text-dim); font-size:0.8rem; margin:8px 0 0;" data-i18n="exportTargetHint">This is the target your pack declares to launchers, separate from the file you picked per mod in Create. If you already filtered by version/loader while browsing, it's pre-filled here.</p>
 
+      <button type="button" class="modal-link-btn" id="savePackBtn" style="width:100%; margin:0 0 14px; justify-content:center;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px; height:16px;"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+        <span data-i18n="exportSavePackBtn">Save this modpack</span>
+      </button>
       <button class="export-btn" id="exportBtn" data-i18n="exportDownloadBtn">Download .mrpack</button>
       <p class="export-note" id="exportNote" data-i18n="exportNoteDefault">Add mods to your pack first, then choose a version and loader.</p>
       <p style="color:var(--text-dim); font-size:0.8rem; margin:8px 0 0; display:none;" id="exportImportTip" data-i18n="exportImportTip">Downloaded. If <strong>Modrinth</strong> is installed, just double-click the <code>.mrpack</code> file (or open it from your browser's downloads list) and it'll launch straight into creating an instance from it.</p>
@@ -2004,8 +2073,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px; height:16px;"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
         <span data-i18n="exportCopyPackCode">Copy pack code</span>
       </button>
-      <p id="shareUsageNote" style="display:none; color:var(--accent-dark); font-weight:700; font-size:0.85rem; margin:8px 0 0; text-align:center;"></p>
-      <hr id="shareUsageSeparator" style="display:none; border:none; border-top:1px solid var(--border); margin:10px 0 0;">
+      <p id="shareSignInNote" style="display:none; color:var(--text-dim); font-weight:700; font-size:0.82rem; margin:8px 0 0; text-align:center;" data-i18n="exportShareNeedsAccount">Sign in to generate share codes and links.</p>
       <p style="color:var(--text-dim); font-size:0.8rem; margin:6px 0 0;" data-i18n="exportShareCodeHint">Copies a short code with your mod list. Others paste it straight into <strong>Import a share code</strong> above to get the same mods. <button type="button" id="shareLinkBtn" style="background:none; border:none; padding:0; color:var(--accent-dark); text-decoration:underline; cursor:pointer; font:inherit;">Prefer a link?</button></p>
     </div>
   </section>
@@ -2274,12 +2342,16 @@ function getProviderUsername(user){
 
 const SIGNIN_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><polyline points="10 17 15 12 10 7"></polyline><line x1="15" y1="12" x2="3" y2="12"></line></svg>`;
 const PROFILE_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`;
+const SYNC_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"></path><path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path><path d="M3 22v-6h6"></path><path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path></svg>`;
+const RESTORE_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>`;
 const SIGNOUT_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>`;
 
 function renderAccountUI(){
   const slot = document.getElementById("accountSlot");
   if(!slot) return;
   closeAccountMenu(true);
+  // Signing in or out flips whether share codes are available at all.
+  if(typeof updateShareUsageDisplays === "function") updateShareUsageDisplays();
   const user = state.user;
   if(!user){
     slot.innerHTML = `<button type="button" class="signin-btn" id="signInBtn">${SIGNIN_ICON_SVG}${t('signInBtn','Sign in')}</button>`;
@@ -2375,7 +2447,13 @@ function toggleAccountMenu(){
         <span>${escapeHtml(subLine)}</span>
       </div>
     </div>
-    <button type="button" class="account-sync-note ${syncStatus === 'error' ? 'err' : ''}" id="accountSyncNote"><span class="dot"></span><span>${syncStatusLabel()}</span></button>
+    <div class="account-status-row">
+      <button type="button" class="account-sync-note ${syncStatus === 'error' ? 'err' : ''}" id="accountSyncNote"><span class="dot"></span><span>${syncStatusLabel()}</span></button>
+      <span class="account-share-count" id="accountShareCount"></span>
+    </div>
+    <div class="account-menu-divider"></div>
+    <button type="button" class="menu-item" id="checkSyncBtn">${SYNC_ICON_SVG}${t('checkSyncBtn','Check what the account holds')}</button>
+    <button type="button" class="menu-item" id="restoreSyncBtn">${RESTORE_ICON_SVG}${t('restoreSyncBtn','Restore from account')}</button>
     <div class="account-menu-divider"></div>
     <button type="button" class="menu-item danger" id="signOutBtn">${SIGNOUT_ICON_SVG}${t('signOutBtn','Sign out')}</button>
   `;
@@ -2388,6 +2466,11 @@ function toggleAccountMenu(){
   slot.appendChild(accountMenuEl);
   btn.setAttribute("aria-expanded", "true");
   document.getElementById("signOutBtn").addEventListener("click", handleSignOut);
+  updateAccountShareCounter();
+  const checkBtn = document.getElementById("checkSyncBtn");
+  if(checkBtn) checkBtn.addEventListener("click", (e)=>{ e.stopPropagation(); showAccountContents(); });
+  const restoreBtn = document.getElementById("restoreSyncBtn");
+  if(restoreBtn) restoreBtn.addEventListener("click", (e)=>{ e.stopPropagation(); restoreFromAccount(); });
   const syncNote = document.getElementById("accountSyncNote");
   if(syncNote) syncNote.addEventListener("click", (e)=>{
     e.stopPropagation();
@@ -2810,7 +2893,7 @@ async function initAuth(){
  * if the table isn't there yet, so it won't break the app.
  */
 const USER_DATA_TABLE = "user_data";
-const SYNC_FIELDS = ["pack", "favorites", "settings"];
+const SYNC_FIELDS = ["pack", "favorites", "settings", "saved_packs"];
 
 function nowIso(){ return new Date().toISOString(); }
 function localTsKey(field){ return `modbench_${field}_updated_at`; }
@@ -2850,7 +2933,9 @@ function buildSyncRow(overrides){
     favorites: Array.isArray(state.favorites) ? state.favorites : [],
     favorites_updated_at: getLocalTimestamp("favorites") || now,
     settings: buildSettingsSnapshot(),
-    settings_updated_at: getLocalTimestamp("settings") || now
+    settings_updated_at: getLocalTimestamp("settings") || now,
+    saved_packs: Array.isArray(state.savedPacks) ? state.savedPacks : [],
+    saved_packs_updated_at: getLocalTimestamp("saved_packs") || now
   };
   return Object.assign(row, overrides || {});
 }
@@ -3006,6 +3091,10 @@ function applyRemoteField(field, value, updatedAtIso){
     state.favorites = Array.isArray(value) ? value : [];
     saveFavorites(false);
     if(state.tab === "favorites") renderFavorites();
+  } else if(field === "saved_packs"){
+    state.savedPacks = Array.isArray(value) ? value : [];
+    saveSavedPacks(false);
+    if(state.tab === "favorites") renderFavorites();
   } else if(field === "settings" && value && typeof value === "object"){
     if(typeof value.packIcon === "string"){ state.packIcon = value.packIcon; savePackIcon(false); renderLogoPicker(); }
     if(typeof value.autoCompatCheck === "boolean"){
@@ -3036,7 +3125,9 @@ function reconcileRemoteRow(row){
 }
 
 function hasNonDefaultLocalData(){
-  return (state.pack && state.pack.length > 0) || (state.favorites && state.favorites.length > 0);
+  return (state.pack && state.pack.length > 0)
+    || (state.favorites && state.favorites.length > 0)
+    || (state.savedPacks && state.savedPacks.length > 0);
 }
 
 function promptMergeChoice(row){
@@ -3052,19 +3143,19 @@ function promptMergeChoice(row){
         <div class="modal-head" style="margin-bottom:10px;">
           <div class="name" style="font-size:1.1rem;">${t('mergeTitle','Which data do you want to keep?')}</div>
         </div>
-        <p style="margin:0 0 16px; font-size:0.88rem; color:var(--text-dim); text-wrap:pretty;">${t('mergeDesc',"This device has a pack and favorites, and your account already has some saved too.")}</p>
+        <p style="margin:0 0 16px; font-size:0.88rem; color:var(--text-dim); text-wrap:pretty;">${t('mergeDesc',"This device has a pack and saved items, and your account already has some too.")}</p>
         <div style="display:flex; flex-direction:column; gap:8px;">
           <button type="button" class="page-btn" data-choice="device" style="width:100%; text-align:left; height:auto; padding:12px;">
             <strong style="display:block;">${t('mergeKeepDevice','Keep this device')}</strong>
-            <span style="font-size:0.8rem; color:var(--text-dim);">${tPlural(state.pack.length,'mergePackCountOne','{n} mod in pack','mergePackCountOther','{n} mods in pack')} · ${tPlural(state.favorites.length,'mergeFavCountOne','{n} favorite','mergeFavCountOther','{n} favorites')}</span>
+            <span style="font-size:0.8rem; color:var(--text-dim);">${tPlural(state.pack.length,'mergePackCountOne','{n} mod in pack','mergePackCountOther','{n} mods in pack')} · ${tPlural(state.favorites.length,'mergeFavCountOne','{n} saved','mergeFavCountOther','{n} saved')}</span>
           </button>
           <button type="button" class="page-btn" data-choice="account" style="width:100%; text-align:left; height:auto; padding:12px;">
             <strong style="display:block;">${t('mergeKeepAccount','Keep my account')}</strong>
-            <span style="font-size:0.8rem; color:var(--text-dim);">${tPlural(remotePackCount,'mergePackCountOne','{n} mod in pack','mergePackCountOther','{n} mods in pack')} · ${tPlural(remoteFavCount,'mergeFavCountOne','{n} favorite','mergeFavCountOther','{n} favorites')}</span>
+            <span style="font-size:0.8rem; color:var(--text-dim);">${tPlural(remotePackCount,'mergePackCountOne','{n} mod in pack','mergePackCountOther','{n} mods in pack')} · ${tPlural(remoteFavCount,'mergeFavCountOne','{n} saved','mergeFavCountOther','{n} saved')}</span>
           </button>
           <button type="button" class="page-btn" data-choice="both" style="width:100%; text-align:left; height:auto; padding:12px;">
             <strong style="display:block;">${t('mergeKeepBoth','Keep both')}</strong>
-            <span style="font-size:0.8rem; color:var(--text-dim);">${t('mergeKeepBothDesc','Merges favorites. Keeps this device\u2019s pack active and leaves your account\u2019s pack untouched for now.')}</span>
+            <span style="font-size:0.8rem; color:var(--text-dim);">${t('mergeKeepBothDesc','Merges saved items. Keeps this device\u2019s pack active and leaves your account\u2019s pack untouched for now.')}</span>
           </button>
         </div>
       </div>`;
@@ -3129,7 +3220,7 @@ async function handleAuthReady(){
         settings_updated_at: bumpLocalTimestamp("settings")
       });
       bumpLocalTimestamp("pack");
-      showToast(t('toastMergeBothDone',"Merged your favorites. This device's pack stays active locally — your account's previous pack is safe and will sync next time you edit a pack here."), { duration: 9000 });
+      showToast(t('toastMergeBothDone',"Merged your saved items. This device's pack stays active locally, and your account's previous pack is safe."), { duration: 9000 });
     }
   }catch(e){
     console.warn("Account sync init failed", e);
@@ -3161,6 +3252,56 @@ window.modbenchSyncCheck = async function(){
   console.log("local timestamps:", SYNC_FIELDS.map(f=>f+"="+getLocalTimestamp(f)).join("  "));
   console.log("local favorites:", state.favorites.length, "pack:", state.pack.length);
 };
+
+/* Reads the account row live and reports what the server actually holds.
+ * This is the one thing that settles "is it syncing?": localStorage keeps your
+ * data on this device whether or not the upload ever worked, so signing out
+ * and back in on the same browser can't tell you anything. These numbers come
+ * from Supabase, not from this device. */
+async function showAccountContents(){
+  if(!state.session){ showToast(t('toastNotSignedIn','Not signed in.')); return; }
+  showToast(t('toastCheckingAccount','Checking your account…'), { duration: 2500 });
+  try{
+    const row = await fetchUserDataRow();
+    if(!row){
+      showToast(t('toastAccountEmpty',"Your account has no saved row yet — nothing has ever uploaded."), { duration: 10000 });
+      return;
+    }
+    const n = (v)=>Array.isArray(v) ? v.length : 0;
+    const when = row.favorites_updated_at || row.pack_updated_at || row.saved_packs_updated_at;
+    const stamp = when ? new Date(when).toLocaleString() : t('never','never');
+    showToast(tf('toastAccountHolds',
+      'Account holds: {fav} saved, {pack} in pack, {packs} modpacks. Last write: {when}',
+      { fav: n(row.favorites), pack: n(row.pack), packs: n(row.saved_packs), when: stamp }
+    ), { duration: 12000 });
+    console.log("[ModBench] account row:", row);
+  }catch(e){
+    console.error(e);
+    showToast(tf('toastAccountCheckFailed','Could not read your account: {msg}', { msg: e.message || String(e) }), { duration: 10000 });
+  }
+}
+
+/* Force-applies the account's copy over this device, ignoring timestamps.
+ * The normal last-write-wins comparison is deliberately conservative and will
+ * refuse to overwrite a device whose local clock ran ahead; this is the manual
+ * override for exactly that case. */
+async function restoreFromAccount(){
+  if(!state.session){ showToast(t('toastNotSignedIn','Not signed in.')); return; }
+  if(!confirm(t('confirmRestore',"Replace this device's saved mods, pack and modpacks with the copy stored in your account?"))) return;
+  try{
+    const row = await fetchUserDataRow();
+    if(!row){ showToast(t('toastAccountEmpty',"Your account has no saved row yet — nothing has ever uploaded."), { duration: 8000 }); return; }
+    SYNC_FIELDS.forEach(f=>{
+      if(row[f] === null || row[f] === undefined) return;
+      applyRemoteField(f, row[f], row[f + "_updated_at"] || nowIso());
+    });
+    renderAccountUI();
+    showToast(t('toastRestored','Restored from your account.'));
+  }catch(e){
+    console.error(e);
+    showToast(tf('toastAccountCheckFailed','Could not read your account: {msg}', { msg: e.message || String(e) }), { duration: 10000 });
+  }
+}
 
 let lastPullAt = 0;
 async function maybePullOnFocus(){
@@ -3218,25 +3359,37 @@ function getNextShareResetTime(){
 function formatShareResetTime(){
   return getNextShareResetTime().toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
 }
+// Share codes are now account-only: they cost a row in a shared table, so
+// they need an identity behind them.
+function canGenerateShareCodes(){
+  return Boolean(state.session);
+}
+
+// The remaining-generations counter lives in the account menu now (there's no
+// sensible place to show a per-account quota to a signed-out visitor). All
+// this does in Export is enable/disable the two entry points.
 function updateShareUsageDisplays(){
-  const note = document.getElementById("shareUsageNote");
-  const separator = document.getElementById("shareUsageSeparator");
-  if(!note) return;
-  const usage = getShareUsageState();
-  if(!shareBackendConfigured() || usage.used <= 0){
-    note.style.display = "none";
-    note.innerHTML = "";
-    if(separator) separator.style.display = "none";
-    return;
-  }
-  const remaining = getShareRemaining();
-  note.innerHTML = tPlural(remaining,
-    'shareUsageNoteOne','<strong>{n}</strong> code/link generation left today (of {limit}) <span style="color:var(--text-dim); font-weight:400;">· resets at {time}</span>',
-    'shareUsageNoteOther','<strong>{n}</strong> code/link generations left today (of {limit}) <span style="color:var(--text-dim); font-weight:400;">· resets at {time}</span>',
-    { limit: DAILY_SHARE_LIMIT, time: formatShareResetTime() }
-  );
-  note.style.display = "block";
-  if(separator) separator.style.display = "block";
+  const signInNote = document.getElementById("shareSignInNote");
+  const copyBtn = document.getElementById("copyShareCodeBtn2");
+  const linkBtn = document.getElementById("shareLinkBtn");
+  const allowed = canGenerateShareCodes();
+  if(signInNote) signInNote.style.display = allowed ? "none" : "block";
+  [copyBtn, linkBtn].forEach(btn=>{
+    if(!btn) return;
+    btn.disabled = !allowed;
+    btn.style.opacity = allowed ? "" : "0.45";
+    btn.style.cursor = allowed ? "" : "not-allowed";
+    btn.setAttribute("aria-disabled", allowed ? "false" : "true");
+  });
+  updateAccountShareCounter();
+}
+
+// Refreshes just the counter chip inside an open account menu.
+function updateAccountShareCounter(){
+  const el = document.getElementById("accountShareCount");
+  if(!el) return;
+  el.textContent = tf('accountSharesLeft','{n}/{limit} codes left today',
+    { n: getShareRemaining(), limit: DAILY_SHARE_LIMIT });
 }
 
 function generateShortCode(len = 7){
@@ -3330,6 +3483,7 @@ let state = {
   modpackSearched: false,
   modpackView: "grid",
   packIcon: safeLocalStorageGet("modbench_pack_icon", ""),
+  savedPacks: JSON.parse(safeLocalStorageGet("modbench_saved_packs", "[]")),
   autoCompatCheck: safeLocalStorageGet("modbench_auto_compat_check") !== "off",
   expLoaderTouched: false,
   expMcTouched: false,
@@ -3406,6 +3560,10 @@ function updatePackCount(){
     void el.offsetWidth;
     el.classList.add("bump");
   }
+}
+function saveSavedPacks(sync = true){
+  safeLocalStorageSet("modbench_saved_packs", JSON.stringify(state.savedPacks));
+  if(sync) queueSync("saved_packs", state.savedPacks);
 }
 function saveFavorites(sync = true){
   safeLocalStorageSet("packsmith_favorites", JSON.stringify(state.favorites));
@@ -3948,7 +4106,7 @@ function cardHtml(hit){
       <div class="card-stats">
         <span>${DOWNLOAD_ICON} ${formatNum(hit.downloads)}</span>
         <span>${HEART_ICON_FILLED.replace('<svg ', '<svg style="width:13px;height:13px;vertical-align:-2px;" ')} ${formatNum(hit.follows)}</span>
-        <button class="card-fav ${isFav?'faved':''}" data-fav="${hit.project_id}" title="${isFav?t('favRemove','Remove from favorites'):t('favAdd','Add to favorites')}" aria-label="${isFav?t('favRemove','Remove from favorites'):t('favAdd','Add to favorites')}">${isFav ? HEART_ICON_FILLED : HEART_ICON_OUTLINE}</button>
+        <button class="card-fav ${isFav?'faved':''}" data-fav="${hit.project_id}" title="${isFav?t('favRemove','Remove from saved'):t('favAdd','Save')}" aria-label="${isFav?t('favRemove','Remove from saved'):t('favAdd','Save')}">${isFav ? HEART_ICON_FILLED : HEART_ICON_OUTLINE}</button>
         <button class="card-add ${inPack?'added':''}" data-add="${hit.project_id}">${inPack ? t('cardAdded','Added ✓') : t('cardAdd','+ Add')}</button>
       </div>
     </div>`;
@@ -3975,7 +4133,7 @@ function updateCardButtons(container, projectId){
   if(favBtn){
     favBtn.classList.toggle("faved", isFav);
     favBtn.innerHTML = isFav ? HEART_ICON_FILLED : HEART_ICON_OUTLINE;
-    favBtn.title = isFav ? t("favRemove","Remove from favorites") : t("favAdd","Add to favorites");
+    favBtn.title = isFav ? t("favRemove","Remove from saved") : t("favAdd","Save");
     favBtn.setAttribute("aria-label", favBtn.title);
   }
 }
@@ -4421,7 +4579,7 @@ async function openModal(projectId, hitLookup){
           <div class="card-author">by ${escapeHtml(hit.author||"")}</div>
         </div>
         <div style="display:flex; align-items:center; gap:10px; flex-shrink:0;">
-          <button class="card-fav ${modalIsFav?'faved':''}" id="modalFavBtn" title="${modalIsFav?t('favRemove','Remove from favorites'):t('favAdd','Add to favorites')}" aria-label="${modalIsFav?t('favRemove','Remove from favorites'):t('favAdd','Add to favorites')}">${modalIsFav ? HEART_ICON_FILLED : HEART_ICON_OUTLINE}</button>
+          <button class="card-fav ${modalIsFav?'faved':''}" id="modalFavBtn" title="${modalIsFav?t('favRemove','Remove from saved'):t('favAdd','Save')}" aria-label="${modalIsFav?t('favRemove','Remove from saved'):t('favAdd','Save')}">${modalIsFav ? HEART_ICON_FILLED : HEART_ICON_OUTLINE}</button>
           <button class="modal-close" aria-label="${t('close','Close')}">✕</button>
         </div>
       </div>
@@ -4464,7 +4622,7 @@ async function openModal(projectId, hitLookup){
       const nowFav = state.favorites.some(f=>f.id === projectId);
       favBtn.classList.toggle("faved", nowFav);
       favBtn.innerHTML = nowFav ? HEART_ICON_FILLED : HEART_ICON_OUTLINE;
-      favBtn.title = nowFav ? t("favRemove","Remove from favorites") : t("favAdd","Add to favorites");
+      favBtn.title = nowFav ? t("favRemove","Remove from saved") : t("favAdd","Save");
       favBtn.setAttribute("aria-label", favBtn.title);
       updateFavCount();
       if(state.tab === "favorites") renderFavorites();
@@ -5659,7 +5817,128 @@ function jumpToPackMod(id){
   });
 }
 
+const PACK_CODE_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
+
+/* Saves the pack currently open in Create as a named entry in Saved. Re-saving
+ * under a name that already exists overwrites that entry rather than piling up
+ * near-duplicates — the name is the identity here, same as a file. */
+function saveCurrentPack(){
+  if(!state.pack.length){
+    showToast(t('toastSavePackEmpty',"Add mods to your pack before saving it."));
+    return;
+  }
+  const nameInput = document.getElementById("packName");
+  const name = ((nameInput && nameInput.value) || "").trim() || t('savedPackUntitled','Untitled modpack');
+  const versionInput = document.getElementById("packVersion");
+  const entry = {
+    id: "sp_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+    name,
+    icon: state.packIcon || "",
+    version: (versionInput && versionInput.value) || "",
+    mods: state.pack.map(m=>({
+      id: m.id, title: m.title, icon_url: m.icon_url,
+      selectedVersionId: m.selectedVersionId, fromModpack: m.fromModpack
+    })),
+    shareCode: "",
+    savedAt: new Date().toISOString()
+  };
+  const existingIdx = state.savedPacks.findIndex(sp=>sp.name === name);
+  if(existingIdx >= 0){
+    entry.id = state.savedPacks[existingIdx].id;
+    entry.shareCode = state.savedPacks[existingIdx].shareCode || "";
+    state.savedPacks[existingIdx] = entry;
+  } else {
+    state.savedPacks.unshift(entry);
+  }
+  saveSavedPacks();
+  if(state.tab === "favorites") renderFavorites();
+  showToast(tf('toastPackSaved','Saved "{name}" to your Saved tab.', { name }));
+}
+
+// Called after a share code is generated so the code lands on the matching
+// saved entry, instead of living only in the clipboard.
+function attachShareCodeToSavedPack(code){
+  const nameInput = document.getElementById("packName");
+  const name = ((nameInput && nameInput.value) || "").trim();
+  if(!name || !code) return;
+  const sp = state.savedPacks.find(x=>x.name === name);
+  if(!sp) return;
+  sp.shareCode = code;
+  saveSavedPacks();
+  if(state.tab === "favorites") renderFavorites();
+}
+
+function openSavedPackInCreate(id){
+  const sp = state.savedPacks.find(x=>x.id === id);
+  if(!sp) return;
+  const replacing = state.pack.length > 0;
+  if(replacing && !confirm(tf('confirmReplacePack','Replace the {n} mod(s) currently in Create with "{name}"?', { n: state.pack.length, name: sp.name }))) return;
+  state.pack = (sp.mods || []).map(m=>Object.assign({}, m));
+  savePack();
+  if(sp.icon){ state.packIcon = sp.icon; savePackIcon(); renderLogoPicker(); }
+  const nameInput = document.getElementById("packName");
+  if(nameInput) nameInput.value = sp.name;
+  const versionInput = document.getElementById("packVersion");
+  if(versionInput && sp.version) versionInput.value = sp.version;
+  const createTab = document.querySelector('nav.tabs button[data-tab="pack"]');
+  if(createTab) createTab.click();
+  showToast(tf('toastPackOpened','Opened "{name}" in Create.', { name: sp.name }));
+}
+
+function deleteSavedPack(id){
+  const idx = state.savedPacks.findIndex(x=>x.id === id);
+  if(idx < 0) return;
+  const sp = state.savedPacks[idx];
+  if(!confirm(tf('confirmDeleteSavedPack','Delete the saved modpack "{name}"? This won\u2019t touch your current pack in Create.', { name: sp.name }))) return;
+  state.savedPacks.splice(idx, 1);
+  saveSavedPacks();
+  renderFavorites();
+  showToast(t('toastPackDeleted','Saved modpack deleted.'));
+}
+
+function savedPackCardHtml(sp){
+  const count = (sp.mods || []).length;
+  const icon = sp.icon || "icons/logo.png";
+  const sub = sp.version
+    ? tPlural(count,'savedPackModsOne','{n} mod','savedPackModsOther','{n} mods') + " · v" + escapeHtml(sp.version)
+    : tPlural(count,'savedPackModsOne','{n} mod','savedPackModsOther','{n} mods');
+  return `
+    <div class="saved-pack-card" data-sp="${escapeHtml(sp.id)}">
+      <div class="saved-pack-head">
+        <img class="saved-pack-icon" src="${escapeHtml(icon)}" alt="" onerror="this.src='icons/logo.png'">
+        <div class="saved-pack-meta">
+          <span class="saved-pack-name">${escapeHtml(sp.name)}</span>
+          <span class="saved-pack-sub">${sub}</span>
+        </div>
+      </div>
+      ${sp.shareCode ? `<button type="button" class="saved-pack-code" data-copy-code="${escapeHtml(sp.shareCode)}" title="${t('savedPackCopyCode','Copy share code')}">${PACK_CODE_ICON}<span>${escapeHtml(sp.shareCode)}</span></button>` : ""}
+      <div class="saved-pack-actions">
+        <button type="button" class="primary" data-open-sp="${escapeHtml(sp.id)}">${t('savedPackOpen','Open in Create')}</button>
+        <button type="button" class="danger" data-del-sp="${escapeHtml(sp.id)}" aria-label="${t('savedPackDelete','Delete')}" title="${t('savedPackDelete','Delete')}">✕</button>
+      </div>
+    </div>`;
+}
+
+function renderSavedPacks(){
+  const section = document.getElementById("savedPacksSection");
+  const list = document.getElementById("savedPacksList");
+  if(!section || !list) return;
+  if(!state.savedPacks.length){ section.style.display = "none"; list.innerHTML = ""; return; }
+  section.style.display = "";
+  list.innerHTML = state.savedPacks.map(savedPackCardHtml).join("");
+  list.querySelectorAll("[data-open-sp]").forEach(b=>{
+    b.addEventListener("click", ()=>openSavedPackInCreate(b.dataset.openSp));
+  });
+  list.querySelectorAll("[data-del-sp]").forEach(b=>{
+    b.addEventListener("click", ()=>deleteSavedPack(b.dataset.delSp));
+  });
+  list.querySelectorAll("[data-copy-code]").forEach(b=>{
+    b.addEventListener("click", ()=>copyTextToClipboard(b.dataset.copyCode, b));
+  });
+}
+
 function renderFavorites(){
+  renderSavedPacks();
   const resultsEl = document.getElementById("favResults");
   const emptyEl = document.getElementById("favEmpty");
   const sortBtn = document.getElementById("favSortBtn");
@@ -5675,14 +5954,17 @@ function renderFavorites(){
 
   if(state.favorites.length === 0){
     resultsEl.className = state.favView;
-    resultsEl.innerHTML = ""; emptyEl.style.display = "block";
-    emptyEl.querySelector("p").innerHTML = t('favEmptyText','No favorites yet. Tap the heart on any mod in <strong>Browse</strong> or <strong>Modpacks</strong> to save it here.');
+    resultsEl.innerHTML = "";
+    // With modpacks saved but no mods, the tab isn't empty — showing the
+    // "nothing here" state under a grid of cards would read as a bug.
+    emptyEl.style.display = state.savedPacks.length ? "none" : "block";
+    emptyEl.querySelector("p").innerHTML = t('favEmptyText','Nothing saved yet. Tap the heart on any mod in <strong>Browse</strong> or <strong>Modpacks</strong>, or save a modpack you built in <strong>Export</strong>.');
     return;
   }
   if(filtered.length === 0){
     resultsEl.className = state.favView;
     resultsEl.innerHTML = ""; emptyEl.style.display = "block";
-    emptyEl.querySelector("p").innerHTML = `No favorites match "${escapeHtml(state.favSearch)}".`;
+    emptyEl.querySelector("p").innerHTML = tf('favNoMatch','Nothing saved matches "{q}".', { q: escapeHtml(state.favSearch) });
     return;
   }
   emptyEl.style.display = "none";
@@ -6961,6 +7243,8 @@ document.getElementById("logoFileInput").addEventListener("change", (e)=>{
   e.target.value = "";
 });
 
+document.getElementById("savePackBtn").addEventListener("click", saveCurrentPack);
+
 document.getElementById("logoResetBtn").addEventListener("click", ()=>{
   state.packIcon = "";
   savePackIcon();
@@ -6968,9 +7252,19 @@ document.getElementById("logoResetBtn").addEventListener("click", ()=>{
 });
 
 document.addEventListener("click", (e)=>{
-  if(e.target.closest && e.target.closest("#shareLinkBtn")) showShareModal();
+  if(e.target.closest && e.target.closest("#shareLinkBtn")){
+    if(!canGenerateShareCodes()){
+      showToast(t('toastShareNeedsAccount',"Sign in to generate share codes."));
+      return;
+    }
+    showShareModal();
+  }
 });
 document.getElementById("copyShareCodeBtn2").addEventListener("click", async (e)=>{
+  if(!canGenerateShareCodes()){
+    showToast(t('toastShareNeedsAccount',"Sign in to generate share codes."));
+    return;
+  }
   const data = buildShareData();
   if(data.m.length === 0){
     alert(t('alertAddModsShareCode',"Add mods to your pack first, then copy a share code."));
@@ -6991,6 +7285,7 @@ document.getElementById("copyShareCodeBtn2").addEventListener("click", async (e)
       const shortId = await createShortShareCode(longCode);
       code = `mb-${shortId}`;
       recordShareUsage();
+      attachShareCodeToSavedPack(code);
     }catch(err){
       console.error(err);
       btn.disabled = false;
