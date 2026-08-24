@@ -111,6 +111,8 @@ window.i18n.fr = {
 
   footerText: "ModBench récupère des données en direct depuis l'API <a href=\"https://modrinth.com\" target=\"_blank\" rel=\"noopener\">Modrinth</a>. Non affilié à Modrinth ou Mojang.",
   footerCredit: "ModBench, 2026 - Fait avec ❤️ par Vik",
+  cardBy: "par",
+  createNoVersion: "aucune version",
   compatIgnoreAnyway: "Ignorer quand même",
 
   // Add / pack state buttons
