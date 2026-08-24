@@ -411,7 +411,7 @@ window.i18n.fr = {
   // --- Account menu tools
   checkSyncBtn: "Voir le contenu du compte",
   restoreSyncBtn: "Restaurer depuis le compte",
-  accountSharesLeft: "{n}/{limit} codes restants aujourd'hui",
+  accountSharesLeft: "{n}/{limit} codes restants",
   toastNotSignedIn: "Vous n'êtes pas connecté.",
   toastCheckingAccount: "Vérification de votre compte…",
   toastAccountEmpty: "Votre compte ne contient encore aucune donnée : rien n'a jamais été envoyé.",
