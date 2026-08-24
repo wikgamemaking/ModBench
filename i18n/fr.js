@@ -438,7 +438,7 @@ window.i18n.fr = {
   navFavorites: "Enregistrés",
   favSearchPlaceholder: "Rechercher dans vos mods enregistrés…",
   favSearchLabel: "Rechercher dans les enregistrés",
-  favEmptyText: "Rien d'enregistré pour l'instant. Touchez le cœur sur un mod dans <strong>Parcourir</strong> ou <strong>Modpacks</strong>, ou enregistrez un modpack créé dans <strong>Export</strong>.",
+  favEmptyText: "Rien d'enregistré pour l'instant. Touchez le cœur sur un mod dans <strong>Parcourir</strong> ou <strong>Modpacks</strong>, ou enregistrez un modpack créé dans <strong>Exporter</strong>.",
   favNoMatch: "Aucun élément enregistré ne correspond à « {q} ».",
   favAdd: "Enregistrer",
   favRemove: "Retirer des enregistrés",
