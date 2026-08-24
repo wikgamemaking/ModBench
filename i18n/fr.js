@@ -332,7 +332,7 @@ window.i18n.fr = {
   // Accounts
   signInBtn: "Se connecter",
   accountMenuLabel: "Menu du compte",
-  accountSignedInAs: "Connecté",
+  accountSignedInAs: "Connecté en tant que",
   signOutBtn: "Se déconnecter",
   accountSyncing: "Synchronisation…",
   accountSyncedNow: "Synchronisé",
@@ -344,6 +344,7 @@ window.i18n.fr = {
   toastAuthNotConfigured: "Les comptes ne sont pas configurés sur cette copie de ModBench.",
   toastConfirmEmailSent: "Vérifiez votre boîte mail pour confirmer votre adresse, puis connectez-vous.",
   toastResetEmailSent: "E-mail de réinitialisation envoyé — vérifiez votre boîte mail.",
+  toastPasswordUpdated: "Mot de passe mis à jour.",
   toastMergeBothDone: "Vos favoris ont été fusionnés. Le pack de cet appareil reste actif localement — le pack précédent de votre compte est conservé et se synchronisera dès que vous modifierez un pack ici.",
   toastSyncFailed: "Impossible de synchroniser les données de votre compte. Nouvelle tentative automatique à venir.",
 
@@ -364,6 +365,10 @@ window.i18n.fr = {
   authEmailLabel: "E-mail",
   authPasswordLabel: "Mot de passe",
   authForgotPassword: "Mot de passe oublié\u00A0?",
+  authNewPasswordTitle: "Choisissez un nouveau mot de passe",
+  authNewPasswordLabel: "Nouveau mot de passe",
+  authSetPasswordBtn: "Définir le mot de passe",
+  authPasswordTooShort: "Le mot de passe doit contenir au moins 6 caractères.",
   authSignInBtn: "Se connecter",
   authCreateAccountBtn: "Créer un compte",
   authOrDivider: "ou",
