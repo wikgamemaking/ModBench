@@ -886,6 +886,46 @@
   .empty-state .quick-action{ margin:16px auto 0; max-width:210px; }
 
   .header-actions{ display:flex; align-items:center; gap:8px; margin-left:auto; flex-shrink:0; }
+  .header-menu-wrap{ position:relative; flex-shrink:0; }
+  .header-menu{
+    position:absolute; top:calc(100% + 10px); right:0; z-index:40;
+    background: var(--surface); border:1px solid var(--border); border-radius:14px;
+    box-shadow: 0 14px 36px rgba(0,0,0,.2), 0 2px 8px rgba(0,0,0,.08);
+    width:212px; padding:6px; overflow:hidden;
+    transform-origin: top right;
+    animation: account-menu-in .24s cubic-bezier(.16,.84,.34,1.02);
+  }
+  .header-menu.closing{
+    pointer-events:none;
+    animation: account-menu-out .15s cubic-bezier(.4,0,.7,.2) forwards;
+  }
+  .header-menu > *{ opacity:0; animation: account-menu-row-in .26s ease forwards; }
+  .header-menu > *:nth-child(1){ animation-delay: .03s; }
+  .header-menu > *:nth-child(2){ animation-delay: .07s; }
+  .header-menu > *:nth-child(3){ animation-delay: .11s; }
+  .header-menu.closing > *{ animation:none; opacity:1; }
+  /* Reuses .theme-toggle for the icon crossfade, but nothing else about a
+     36px circle survives inside a menu row. */
+  .header-menu-item{
+    width:100%; height:auto; justify-content:flex-start; gap:10px;
+    padding:9px 10px; border-radius:9px; overflow:visible;
+    background:none; border:1px solid transparent; color: var(--text);
+    font-family:inherit; font-size:0.88rem; font-weight:700; text-align:left;
+  }
+  .header-menu-item:hover{ background: var(--surface-2); color: var(--text); border-color: transparent; transform:none; }
+  .header-menu-item:active{ transform: scale(.985); }
+  /* The theme icons are absolutely centred against their nearest positioned
+     ancestor, so they need their own box now that the button is a wide row. */
+  .header-menu-icon{ position:relative; display:block; width:20px; height:20px; flex-shrink:0; }
+  .header-menu-icon svg{ width:18px; height:18px; }
+  .header-menu-icon > span{
+    position:absolute; top:50%; left:50%; transform: translate(-50%,-50%);
+    font-size:1.1rem; line-height:1;
+  }
+  .header-menu-label{ flex:1; }
+  @media (prefers-reduced-motion: reduce){
+    .header-menu, .header-menu.closing, .header-menu > *{ animation:none; opacity:1; transform:none; }
+  }
 
   /* --- Accounts: header button, avatar menu, auth modal --- */
   .signin-btn{
@@ -915,7 +955,7 @@
     position:absolute; top:calc(100% + 10px); right:0; z-index:40;
     background: var(--surface); border:1px solid var(--border); border-radius:16px;
     box-shadow: 0 14px 36px rgba(0,0,0,.2), 0 2px 8px rgba(0,0,0,.08);
-    width:276px; padding:8px; overflow:hidden;
+    width:312px; padding:10px; overflow:hidden;
     transform-origin: top right;
     animation: account-menu-in .26s cubic-bezier(.16,.84,.34,1.02);
   }
@@ -950,33 +990,37 @@
     .account-menu, .account-menu.closing, .account-menu > *{ animation:none; opacity:1; transform:none; }
   }
   .account-menu-header{
-    display:flex; align-items:center; gap:12px;
-    margin:-8px -8px 10px; padding:16px 14px 14px;
+    display:flex; align-items:center; gap:13px;
+    margin:-10px -10px 12px; padding:18px 16px 16px;
     background: linear-gradient(180deg, var(--accent-soft), var(--surface-2) 130%);
   }
   .account-menu-avatar{
-    width:44px; height:44px; border-radius:50%; flex-shrink:0; object-fit:cover;
+    width:50px; height:50px; border-radius:50%; flex-shrink:0; object-fit:cover;
     display:flex; align-items:center; justify-content:center;
     box-shadow: 0 0 0 2.5px var(--surface), 0 0 0 4px var(--accent-soft);
   }
   .account-menu-avatar-fallback{ background: var(--accent); color:#fff; font-weight:700; font-size:1.05rem; }
   .account-menu-identity{ min-width:0; overflow-wrap:break-word; }
-  .account-menu-identity strong{ display:block; color: var(--text); font-size:0.96rem; margin-bottom:2px; line-height:1.25; }
-  .account-menu-identity span{ display:block; color: var(--text-dim); font-size:0.79rem; line-height:1.3; }
+  .account-menu-identity strong{ display:block; color: var(--text); font-size:1.02rem; margin-bottom:3px; line-height:1.25; }
+  .account-menu-identity span{ display:block; color: var(--text-dim); font-size:0.83rem; line-height:1.3; }
   .account-sync-note{
     display:flex; align-items:center; gap:6px; width:fit-content;
-    margin:0 4px 8px; padding:4px 10px 4px 7px; border-radius:999px;
-    background: var(--surface-2); font-size:0.74rem; font-weight:700;
+    margin:0 5px 9px; padding:5px 11px 5px 8px; border-radius:999px;
+    background: var(--surface-2); font-size:0.77rem; font-weight:700;
     color: var(--text-dim); letter-spacing:.01em;
+    border:none; font-family:inherit; text-align:left;
   }
+  /* Only interactive in the error state — there's nothing to read otherwise. */
+  .account-sync-note.err{ cursor:pointer; }
+  .account-sync-note.err:hover{ filter: brightness(0.96); }
   .account-sync-note.err{ background: var(--danger-soft); color: var(--danger-text); }
   .account-sync-note .dot{ width:6px; height:6px; border-radius:50%; background: var(--accent); flex-shrink:0; }
   .account-sync-note.err .dot{ background: var(--danger); }
   .account-menu-divider{ height:1px; background: var(--border); margin:2px 4px 6px; }
   .account-menu button.menu-item{
-    display:flex; align-items:center; gap:9px; width:100%; text-align:left;
-    background:none; border:none; padding:9px 10px; border-radius:9px; cursor:pointer;
-    font-family:inherit; font-size:0.88rem; color: var(--text); font-weight:700;
+    display:flex; align-items:center; gap:10px; width:100%; text-align:left;
+    background:none; border:none; padding:11px 11px; border-radius:10px; cursor:pointer;
+    font-family:inherit; font-size:0.92rem; color: var(--text); font-weight:700;
     transition: background .15s ease, color .15s ease;
   }
   .account-menu button.menu-item svg{ width:16px; height:16px; flex-shrink:0; }
@@ -1146,8 +1190,14 @@
   @media (prefers-reduced-motion: reduce){
     .modal-backdrop, .modal{ animation: none; }
   }
-  .modal-backdrop.closing{ animation: modal-fade-out .16s ease-in forwards; }
+  .modal-backdrop.closing{ animation: modal-fade-out .18s ease-in forwards; }
   .intro-modal.closing{ animation: modal-pop-out .16s ease-in forwards; }
+  /* Scoped to the auth modals so the other dozen modals keep their existing
+     instant close — this only reverses the pop-in they already open with. */
+  .modal-backdrop.closing .auth-modal{ animation: modal-pop-out .18s cubic-bezier(.4,0,.7,.2) forwards; }
+  @media (prefers-reduced-motion: reduce){
+    .modal-backdrop.closing .auth-modal{ animation:none; }
+  }
   @keyframes modal-fade-out{
     from{ opacity:1; }
     to{ opacity:0; }
@@ -1538,16 +1588,28 @@
       <button data-tab="export" role="tab" aria-selected="false" data-i18n="navExport">Export</button>
     </nav>
     <div class="header-actions">
-      <button class="theme-toggle" id="langToggle" type="button" aria-label="Switch language" title="Switch language" data-i18n-attr="aria-label:langToggleLabel,title:langToggleLabel">
-        <span id="langToggleLabel" style="font-family:inherit; font-size:1.15rem; line-height:1;" aria-hidden="true">🇬🇧</span>
-      </button>
-      <button class="theme-toggle help-toggle" id="helpToggle" type="button" aria-label="Getting started guide" title="Getting started guide" data-i18n-attr="aria-label:helpToggleLabel,title:helpToggleLabel">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>
-      </button>
-      <button class="theme-toggle" id="themeToggle" type="button" aria-label="Toggle dark mode" title="Toggle dark mode" data-i18n-attr="aria-label:themeToggleLabel,title:themeToggleLabel">
-        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path></svg>
-        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
-      </button>
+      <div class="header-menu-wrap">
+        <button class="theme-toggle" id="headerMenuBtn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Menu" title="Menu" data-i18n-attr="aria-label:menuToggleLabel,title:menuToggleLabel">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"></line><line x1="3" y1="12" x2="21" y2="12"></line><line x1="3" y1="18" x2="21" y2="18"></line></svg>
+        </button>
+        <div class="header-menu" id="headerMenu" hidden>
+          <button class="theme-toggle help-toggle header-menu-item" id="helpToggle" type="button" data-i18n-attr="aria-label:helpToggleLabel,title:helpToggleLabel" aria-label="Getting started guide" title="Getting started guide">
+            <span class="header-menu-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
+            <span class="header-menu-label" data-i18n="menuGuide">Getting started</span>
+          </button>
+          <button class="theme-toggle header-menu-item" id="langToggle" type="button" data-i18n-attr="aria-label:langToggleLabel,title:langToggleLabel" aria-label="Switch language" title="Switch language">
+            <span class="header-menu-icon"><span id="langToggleLabel" aria-hidden="true">🇬🇧</span></span>
+            <span class="header-menu-label" data-i18n="menuLanguage">Language</span>
+          </button>
+          <button class="theme-toggle header-menu-item" id="themeToggle" type="button" data-i18n-attr="aria-label:themeToggleLabel,title:themeToggleLabel" aria-label="Toggle dark mode" title="Toggle dark mode">
+            <span class="header-menu-icon">
+              <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path></svg>
+              <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+            </span>
+            <span class="header-menu-label" data-i18n="menuTheme">Theme</span>
+          </button>
+        </div>
+      </div>
       <div class="account-slot" id="accountSlot"></div>
     </div>
   </div>
@@ -1954,7 +2016,7 @@
   <span data-i18n="footerText">ModBench pulls live data from the <a href="https://modrinth.com" target="_blank" rel="noopener">Modrinth</a> API. Not affiliated with Modrinth or Mojang.</span>
   <div style="margin-top:6px; display:flex; align-items:center; justify-content:center; gap:10px; flex-wrap:wrap;">
     <span data-i18n="footerCredit" style="opacity:0.6;">ModBench, 2026 - Made with ❤️ by Vik</span>
-    <span style="width:1px; height:12px; background:var(--border);" aria-hidden="true"></span>
+    <span id="footerCreditSep" style="width:1px; height:12px; background:var(--border);" aria-hidden="true"></span>
     <span id="footerLegalLinks" data-i18n="footerLegalLinks">
       <a href="privacy.html">Privacy Policy</a> · <a href="terms.html">Terms of Service</a>
     </span>
@@ -2313,7 +2375,7 @@ function toggleAccountMenu(){
         <span>${escapeHtml(subLine)}</span>
       </div>
     </div>
-    <div class="account-sync-note ${syncStatus === 'error' ? 'err' : ''}" id="accountSyncNote"><span class="dot"></span><span>${syncStatusLabel()}</span></div>
+    <button type="button" class="account-sync-note ${syncStatus === 'error' ? 'err' : ''}" id="accountSyncNote"><span class="dot"></span><span>${syncStatusLabel()}</span></button>
     <div class="account-menu-divider"></div>
     <button type="button" class="menu-item danger" id="signOutBtn">${SIGNOUT_ICON_SVG}${t('signOutBtn','Sign out')}</button>
   `;
@@ -2326,6 +2388,12 @@ function toggleAccountMenu(){
   slot.appendChild(accountMenuEl);
   btn.setAttribute("aria-expanded", "true");
   document.getElementById("signOutBtn").addEventListener("click", handleSignOut);
+  const syncNote = document.getElementById("accountSyncNote");
+  if(syncNote) syncNote.addEventListener("click", (e)=>{
+    e.stopPropagation();
+    if(syncStatus !== "error") return;
+    showToast(lastSyncError || t('syncErrUnknown',"Sync failed for an unknown reason."), { duration: 11000 });
+  });
   setTimeout(()=>{
     document.addEventListener("click", closeAccountMenuOnOutsideClick);
     document.addEventListener("keydown", closeAccountMenuOnEscape);
@@ -2357,6 +2425,21 @@ function friendlyAuthError(err){
   if(/email/i.test(msg) && /invalid/i.test(msg)) return t('authErrInvalidEmail',"That doesn't look like a valid email address.");
   if(/rate limit/i.test(msg)) return t('authErrRateLimited','Too many attempts — wait a bit and try again.');
   return msg;
+}
+
+// Plays the backdrop fade-out and the modal's own pop-out, then removes the
+// node. Guarded against double-calls (click the X while Escape is already
+// mid-animation) and against the animationend never arriving.
+function dismissModalBackdrop(backdrop){
+  if(!backdrop || backdrop.dataset.closing === "1"){ return; }
+  const reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if(reduced){ backdrop.remove(); return; }
+  backdrop.dataset.closing = "1";
+  backdrop.classList.add("closing");
+  let done = false;
+  const drop = ()=>{ if(done) return; done = true; backdrop.remove(); };
+  backdrop.addEventListener("animationend", drop, { once: true });
+  setTimeout(drop, 300);
 }
 
 function showAuthModal(initialMode = "signin"){
@@ -2608,7 +2691,7 @@ function showAuthModal(initialMode = "signin"){
 
   function close(){
     document.removeEventListener("keydown", onEscape);
-    backdrop.remove();
+    dismissModalBackdrop(backdrop);
   }
   function onEscape(e){ if(e.key === "Escape") close(); }
   backdrop.addEventListener("click", (e)=>{ if(e.target === backdrop) close(); });
@@ -2655,7 +2738,7 @@ function showNewPasswordModal(){
     document.getElementById("newPasswordErrorSlot").innerHTML = `<div class="auth-error">⚠️ ${escapeHtml(msg)}</div>`;
   }
   function close(){
-    backdrop.remove();
+    dismissModalBackdrop(backdrop);
     document.removeEventListener("keydown", onEscape);
   }
   function onEscape(e){ if(e.key === "Escape") close(); }
@@ -2779,9 +2862,10 @@ function seedLocalTimestampsFrom(row){
 }
 
 let syncStatus = "idle"; // idle | syncing | synced | error
+let lastSyncError = "";
 function syncStatusLabel(){
   if(syncStatus === "syncing") return t('accountSyncing','Syncing…');
-  if(syncStatus === "error") return t('accountSyncError',"Sync failed — will retry");
+  if(syncStatus === "error") return t('accountSyncError',"Sync failed, tap for details");
   return t('accountSyncedNow','Synced');
 }
 function setSyncStatus(s){
@@ -2791,6 +2875,20 @@ function setSyncStatus(s){
   note.classList.toggle("err", s === "error");
   const label = note.querySelector("span:last-child");
   if(label) label.textContent = syncStatusLabel();
+}
+// Turns an HTTP status + Postgres body into something that names the actual
+// fault, so a failure is diagnosable without opening the console.
+function describeSyncError(status, body){
+  const b = String(body || "");
+  if(status === 404 || /relation .* does not exist|PGRST205/i.test(b))
+    return t('syncErrNoTable',"The user_data table doesn't exist in Supabase yet.");
+  if(status === 401 || status === 403 || /row-level security|PGRST301/i.test(b))
+    return t('syncErrRls',"Supabase blocked the write: no row level security policy allows it.");
+  if(/PGRST204|Could not find the .* column/i.test(b))
+    return t('syncErrColumn',"The user_data table is missing a column the app writes to.");
+  if(/42P10|no unique|ON CONFLICT/i.test(b))
+    return t('syncErrNoUnique',"user_data.user_id has no unique constraint, so saving can't work.");
+  return b ? `${status}: ${b.slice(0, 200)}` : `HTTP ${status}`;
 }
 
 let syncPending = {};
@@ -2859,17 +2957,20 @@ async function pushUserData(partial, opts = {}){
       // constraint on user_id so the upsert has nothing to conflict on.
       let detail = "";
       try{ detail = await res.text(); }catch(e){ /* body already consumed */ }
+      lastSyncError = describeSyncError(res.status, detail);
       throw new Error(`Supabase user_data upsert failed (${res.status}) ${detail}`);
     }
     setSyncStatus("synced");
+    lastSyncError = "";
     syncErrorNotified = false;
   }catch(e){
     console.warn("Cloud sync push failed", e);
+    if(!lastSyncError) lastSyncError = e && e.message ? e.message : String(e);
     setSyncStatus("error");
     // Tell the user once per failure streak rather than never.
     if(!syncErrorNotified){
       syncErrorNotified = true;
-      showToast(t('toastSyncPushFailed',"Couldn't save to your account — changes are safe on this device."), { duration: 6000 });
+      showToast(t('toastSyncPushFailed',"Couldn't save to your account. Changes are safe on this device."), { duration: 6000 });
     }
   }
 }
@@ -3386,6 +3487,13 @@ function applyLanguage(lang, sync = true){
   refreshDynamicContentForLanguage();
 }
 
+// The credit line and the legal links wrap onto separate rows outside Browse,
+// which leaves the divider hanging at the end of a line with nothing after it.
+function updateFooterSeparator(){
+  const sep = document.getElementById("footerCreditSep");
+  if(sep) sep.style.display = (state.tab === "browse") ? "" : "none";
+}
+
 function refreshDynamicContentForLanguage(){
   if(state.tab === "browse" && state.results.length) renderResults();
   if(state.tab === "pack") renderPack();
@@ -3403,12 +3511,14 @@ document.getElementById("langToggle").addEventListener("click", ()=>{
 });
 
 applyLanguage(state.lang, false);
+updateFooterSeparator();
 
 document.querySelectorAll("nav.tabs button").forEach(btn=>{
   btn.addEventListener("click", ()=>{
     document.querySelectorAll("nav.tabs button").forEach(b=>{b.classList.remove("active"); b.setAttribute("aria-selected","false");});
     btn.classList.add("active"); btn.setAttribute("aria-selected","true");
     state.tab = btn.dataset.tab;
+    updateFooterSeparator();
     ["browse","favorites","modpacks","pack","export"].forEach(t=>{
       const sec = document.getElementById("tab-"+t);
       if(t === state.tab){
@@ -7012,7 +7122,57 @@ function showGettingStarted(force){
   backdrop.querySelector("#introCloseBtn").addEventListener("click", close);
   backdrop.addEventListener("click", (e)=>{ if(e.target === backdrop) close(); });
 }
-document.getElementById("helpToggle").addEventListener("click", ()=>showGettingStarted(true));
+/* ---- Header burger menu (guide / language / theme) ---- */
+const headerMenuEl = document.getElementById("headerMenu");
+const headerMenuBtn = document.getElementById("headerMenuBtn");
+let headerMenuOpen = false;
+
+function closeHeaderMenu(immediate){
+  if(!headerMenuOpen) return;
+  headerMenuOpen = false;
+  headerMenuBtn.setAttribute("aria-expanded", "false");
+  document.removeEventListener("click", closeHeaderMenuOnOutsideClick);
+  document.removeEventListener("keydown", closeHeaderMenuOnEscape);
+  const reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if(immediate || reduced){ headerMenuEl.hidden = true; return; }
+  headerMenuEl.classList.add("closing");
+  let done = false;
+  const hide = ()=>{
+    if(done) return;
+    done = true;
+    headerMenuEl.classList.remove("closing");
+    headerMenuEl.hidden = true;
+  };
+  headerMenuEl.addEventListener("animationend", hide, { once: true });
+  setTimeout(hide, 240);
+}
+function closeHeaderMenuOnOutsideClick(e){
+  if(!headerMenuEl.contains(e.target) && e.target !== headerMenuBtn) closeHeaderMenu();
+}
+function closeHeaderMenuOnEscape(e){
+  if(e.key === "Escape"){ closeHeaderMenu(); headerMenuBtn.focus(); }
+}
+function openHeaderMenu(){
+  headerMenuEl.classList.remove("closing");
+  headerMenuEl.hidden = false;
+  headerMenuOpen = true;
+  headerMenuBtn.setAttribute("aria-expanded", "true");
+  setTimeout(()=>{
+    document.addEventListener("click", closeHeaderMenuOnOutsideClick);
+    document.addEventListener("keydown", closeHeaderMenuOnEscape);
+  }, 0);
+}
+headerMenuBtn.addEventListener("click", (e)=>{
+  e.stopPropagation();
+  headerMenuOpen ? closeHeaderMenu() : openHeaderMenu();
+});
+// The guide opens a modal, so the menu has to get out of the way. Language
+// and theme apply in place and leave it open, which makes flipping between
+// light and dark to compare them far less tedious.
+document.getElementById("helpToggle").addEventListener("click", ()=>{
+  closeHeaderMenu(true);
+  showGettingStarted(true);
+});
 
 document.getElementById("themeToggle").addEventListener("click", ()=>{
   const isDark = document.documentElement.getAttribute("data-theme") === "dark";
