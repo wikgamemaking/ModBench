@@ -301,6 +301,7 @@ window.i18n.fr = {
   importConfirmBtn: "Importer",
 
   sortGroupByCategory: "Regrouper par catégorie",
+  footerLegalLinks: '<a href="privacy.html">Politique de confidentialité</a> · <a href="terms.html">Conditions d\'utilisation</a>',
 
   favAdd: "Ajouter aux favoris",
   favRemove: "Retirer des favoris",
