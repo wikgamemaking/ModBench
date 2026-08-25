@@ -606,10 +606,6 @@
     width:16px; height:16px; color: var(--danger); flex-shrink:0;
   }
   .pack-row-issue-badge svg{ width:14px; height:14px; }
-  /* `display:inline-flex` below wins over the UA [hidden] stylesheet rule
-     (author styles beat UA styles regardless of the [hidden] attribute), so
-     this badge stayed visible even when JS set `hidden`. Force it off
-     explicitly whenever the attribute is present. */
   .pack-row-issue-badge[hidden]{ display:none !important; }
   .auto-compat-toggle{ display:inline-flex; align-items:center; gap:8px; cursor:pointer; margin-right:auto; }
   .switch{ position:relative; display:inline-block; width:34px; height:20px; flex-shrink:0; }
@@ -960,9 +956,6 @@
     transform-origin: top right;
     animation: account-menu-in .26s cubic-bezier(.16,.84,.34,1.02);
   }
-  /* Exit is deliberately faster than entry: a slow dismissal feels laggy,
-     a slow reveal feels considered. Same origin so it collapses back into
-     the avatar it came from rather than sliding off somewhere else. */
   .account-menu.closing{
     pointer-events:none;
     animation: account-menu-out .16s cubic-bezier(.4,0,.7,.2) forwards;
@@ -1058,6 +1051,8 @@
   @media (max-width: 520px){
     .export-action-row{ flex-direction:column; }
   }
+
+  select[data-vselect].is-loading{ opacity:.6; cursor:progress; }
 
   .saved-packs-title{
     font-size:0.82rem; text-transform:uppercase; letter-spacing:.07em;
@@ -1259,10 +1254,6 @@
   .oauth-btn:active{ transform: translateY(0) scale(.97); }
   .oauth-btn svg, .oauth-btn img{ width:18px; height:18px; flex-shrink:0; }
 
-  /* Onboarding only. The blur is animated in with the fade rather than
-     applied instantly: a backdrop-filter that snaps on reads as a flicker,
-     and it's expensive enough that easing it in also hides the first-frame
-     cost on weaker GPUs. */
   .intro-backdrop{
     background: rgba(15,13,10,0.62);
     animation: intro-backdrop-in .28s ease-out forwards;
@@ -1420,19 +1411,12 @@
     cursor:pointer; white-space:nowrap;
   }
   .modlist-toggle:hover{ background:none; border:none; transform:none; color: var(--accent); }
-  /* When revealed, let the wrapped items (chips or inline text) act as direct children of
-     their normal container again instead of being boxed inside this wrapper span — matters
-     for the chip case, where .issue-mods relies on its children being direct flex items. */
   .modlist-rest:not([hidden]){ display:contents; }
   .modlist-toggle-chip{
     background: var(--surface-2); border:1px dashed var(--border); cursor:pointer;
     font-family:inherit; font-weight:700; color: var(--accent-dark);
   }
   .modlist-toggle-chip:hover{ border-color: var(--accent); color: var(--accent); }
-  /* Overrides .compat-mod-chip's icon-hugging padding (3px 9px 3px 3px) below —
-     this toggle button has no icon, so it needs symmetric padding to stay centered.
-     Needs the compound selector for specificity: .compat-mod-chip is declared later
-     in the stylesheet and would otherwise win the cascade on source order alone. */
   .compat-mod-chip.modlist-toggle-chip{ padding:3px 10px; justify-content:center; }
   .modal-desc-full{ font-size:0.92rem; color: var(--text); line-height:1.6; }
   .modal-desc-full h1, .modal-desc-full h2, .modal-desc-full h3{ font-size:1rem; margin:16px 0 6px; }
@@ -1520,9 +1504,6 @@
     max-width: 90vw; max-height: 74vh; width:auto; height:auto; border-radius: 8px; box-shadow: 0 8px 30px rgba(0,0,0,.4);
   }
   @media (min-width: 641px){
-    /* On larger screens, low-res images shouldn't render tiny in the middle
-       of the lightbox -- give them a reasonable floor size while still
-       letting max-width/max-height cap high-res images as before. */
     .lightbox-img-wrap img{ min-width: min(60vw, 640px); min-height: min(45vh, 420px); object-fit: contain; }
   }
   .lightbox-counter{ color:#fff; font-size:0.85rem; opacity:.85; }
@@ -2453,6 +2434,7 @@ function renderAccountUI(){
   const slot = document.getElementById("accountSlot");
   if(!slot) return;
   closeAccountMenu(true);
+  refreshAllCardButtons();
   // Signing in or out flips whether share codes are available at all.
   if(typeof updateShareUsageDisplays === "function") updateShareUsageDisplays();
   const user = state.user;
@@ -2588,9 +2570,13 @@ async function handleSignOut(){
     signedOutIntentionally = true;
     await sb.auth.signOut();
     if(savedToAccount){
+      // Confirmed the account has this device's data - safe to clear the
+      // local copy so a signed-out visitor starts from a clean slate.
       clearLocalAccountData();
       showToast(t('toastSignedOut','Signed out.'));
     } else {
+      // Couldn't confirm the save (offline, sync error, etc.) - leave local
+      // data alone rather than risk losing it.
       showToast(t('toastSignOutKeptLocal',"Signed out. Your last changes couldn't be confirmed as saved, so they're kept on this device."), { duration: 8000 });
     }
   }catch(e){
@@ -2705,6 +2691,8 @@ function attachPasswordReveal(input){
 
     clearTimeout(state.timer);
     if(value.length > common){
+      // Newly typed (or pasted) characters starting at `common` — reveal
+      // just that stretch, then let it fall back to dots on its own.
       state.revealFrom = common;
       state.revealTo = value.length;
       state.timer = setTimeout(()=>{
@@ -2721,6 +2709,8 @@ function attachPasswordReveal(input){
   });
   input.addEventListener("click", syncScroll);
   input.addEventListener("keyup", (e)=>{
+    // Only reposition on keys that can move the caret without changing
+    // the value — "input" already handles anything that edits text.
     if(["ArrowLeft","ArrowRight","Home","End"].includes(e.key)) syncScroll();
   });
   input.addEventListener("change", ()=>{ state.prevValue = stripSpaces(input); render(); }); // covers autofill in browsers that skip "input"
@@ -2864,10 +2854,6 @@ function showAuthModal(initialMode = "signin"){
 
   let mode = initialMode; // "signin" | "signup" | "reset"
 
-  // The shell (badge + title + close button + body container) is built once;
-  // only #authBody's innerHTML gets replaced when the mode changes, and it
-  // fades rather than popping, so switching tabs doesn't look like the whole
-  // popup redrawing itself.
   function renderShell(){
     backdrop.innerHTML = `
       <div class="modal auth-modal">
@@ -3185,6 +3171,7 @@ async function initAuth(){
       signedOutIntentionally = false;
       handleAuthReady().catch(e=>console.warn("Account sync failed", e));
     } else if(event === "SIGNED_OUT"){
+      authReadyRunFor = null;
       resetSyncState();
     } else if(event === "PASSWORD_RECOVERY"){
       showNewPasswordModal();
@@ -3308,6 +3295,7 @@ async function finalizeSyncBeforeSignOut(){
 }
 
 function clearLocalAccountData(){
+  // Card buttons are repainted at the end of this function.
   state.pack = [];
   state.favorites = [];
   state.savedPacks = [];
@@ -3322,6 +3310,7 @@ function clearLocalAccountData(){
   renderLogoPicker();
   if(state.tab === "pack") renderPack();
   if(state.tab === "favorites") renderFavorites();
+  refreshAllCardButtons();
 }
 
 let syncErrorNotified = false;
@@ -3408,6 +3397,7 @@ function applyRemoteField(field, value, updatedAtIso){
     state.favorites = Array.isArray(value) ? value : [];
     saveFavorites(false);
     if(state.tab === "favorites") renderFavorites();
+    refreshAllCardButtons();
   } else if(field === "saved_packs"){
     state.savedPacks = Array.isArray(value) ? value : [];
     saveSavedPacks(false);
@@ -3444,26 +3434,73 @@ function hasNonDefaultLocalData(){
     || (state.savedPacks && state.savedPacks.length > 0);
 }
 
+let authReadyRunFor = null;
+function promptKeepLocalWork(){
+  return new Promise(resolve=>{
+    document.querySelectorAll(".modal-backdrop").forEach(b=>b.remove());
+    const backdrop = document.createElement("div");
+    backdrop.className = "modal-backdrop";
+    backdrop.style.alignItems = "center";
+    const packN = state.pack.length;
+    const favN = state.favorites.length;
+    const packsN = state.savedPacks.length;
+    const bits = [];
+    if(packN) bits.push(tPlural(packN,'mergePackCountOne','{n} mod in Create','mergePackCountOther','{n} mods in Create'));
+    if(favN) bits.push(tPlural(favN,'mergeFavCountOne','{n} saved mod','mergeFavCountOther','{n} saved mods'));
+    if(packsN) bits.push(tPlural(packsN,'mergePackedCountOne','{n} saved modpack','mergePackedCountOther','{n} saved modpacks'));
+    backdrop.innerHTML = `
+      <div class="modal" style="max-width:420px;">
+        <div class="modal-head" style="margin-bottom:10px;">
+          <div class="name" style="font-size:1.1rem;">${t('keepLocalTitle','Bring your work into this account?')}</div>
+        </div>
+        <p style="margin:0 0 6px; font-size:0.88rem; color:var(--text-dim); text-wrap:pretty;">${t('keepLocalDesc',"You built this before signing in. Your new account is empty, so we can save it there now.")}</p>
+        <p style="margin:0 0 16px; font-size:0.88rem; color:var(--text); font-weight:700;">${bits.join(" · ")}</p>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <button type="button" class="export-btn" data-keep="1" style="width:100%; margin:0;">${t('keepLocalYes','Save it to my account')}</button>
+          <button type="button" class="page-btn" data-keep="0" style="width:100%; height:auto; padding:11px;">${t('keepLocalNo','Start fresh, discard it')}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(backdrop);
+    backdrop.querySelectorAll("[data-keep]").forEach(btn=>{
+      btn.addEventListener("click", ()=>{ backdrop.remove(); resolve(btn.dataset.keep === "1"); });
+    });
+  });
+}
 
 async function handleAuthReady(){
   if(!state.session) return;
+  // getSession() and the SIGNED_IN event both fire for the same sign-in.
+  // Run the load once per user id.
+  if(authReadyRunFor === state.user.id) return;
+  authReadyRunFor = state.user.id;
   try{
     const row = await fetchUserDataRow();
 
     if(!row){
       // Brand-new account: nothing stored yet.
       if(!hasNonDefaultLocalData()){
+        // Nothing here either — nothing to sync and nothing to ask about.
+        // Silent by design: this is the ordinary first-login path.
+        seedLocalTimestampsFrom(buildFullSnapshot());
+        return;
+      }
+      const keep = await promptKeepLocalWork();
+      if(!keep){
+        clearLocalAccountData();
         seedLocalTimestampsFrom(buildFullSnapshot());
         return;
       }
       const snapshot = buildFullSnapshot();
       await pushUserData(snapshot);
       seedLocalTimestampsFrom(snapshot);
+      showToast(t('toastLocalKept',"Added what you'd built on this device to your new account."), { duration: 6000 });
       return;
     }
 
     const replacedSomething = hasNonDefaultLocalData();
     SYNC_FIELDS.forEach(f=>{
+      // A null column means "never written", not "deliberately emptied", so
+      // it must not blank the corresponding local list.
       if(row[f] === null || row[f] === undefined) return;
       applyRemoteField(f, row[f], row[f + "_updated_at"] || nowIso());
     });
@@ -3599,9 +3636,6 @@ function canGenerateShareCodes(){
   return Boolean(state.session);
 }
 
-// The remaining-generations counter lives in the account menu now (there's no
-// sensible place to show a per-account quota to a signed-out visitor). All
-// this does in Export is enable/disable the two entry points.
 function updateShareUsageDisplays(){
   const signInNote = document.getElementById("shareSignInNote");
   const copyBtn = document.getElementById("copyShareCodeBtn2");
@@ -4297,6 +4331,161 @@ const DOWNLOAD_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor
 
 let conflictMapCache = null;
 let conflictMapCacheKey = null;
+const COMPAT_GROUPS = [
+  {
+    id: "renderer",
+    severity: "conflict",
+    label: "rendering engine",
+    reason: "Only one rendering engine can be active. Loading two prevents the game from starting.",
+    members: [
+      ["sodium"], ["embeddium"], ["rubidium"], ["magnesium"],
+      ["optifine", "optifabric"]
+    ]
+  },
+  {
+    id: "shaders",
+    severity: "conflict",
+    label: "shader loader",
+    reason: "Two shader loaders hook the same rendering stage and will crash or blank the screen.",
+    members: [["iris", "iris shaders"], ["oculus"], ["optifine"]]
+  },
+  {
+    id: "accessories",
+    severity: "conflict",
+    label: "accessory slot API",
+    reason: "Both provide equipment slots. Items registered to one won't appear in the other, and slots often overlap visually.",
+    members: [["curios", "curios api"], ["trinkets"], ["accessories"]]
+  },
+  {
+    id: "worldgen-overhaul",
+    severity: "warning",
+    label: "overworld terrain overhaul",
+    reason: "Each rewrites overworld terrain wholesale. Together you get chunk-border seams and unpredictable biome placement.",
+    members: [
+      ["terralith"],
+      ["william wythers' overhauled overworld", "william wythers overhauled overworld", "wwoo"],
+      ["tectonic"]
+    ]
+  },
+  {
+    id: "biome-adders",
+    severity: "warning",
+    label: "biome pack",
+    mitigatedBy: ["terrablender"],
+    reason: "Several biome mods at once split the world into very small patches of each. They coexist, but the result rarely looks like any of them intended.",
+    members: [
+      ["biomes o' plenty", "biomes o plenty", "biomesoplenty"],
+      ["oh the biomes you'll go", "oh the biomes youll go", "byg"],
+      ["oh the biomes we've gone", "oh the biomes weve gone", "bwg"],
+      ["regions unexplored"],
+      ["nature's spirit", "natures spirit"],
+      ["terralith"]
+    ]
+  },
+  {
+    id: "recipe-viewer",
+    severity: "redundant",
+    label: "recipe viewer",
+    reason: "They do the same job. Running two means duplicate sidebars and doubled memory for the same index.",
+    members: [
+      ["just enough items", "jei"],
+      ["roughly enough items", "rei"],
+      ["emi"]
+    ]
+  },
+  {
+    id: "tooltip-probe",
+    severity: "redundant",
+    label: "block info overlay",
+    reason: "All descend from WAILA and draw the same overlay. Two of them stack on screen.",
+    members: [["jade"], ["wthit"], ["the one probe", "theoneprobe"], ["hwyla"], ["waila"]]
+  },
+  {
+    id: "minimap",
+    severity: "redundant",
+    label: "minimap",
+    reason: "Two minimaps fight for the same screen corner and both track every entity, which costs frames for no benefit.",
+    members: [
+      ["xaero's minimap", "xaeros minimap"],
+      ["journeymap"],
+      ["voxelmap"],
+      ["antique atlas"]
+    ]
+  },
+  {
+    id: "waystones",
+    severity: "redundant",
+    label: "waystone system",
+    reason: "Separate teleport networks that don't recognise each other's waypoints.",
+    members: [["waystones"], ["fabric waystones"], ["explorer's compass"]]
+  }
+];
+
+function normalizeModName(title){
+  return String(title || "")
+    .toLowerCase()
+    .replace(/\[[^\]]*\]|\([^)]*\)/g, " ")   // drop "[Fabric]", "(Forge)" tags
+    .replace(/\b(fabric|forge|neoforge|quilt|mod|unofficial|reforged|port)\b/g, " ")
+    .replace(/[^a-z0-9' ]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// Which member slot of a group a mod occupies, or -1.
+function compatMemberIndex(group, title){
+  const n = normalizeModName(title);
+  if(!n) return -1;
+  return group.members.findIndex(aliases=>
+    aliases.some(a=>{
+      const an = normalizeModName(a);
+      return n === an || n.startsWith(an + " ") || n.endsWith(" " + an);
+    })
+  );
+}
+
+function packHasMod(aliasList){
+  return state.pack.some(m=>{
+    const n = normalizeModName(m.title);
+    return aliasList.some(a=>{
+      const an = normalizeModName(a);
+      return n === an || n.startsWith(an + " ") || n.endsWith(" " + an);
+    });
+  });
+}
+
+/* Curated clashes between `title` and what's already in the pack.
+ * Returns [{ title, severity, label, reason, mitigated }]. */
+function getCuratedCompatIssues(title, excludeId){
+  const issues = [];
+  COMPAT_GROUPS.forEach(group=>{
+    const idx = compatMemberIndex(group, title);
+    if(idx < 0) return;
+    const mitigated = Boolean(group.mitigatedBy && group.mitigatedBy.some(m=>packHasMod([m])));
+    state.pack.forEach(other=>{
+      if(other.id === excludeId) return;
+      const otherIdx = compatMemberIndex(group, other.title);
+      // Same slot means it's the same mod under another name, not a clash.
+      if(otherIdx < 0 || otherIdx === idx) return;
+      issues.push({
+        title: other.title,
+        severity: mitigated ? "redundant" : group.severity,
+        label: group.label,
+        reason: mitigated
+          ? "These coexist because TerraBlender is installed, but expect smaller biomes of each."
+          : group.reason,
+        mitigated
+      });
+    });
+  });
+  return issues;
+}
+
+const COMPAT_SEVERITY_RANK = { conflict: 3, warning: 2, redundant: 1 };
+function worstSeverity(issues){
+  return issues.reduce((worst, i)=>
+    COMPAT_SEVERITY_RANK[i.severity] > COMPAT_SEVERITY_RANK[worst] ? i.severity : worst, "redundant");
+}
+
 function getConflictMap(){
   const key = state.pack.map(m=>`${m.id}:${m.selectedVersionId}`).join(",");
   if(conflictMapCache && conflictMapCacheKey === key) return conflictMapCache;
@@ -4346,7 +4535,6 @@ function cardHtml(hit){
     </div>`;
 }
 
-
 function updateCardButtons(container, projectId){
   const card = container.querySelector(`.card[data-id="${projectId}"]`);
   if(!card) return;
@@ -4371,6 +4559,16 @@ function updateCardButtons(container, projectId){
     favBtn.setAttribute("aria-label", favBtn.title);
   }
 }
+// Repaints every visible card's Add/Added and heart state. Used after a
+// wholesale data swap, where there's no single project id to target.
+function refreshAllCardButtons(){
+  document.querySelectorAll("#results, #favResults, #modpackResults").forEach(container=>{
+    container.querySelectorAll(".card").forEach(card=>{
+      if(card.dataset.id) updateCardButtons(container, card.dataset.id);
+    });
+  });
+}
+
 function updateCardButtonsEverywhere(projectId){
   document.querySelectorAll("#results, #favResults, #modpackResults").forEach(c=>updateCardButtons(c, projectId));
 }
@@ -4422,7 +4620,6 @@ function wireCardEvents(container, hitLookup, onAdd){
     });
   });
 }
-
 
 function renderResults(){
   const resultsEl = document.getElementById("results");
@@ -4517,18 +4714,42 @@ function findHitAnywhere(projectId){
     || state.favorites.find(h=>h.id === projectId);
 }
 
+/* One gate for both sources of trouble: Modrinth's declared incompatibilities
+ * and the curated list above. Returns false if the user backs out. */
+async function confirmCompatBeforeAdd(projectId, title){
+  const declared = getConflictingPackMods(projectId).map(c=>({
+    title: c.title, severity: "conflict", label: "",
+    reason: t('compatReasonDeclared',"The authors have flagged these two as incompatible.")
+  }));
+  const curated = getCuratedCompatIssues(title, projectId);
+  const issues = declared.concat(curated);
+  if(!issues.length) return true;
+
+  const severity = worstSeverity(issues);
+  const names = issues.map(i=>escapeHtml(i.title)).join(", ");
+  const heading = severity === "conflict"
+    ? tf('compatBlockMsg','<strong>{mods}</strong> is already in your pack and these don\u2019t work together.', { mods: names })
+    : severity === "warning"
+      ? tf('compatWarnMsg','This overlaps with <strong>{mods}</strong> in your pack.', { mods: names })
+      : tf('compatRedundantMsg','You already have <strong>{mods}</strong>, which does the same job.', { mods: names });
+  // One reason line per distinct explanation — repeating the same sentence
+  // once per matched mod is noise.
+  const reasons = Array.from(new Set(issues.map(i=>i.reason)));
+  const body = heading + `<div style="margin-top:10px; font-size:0.85rem; color:var(--text-dim); text-align:left;">`
+    + reasons.map(r=>`<div style="margin-bottom:6px;">${escapeHtml(r)}</div>`).join("")
+    + `</div>`;
+
+  return showConfirm(body, {
+    confirmLabel: t('conflictAddAnyway','Add anyway'),
+    danger: severity === "conflict"
+  });
+}
+
 async function quickAdd(projectId){
   if(state.pack.some(p=>p.id === projectId)) return;
   const hit = findHitAnywhere(projectId);
   if(!hit) return;
-  const conflicts = getConflictingPackMods(projectId);
-  if(conflicts.length){
-    const ok = await showConfirm(
-      tf('conflictConfirmMsg', 'This may conflict with <strong>{mods}</strong> already in your pack. Add it anyway?', { mods: conflicts.map(c=>escapeHtml(c.title)).join(", ") }),
-      { confirmLabel: t('conflictAddAnyway','Add anyway'), danger: false }
-    );
-    if(!ok) return;
-  }
+  if(!await confirmCompatBeforeAdd(projectId, hit.title)) return;
   const hitId = hit.project_id || hit.id;
   try{
     const versions = await fetchVersions(hitId);
@@ -4903,14 +5124,7 @@ async function openModal(projectId, hitLookup){
       }
       const existingIdx = state.pack.findIndex(p=>p.id === projectId);
       if(existingIdx === -1){
-        const conflicts = getConflictingPackMods(projectId);
-        if(conflicts.length){
-          const proceed = await showConfirm(
-            tf('conflictConfirmMsg', 'This may conflict with <strong>{mods}</strong> already in your pack. Add it anyway?', { mods: conflicts.map(c=>escapeHtml(c.title)).join(", ") }),
-            { confirmLabel: t('conflictAddAnyway','Add anyway'), danger: false }
-          );
-          if(!proceed) return;
-        }
+        if(!await confirmCompatBeforeAdd(projectId, projRes.title)) return;
       }
       const entry = {
         id: projectId,
@@ -4991,6 +5205,38 @@ function syncModpackSnapshot(mod, version){
 // Tracks whichever pack row the mouse is currently over, so the "r" hotkey
 // can remove that mod without requiring it to be focused/opened first.
 let hoveredPackRow = null;
+
+const hydratingVersions = new Set();
+async function hydratePackModVersions(modId){
+  const mod = state.pack.find(m=>m.id === modId);
+  if(!mod || mod.versionsHydrated || hydratingVersions.has(modId)) return;
+  if(Array.isArray(mod.versions) && mod.versions.length > 1){
+    mod.versionsHydrated = true;
+    return;
+  }
+  hydratingVersions.add(modId);
+  const sel = document.querySelector(`[data-vselect="${CSS.escape(modId)}"]`);
+  if(sel) sel.classList.add("is-loading");
+  try{
+    const versions = await fetchVersions(modId);
+    if(Array.isArray(versions) && versions.length){
+      const pinned = (mod.versions || []).find(v=>v.id === mod.selectedVersionId);
+      mod.versions = versions.some(v=>v.id === mod.selectedVersionId) || !pinned
+        ? versions
+        : [pinned].concat(versions);
+      mod.versionsHydrated = true;
+      savePack();
+      if(state.tab === "pack") renderPack();
+    }
+  }catch(e){
+    console.warn("Couldn't load the version list for", modId, e);
+    showToast(t('toastVersionListFailed',"Couldn't load this mod's other versions."));
+  }finally{
+    hydratingVersions.delete(modId);
+    const s2 = document.querySelector(`[data-vselect="${CSS.escape(modId)}"]`);
+    if(s2) s2.classList.remove("is-loading");
+  }
+}
 
 function packRowHtml(mod){
   const displayVersions = sortByGameVersionRecency(mod.versions);
@@ -5125,6 +5371,10 @@ function renderPack(){
   });
   listEl.querySelectorAll("[data-vselect]").forEach(sel=>{
     sel.addEventListener("click", (e)=> e.stopPropagation());
+    // pointerdown fires before the native dropdown opens, so the list is
+    // already being fetched by the time it appears; focus covers keyboard use.
+    sel.addEventListener("pointerdown", ()=>hydratePackModVersions(sel.dataset.vselect));
+    sel.addEventListener("focus", ()=>hydratePackModVersions(sel.dataset.vselect));
     sel.addEventListener("change", async ()=>{
       const mod = state.pack.find(m=>m.id === sel.dataset.vselect);
       const v = mod.versions.find(v=>v.id === sel.value);
@@ -5841,6 +6091,8 @@ async function showCompatibilityResults(fixNote){
 async function runUpdateCheck(){
   const candidates = state.pack.filter(m=>m.selectedVersionId);
 
+  // Use the same target loader/MC version as the compatibility checker
+  // (getCompatTargets), so updates don't undo a compatibility fix.
   const compatSelected = candidates
     .filter(m=>Array.isArray(m.versions))
     .map(m=>({ mod: m, version: m.versions.find(v=>v.id === m.selectedVersionId) }))
@@ -6145,9 +6397,6 @@ function deleteSavedPack(id){
   showToast(t('toastPackDeleted','Saved modpack deleted.'));
 }
 
-// Identity of a pack's contents, order-independent: same mods at the same
-// versions => same signature. Used both to block a redundant re-import and to
-// tell whether a generated share code still describes what's in Create.
 function packSignature(mods){
   return (mods || [])
     .map(m=>`${m.id}:${m.selectedVersionId || ""}`)
@@ -6663,6 +6912,8 @@ function setImportStatus(kind, text, prefix = "mrpack"){
   }
 }
 
+/* --- Create-tab import lock: grays out Create while a mod import is still running,
+   whether the import was kicked off from Export (file/share code) or Modpacks. --- */
 let packImportLockToastShown = false;
 
 function showPackImportLock(){
@@ -7721,9 +7972,6 @@ headerMenuBtn.addEventListener("click", (e)=>{
   e.stopPropagation();
   headerMenuOpen ? closeHeaderMenu() : openHeaderMenu();
 });
-// The guide opens a modal, so the menu has to get out of the way. Language
-// and theme apply in place and leave it open, which makes flipping between
-// light and dark to compare them far less tedious.
 document.getElementById("helpToggle").addEventListener("click", ()=>{
   closeHeaderMenu(true);
   showGettingStarted(true);
@@ -7791,9 +8039,6 @@ const gameVersionRankReady = loadGameVersions().then(()=>{
 });
 runSearch();
 
-// initAuth() awaits sb.auth.getSession(), which is also what resolves/clears
-// any OAuth redirect tokens Supabase drops in location.hash. Run it before
-// touching location.hash ourselves so the two don't race over the same URL.
 initAuth().finally(()=>{
   if(location.hash.includes("import=")){
     checkIncomingShareLink();
