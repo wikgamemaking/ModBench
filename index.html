@@ -259,6 +259,9 @@
     padding: 16px;
     position: sticky;
     top: 74px;
+    display:flex;
+    flex-direction:column;
+    gap:18px;
   }
   @media (max-width: 860px){
     aside.filters{ position:static; }
@@ -289,9 +292,8 @@
   }
   .pack-type-group{ margin-bottom:22px; }
   .pack-type-group:last-child{ margin-bottom:0; }
-  .filter-group{ margin-bottom:18px; }
-  .filter-group:last-child{ margin-bottom:0; }
-  .filter-sep{ border:none; border-top:1px solid var(--border); margin:0 0 18px; }
+  .filter-group{ margin-bottom:0; }
+  .filter-sep{ border:none; border-top:1px solid var(--border); margin:0; }
   .cat-subheader{ border-top:1px solid var(--border); padding-top:10px; }
   .cat-subheader:first-child{ border-top:none; padding-top:0; }
   .filter-group label{
@@ -2486,6 +2488,11 @@ function cropImageToSquare(file, size = 256, quality = 0.86){
   });
 }
 
+function scrollToTopSmooth(){
+  const reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  window.scrollTo({ top: 0, behavior: reduced ? "auto" : "smooth" });
+}
+
 function getInitials(email){
   if(!email) return "?";
   const namePart = email.split("@")[0];
@@ -2515,7 +2522,24 @@ function getAuthProvider(user){
 }
 function getDisplayName(user){
   const meta = user && user.user_metadata;
-  return (meta && (meta.full_name || meta.name)) || null;
+  return (meta && (meta.full_name || meta.name || meta.display_name)) || null;
+}
+
+// Email sign-ups have no name field, so derive a readable one from the local
+// part: "jean.dupont" -> "Jean Dupont", "vik_dev" -> "Vik Dev". Trailing digits
+// are dropped, since "Vik42" reads worse than "Vik".
+function nameFromEmail(email){
+  const local = String(email || "").split("@")[0];
+  if(!local) return null;
+  const words = local
+    .replace(/[._-]+/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/\s*\d+\s*$/, "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if(!words.length) return null;
+  return words.map(w=>w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
 }
 function getProviderUsername(user){
   const meta = user && user.user_metadata;
@@ -2614,6 +2638,9 @@ function toggleAccountMenu(){
     subLine = username ? `@${username}` : email;
   } else if(provider === "google" && displayName){
     nameLine = displayName;
+    subLine = email;
+  } else {
+    nameLine = displayName || nameFromEmail(email);
     subLine = email;
   }
   accountMenuEl = document.createElement("div");
@@ -3437,7 +3464,8 @@ async function initAuth(){
   state.session = data.session;
   state.user = data.session ? data.session.user : null;
   renderAccountUI();
-  if(state.session) handleAuthReady().catch(e=>console.warn("Initial account sync failed", e));
+  // Restored session, not a sign-in: load silently.
+  if(state.session) handleAuthReady(false).catch(e=>console.warn("Initial account sync failed", e));
 
   sb.auth.onAuthStateChange((event, session)=>{
     if(event === "SIGNED_IN" && signedOutIntentionally && session){
@@ -3450,7 +3478,7 @@ async function initAuth(){
     renderAccountUI();
     if(event === "SIGNED_IN"){
       signedOutIntentionally = false;
-      handleAuthReady().catch(e=>console.warn("Account sync failed", e));
+      handleAuthReady(true).catch(e=>console.warn("Account sync failed", e));
     } else if(event === "SIGNED_OUT"){
       authReadyRunFor = null;
       resetSyncState();
@@ -3748,7 +3776,7 @@ function promptKeepLocalWork(){
   });
 }
 
-async function handleAuthReady(){
+async function handleAuthReady(isNewSignIn = false){
   if(!state.session) return;
   // getSession() and the SIGNED_IN event both fire for the same sign-in.
   // Run the load once per user id.
@@ -3785,7 +3813,7 @@ async function handleAuthReady(){
       if(row[f] === null || row[f] === undefined) return;
       applyRemoteField(f, row[f], row[f + "_updated_at"] || nowIso());
     });
-    if(replacedSomething){
+    if(replacedSomething && isNewSignIn){
       showToast(t('toastLoadedAccount',"Loaded your account. What was on this device has been replaced by your saved copy."), { duration: 7000 });
     }
   }catch(e){
@@ -4601,7 +4629,9 @@ function renderPagination(){
     btn.addEventListener("click", ()=>{
       state.page = parseInt(btn.dataset.page, 10);
       runSearch();
-      document.getElementById("results").scrollIntoView({behavior:"smooth", block:"start"});
+      // Back to the very top rather than to the results container: the
+      // filters and search field are part of "where you are" on a new page.
+      scrollToTopSmooth();
     });
   });
 }
@@ -5057,7 +5087,7 @@ async function quickAdd(projectId){
     if(state.tab === "pack") renderPack();
   }catch(e){
     console.error(e);
-    alert("Couldn't add that mod. Modrinth may be unreachable.");
+    showToast(t('alertCouldntAddMod',"Couldn't add that mod. Modrinth may be unreachable."));
   }
 }
 
@@ -5084,7 +5114,8 @@ function refreshAllViews(){
   renderFavorites();
 }
 
-function showConfirm(messageHtml, {confirmLabel = "Confirm", danger = true} = {}){
+function showConfirm(messageHtml, {confirmLabel = null, danger = true} = {}){
+  if(confirmLabel === null) confirmLabel = t('confirm','Confirm');
   return new Promise(resolve=>{
     const backdrop = document.createElement("div");
     backdrop.className = "modal-backdrop";
@@ -5396,7 +5427,7 @@ async function openModal(projectId, hitLookup){
 
     backdrop.querySelector(".modal-close").addEventListener("click", ()=>backdrop.remove());
     backdrop.querySelector("#modalAddBtn").addEventListener("click", async ()=>{
-      if(!chosenVersion){ alert("Pick a version first."); return; }
+      if(!chosenVersion){ showToast(t('alertPickVersionFirst',"Pick a version first.")); return; }
       if(isModpack){
         const addBtn = backdrop.querySelector("#modalAddBtn");
         const ok = await importModpackVersion(projectId, chosenVersion, addBtn, { fallbackName: projRes.title, fallbackIcon: hit.icon_url || projRes.icon_url });
@@ -6943,7 +6974,7 @@ function renderModpackPagination(){
     btn.addEventListener("click", ()=>{
       state.modpackPage = parseInt(btn.dataset.mpage, 10);
       runModpackSearch();
-      document.getElementById("modpackResults").scrollIntoView({behavior:"smooth", block:"start"});
+      scrollToTopSmooth();
     });
   });
 }
@@ -7154,7 +7185,7 @@ function applyImportedPackIdentity(result, wasEmptyBefore){
 
 async function importModpackVersion(projectId, version, btn, fallbackMeta = {}){
   const originalLabel = fallbackMeta.resetLabel !== undefined ? fallbackMeta.resetLabel : btn.dataset.originalLabel ?? btn.textContent;
-  startLoadingButton(btn, "Adding…");
+  startLoadingButton(btn, t('btnAdding','Adding…'));
   let ok = false;
   beginImportOp();
   try{
@@ -7176,7 +7207,7 @@ async function importModpackVersion(projectId, version, btn, fallbackMeta = {}){
     return true;
   }catch(e){
     console.error(e);
-    alert("Couldn't import that modpack's mods. Modrinth may be unreachable, or this modpack isn't in the standard .mrpack format.");
+    showToast(t('alertImportModpackFailed',"Couldn't import that modpack's mods. Modrinth may be unreachable, or this modpack isn't in the standard .mrpack format."), { duration: 8000 });
     return false;
   }finally{
     endImportOp();
@@ -7358,7 +7389,7 @@ function shareLinkFromCode(code){
 function showShareModal(){
   const data = buildShareData();
   if(data.m.length === 0){
-    alert(t('alertAddModsShareLink',"Add mods to your pack first, then generate a share link."));
+    showToast(t('alertAddModsShareLink',"Add mods to your pack first, then generate a share link."));
     return;
   }
   if(shareBackendConfigured() && getShareRemaining() <= 0){
@@ -7542,7 +7573,7 @@ async function importSharedPack(rawInput){
 async function addModpackToCreate(projectId, btn){
   if(state.pack.some(p=>p.fromModpack === projectId)) return; // already imported, nothing to do
   const originalLabel = btn.textContent;
-  startLoadingButton(btn, "Loading…");
+  startLoadingButton(btn, t('btnLoading','Loading…'));
   try{
     const versions = await fetchVersionsRaw(projectId);
     if(!versions.length) throw new Error("No versions available");
@@ -7556,7 +7587,7 @@ async function addModpackToCreate(projectId, btn){
     await importModpackVersion(projectId, chosen, btn, { fallbackName: hit && hit.title, fallbackIcon: hit && hit.icon_url, resetLabel: originalLabel });
   }catch(e){
     console.error(e);
-    alert("Couldn't import that modpack's mods. Modrinth may be unreachable, or this modpack isn't in the standard .mrpack format.");
+    showToast(t('alertImportModpackFailed',"Couldn't import that modpack's mods. Modrinth may be unreachable, or this modpack isn't in the standard .mrpack format."), { duration: 8000 });
     stopLoadingButton(btn, originalLabel);
   }
 }
@@ -7695,11 +7726,11 @@ document.getElementById("exportBtn").addEventListener("click", async ()=>{
   const packVersion = document.getElementById("packVersion").value.trim() || "1.0.0";
 
   if(!mcVersion || !loader){
-    alert("Choose a Minecraft version and mod loader before exporting.");
+    showToast(t('alertExportNeedsTarget',"Choose a Minecraft version and mod loader before exporting."));
     return;
   }
   if(state.pack.some(m=>!m.selectedFile)){
-    alert("One or more mods is missing a selected file/version, check My Pack.");
+    showToast(t('alertExportMissingVersion',"One or more mods is missing a selected file or version. Check Create."));
     return;
   }
 
@@ -8021,7 +8052,7 @@ document.getElementById("mrpackFileInput").addEventListener("change", (e)=>{
     const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
     if(!file) return;
     if(!file.name.toLowerCase().endsWith(".mrpack")){
-      alert("Please drop a .mrpack file.");
+      showToast(t('alertDropMrpack',"Please drop a .mrpack file."));
       return;
     }
     importMrpackFile(file);
@@ -8078,7 +8109,7 @@ document.getElementById("copyShareCodeBtn2").addEventListener("click", async (e)
   }
   const data = buildShareData();
   if(data.m.length === 0){
-    alert(t('alertAddModsShareCode',"Add mods to your pack first, then copy a share code."));
+    showToast(t('alertAddModsShareCode',"Add mods to your pack first, then copy a share code."));
     return;
   }
   if(shareBackendConfigured() && getShareRemaining() <= 0){
