@@ -2501,6 +2501,39 @@ function getInitials(email){
   return namePart.slice(0, 2).toUpperCase();
 }
 
+/* Email/password sign-ups carry no picture of their own. Gravatar is keyed on
+ * the email address, so an account that already has one elsewhere gets it here
+ * for free. d=404 makes Gravatar 404 instead of serving a generated default,
+ * which is how we tell "has a picture" from "doesn't".
+ *
+ * Resolved once and cached: the result only changes if the user edits their
+ * Gravatar, and a failed lookup is cached too so we don't probe on every load.
+ */
+async function resolveGravatar(user){
+  if(!user || getAuthProvider(user) !== "email") return;
+  const email = (user.email || "").trim().toLowerCase();
+  if(!email) return;
+  const cacheKey = `modbench_gravatar_${user.id}`;
+  const cached = safeLocalStorageGet(cacheKey);
+  if(cached !== null) return;                       // already resolved, hit or miss
+  if(!(window.crypto && window.crypto.subtle)) return;
+  try{
+    const buf = await window.crypto.subtle.digest("SHA-256", new TextEncoder().encode(email));
+    const hash = Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2, "0")).join("");
+    const url = `https://www.gravatar.com/avatar/${hash}?s=200&d=404`;
+    const ok = await new Promise(resolve=>{
+      const img = new Image();
+      img.onload = ()=>resolve(true);
+      img.onerror = ()=>resolve(false);
+      img.src = url;
+    });
+    safeLocalStorageSet(cacheKey, ok ? url : "");
+    if(ok) renderAccountUI();
+  }catch(e){
+    console.warn("Gravatar lookup failed", e);
+  }
+}
+
 function getAvatarUrl(user){
   const meta = user && user.user_metadata;
   const remote = (meta && (meta.avatar_url || meta.picture)) || null;
@@ -2508,7 +2541,9 @@ function getAvatarUrl(user){
   // Local fallback: used while an upload is in flight, and when Storage isn't
   // reachable so the picture at least works on this device.
   if(user && getAuthProvider(user) === "email"){
-    return safeLocalStorageGet(`modbench_avatar_${user.id}`) || null;
+    return safeLocalStorageGet(`modbench_avatar_${user.id}`)
+      || safeLocalStorageGet(`modbench_gravatar_${user.id}`)
+      || null;
   }
   return null;
 }
@@ -2522,7 +2557,9 @@ function getAuthProvider(user){
 }
 function getDisplayName(user){
   const meta = user && user.user_metadata;
-  return (meta && (meta.full_name || meta.name || meta.display_name)) || null;
+  // display_name first: it's the one the user set here, and it must beat
+  // anything a provider supplied.
+  return (meta && (meta.display_name || meta.full_name || meta.name)) || null;
 }
 
 // Email sign-ups have no name field, so derive a readable one from the local
@@ -2640,6 +2677,9 @@ function toggleAccountMenu(){
     nameLine = displayName;
     subLine = email;
   } else {
+    // Only ever a fallback. If the account carries a real name — set here or
+    // supplied at sign-up — that wins; the derivation exists so the header
+    // isn't a bare "Signed in as" for accounts that have none.
     nameLine = displayName || nameFromEmail(email);
     subLine = email;
   }
@@ -3010,7 +3050,7 @@ function showAvatarModal(){
   backdrop.innerHTML = `
     <div class="modal auth-modal avatar-modal">
       <div class="modal-head" style="margin-bottom:14px;">
-        <div class="name" style="font-size:1.1rem;">${t('avatarTitle','Profile picture')}</div>
+        <div class="name" style="font-size:1.1rem;">${t('avatarTitle','Your profile')}</div>
         <button class="modal-close" id="avatarCloseBtn" aria-label="${t('close','Close')}">✕</button>
       </div>
 
@@ -3020,10 +3060,19 @@ function showAvatarModal(){
         </div>
       </div>
 
+      <div class="auth-field" style="margin-bottom:16px;">
+        <label for="displayNameInput" style="display:block; font-size:0.8rem; font-weight:700; color:var(--text-dim); margin-bottom:6px;">${t('displayNameLabel','Display name')}</label>
+        <input type="text" id="displayNameInput" maxlength="40" autocomplete="nickname"
+          placeholder="${escapeHtml(nameFromEmail(state.user.email || "") || "")}"
+          value="${escapeHtml(getDisplayName(state.user) || "")}"
+          style="width:100%;">
+        <p style="margin:6px 0 0; font-size:0.76rem; color:var(--text-dim);">${t('displayNameHint','Leave empty to use the name derived from your email address.')}</p>
+      </div>
+
       <div class="avatar-drop" id="avatarDrop" tabindex="0" role="button" aria-label="${t('avatarDropLabel','Choose or drop an image')}">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
-        <strong data-i18n="avatarDropTitle">Drop an image here</strong>
-        <span data-i18n="avatarDropHint">or click to browse · PNG, JPG or WebP, up to 5 MB</span>
+        <strong>${t('avatarDropTitle','Drop an image here')}</strong>
+        <span>${t('avatarDropHint','or click to browse · PNG, JPG or WebP, up to 5 MB')}</span>
       </div>
       <input type="file" id="avatarFileInput" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
 
@@ -3031,7 +3080,7 @@ function showAvatarModal(){
 
       <div class="avatar-actions">
         ${current ? `<button type="button" class="page-btn" id="avatarRemoveBtn">${t('avatarRemove','Remove')}</button>` : ""}
-        <button type="button" class="export-btn" id="avatarSaveBtn" disabled style="margin:0; flex:1;">${t('avatarSave','Save picture')}</button>
+        <button type="button" class="export-btn" id="avatarSaveBtn" style="margin:0; flex:1;">${t('avatarSave','Save changes')}</button>
       </div>
     </div>`;
 
@@ -3070,7 +3119,6 @@ function showAvatarModal(){
       preview.classList.remove("is-pop");
       void preview.offsetWidth;
       preview.classList.add("is-pop");
-      saveBtn.disabled = false;
     }catch(e){
       console.warn(e);
       setNote(t('avatarBadImage',"That image couldn't be read. Try another one."), "err");
@@ -3098,10 +3146,36 @@ function showAvatarModal(){
   backdrop.addEventListener("dragover", (e)=>e.preventDefault());
   backdrop.addEventListener("drop", (e)=>e.preventDefault());
 
+  const nameInput = backdrop.querySelector("#displayNameInput");
+
   saveBtn.addEventListener("click", async ()=>{
-    if(!pending) return;
+    const newName = (nameInput.value || "").trim();
+    const currentName = getDisplayName(state.user) || "";
+    const nameChanged = newName !== currentName;
+    if(!pending && !nameChanged){ close(); return; }
     saveBtn.disabled = true;
     saveBtn.textContent = t('avatarSaving','Saving…');
+
+    if(nameChanged){
+      try{
+        // Empty clears it, which puts the email-derived fallback back in play.
+        await sb.auth.updateUser({ data: { display_name: newName || null } });
+        const { data } = await sb.auth.getUser();
+        if(data && data.user) state.user = data.user;
+      }catch(e){
+        console.warn(e);
+        setNote(t('displayNameFailed',"Your name couldn't be saved."), "err");
+        saveBtn.textContent = t('avatarSave','Save changes');
+        saveBtn.disabled = false;
+        return;
+      }
+    }
+    if(!pending){
+      renderAccountUI();
+      close();
+      showToast(t('profileSaved','Profile updated.'));
+      return;
+    }
     // Store locally first: whatever happens to the upload, the picture is
     // already correct on this device.
     safeLocalStorageSet(`modbench_avatar_${state.user.id}`, pending.dataUrl);
@@ -3121,7 +3195,7 @@ function showAvatarModal(){
       setNote(e.missingBucket
         ? t('avatarNoBucket',"Saved on this device only — the avatars storage bucket doesn't exist yet.")
         : t('avatarUploadFailed',"Saved on this device only — the upload didn't go through."), "warn");
-      saveBtn.textContent = t('avatarSave','Save picture');
+      saveBtn.textContent = t('avatarSave','Save changes');
       saveBtn.disabled = false;
     }
   });
@@ -3129,6 +3203,7 @@ function showAvatarModal(){
   if(removeBtn) removeBtn.addEventListener("click", async ()=>{
     removeBtn.disabled = true;
     safeLocalStorageRemove(`modbench_avatar_${state.user.id}`);
+    safeLocalStorageRemove(`modbench_gravatar_${state.user.id}`);
     try{
       await sb.auth.updateUser({ data: { avatar_url: null } });
       const { data } = await sb.auth.getUser();
@@ -3466,6 +3541,7 @@ async function initAuth(){
   renderAccountUI();
   // Restored session, not a sign-in: load silently.
   if(state.session) handleAuthReady(false).catch(e=>console.warn("Initial account sync failed", e));
+  if(state.user) resolveGravatar(state.user);
 
   sb.auth.onAuthStateChange((event, session)=>{
     if(event === "SIGNED_IN" && signedOutIntentionally && session){
@@ -3479,6 +3555,7 @@ async function initAuth(){
     if(event === "SIGNED_IN"){
       signedOutIntentionally = false;
       handleAuthReady(true).catch(e=>console.warn("Account sync failed", e));
+      resolveGravatar(state.user);
     } else if(event === "SIGNED_OUT"){
       authReadyRunFor = null;
       resetSyncState();
@@ -4645,6 +4722,8 @@ let conflictMapCacheKey = null;
 const COMPAT_GROUPS = [
   {
     id: "renderer",
+    reasonKey: "compatReasonRenderer",
+    labelKey: "compatLabelRenderer",
     severity: "conflict",
     label: "rendering engine",
     reason: "Only one rendering engine can be active. Loading two prevents the game from starting.",
@@ -4655,6 +4734,8 @@ const COMPAT_GROUPS = [
   },
   {
     id: "shaders",
+    reasonKey: "compatReasonShaders",
+    labelKey: "compatLabelShaders",
     severity: "conflict",
     label: "shader loader",
     reason: "Two shader loaders hook the same rendering stage and will crash or blank the screen.",
@@ -4662,6 +4743,8 @@ const COMPAT_GROUPS = [
   },
   {
     id: "accessories",
+    reasonKey: "compatReasonAccessories",
+    labelKey: "compatLabelAccessories",
     severity: "conflict",
     label: "accessory slot API",
     reason: "Both provide equipment slots. Items registered to one won't appear in the other, and slots often overlap visually.",
@@ -4669,6 +4752,8 @@ const COMPAT_GROUPS = [
   },
   {
     id: "worldgen-overhaul",
+    reasonKey: "compatReasonWorldgen",
+    labelKey: "compatLabelWorldgen",
     severity: "warning",
     label: "overworld terrain overhaul",
     reason: "Each rewrites overworld terrain wholesale. Together you get chunk-border seams and unpredictable biome placement.",
@@ -4680,6 +4765,8 @@ const COMPAT_GROUPS = [
   },
   {
     id: "biome-adders",
+    reasonKey: "compatReasonBiomes",
+    labelKey: "compatLabelBiomes",
     severity: "warning",
     label: "biome pack",
     mitigatedBy: ["terrablender"],
@@ -4695,6 +4782,8 @@ const COMPAT_GROUPS = [
   },
   {
     id: "recipe-viewer",
+    reasonKey: "compatReasonRecipeViewer",
+    labelKey: "compatLabelRecipeViewer",
     severity: "redundant",
     label: "recipe viewer",
     reason: "They do the same job. Running two means duplicate sidebars and doubled memory for the same index.",
@@ -4706,6 +4795,8 @@ const COMPAT_GROUPS = [
   },
   {
     id: "tooltip-probe",
+    reasonKey: "compatReasonProbe",
+    labelKey: "compatLabelProbe",
     severity: "redundant",
     label: "block info overlay",
     reason: "All descend from WAILA and draw the same overlay. Two of them stack on screen.",
@@ -4713,6 +4804,8 @@ const COMPAT_GROUPS = [
   },
   {
     id: "minimap",
+    reasonKey: "compatReasonMinimap",
+    labelKey: "compatLabelMinimap",
     severity: "redundant",
     label: "minimap",
     reason: "Two minimaps fight for the same screen corner and both track every entity, which costs frames for no benefit.",
@@ -4725,6 +4818,8 @@ const COMPAT_GROUPS = [
   },
   {
     id: "waystones",
+    reasonKey: "compatReasonWaystones",
+    labelKey: "compatLabelWaystones",
     severity: "redundant",
     label: "waystone system",
     reason: "Separate teleport networks that don't recognise each other's waypoints.",
@@ -4780,10 +4875,10 @@ function getCuratedCompatIssues(title, excludeId){
       issues.push({
         title: other.title,
         severity: mitigated ? "redundant" : group.severity,
-        label: group.label,
+        label: t(group.labelKey, group.label),
         reason: mitigated
-          ? "These coexist because TerraBlender is installed, but expect smaller biomes of each."
-          : group.reason,
+          ? t('compatReasonMitigated',"These coexist because TerraBlender is installed, but expect smaller biomes of each.")
+          : t(group.reasonKey, group.reason),
         mitigated
       });
     });
