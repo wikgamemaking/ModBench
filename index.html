@@ -2610,6 +2610,7 @@ async function handleSignOut(){
     // having been synced (see promptMergeChoice), so a partial flush isn't
     // enough to guarantee the account has this device's latest copy.
     const savedToAccount = await finalizeSyncBeforeSignOut();
+    signedOutIntentionally = true;
     await sb.auth.signOut();
     if(savedToAccount){
       // Confirmed the account has this device's data - safe to clear the
@@ -3070,6 +3071,7 @@ function showAuthModal(initialMode = "signin"){
 
   async function handleOAuth(provider){
     showError("");
+    signedOutIntentionally = false;
     try{
       const { error } = await sb.auth.signInWithOAuth({
         provider,
@@ -3096,6 +3098,7 @@ function showAuthModal(initialMode = "signin"){
     if(isLoadingButton(submitBtn)) return;
 
     startLoadingButton(submitBtn);
+    signedOutIntentionally = false;
     try{
       if(mode === "signin"){
         const { error } = await sb.auth.signInWithPassword({ email, password });
@@ -3215,6 +3218,17 @@ function showNewPasswordModal(){
   setTimeout(()=>{ const el = document.getElementById("newPassword"); if(el) el.focus(); }, 50);
 }
 
+// Supabase's own background session recovery (triggered by tab focus /
+// visibility change) can fire a SIGNED_IN event using a refresh token that
+// technically hadn't finished being revoked yet when we called signOut() -
+// a race, not a real new sign-in. When that happens it silently re-signs
+// the user in and handleAuthReady() re-pulls their account data, undoing
+// the local wipe from handleSignOut. This flag distinguishes "the user just
+// explicitly signed out and hasn't chosen to sign in again" from a genuine
+// new sign-in, so the listener below can tell a phantom recovery apart from
+// the real thing and refuse it instead of quietly acting on it.
+let signedOutIntentionally = false;
+
 async function initAuth(){
   if(!authConfigured()){
     renderAccountUI();
@@ -3227,10 +3241,19 @@ async function initAuth(){
   if(state.session) handleAuthReady().catch(e=>console.warn("Initial account sync failed", e));
 
   sb.auth.onAuthStateChange((event, session)=>{
+    if(event === "SIGNED_IN" && signedOutIntentionally && session){
+      // A session got recovered after an intentional sign-out with no new
+      // sign-in in between - reject it rather than silently signing the
+      // user back in and re-pulling data we already cleared locally.
+      console.warn("Ignoring a session recovered right after an intentional sign-out.");
+      sb.auth.signOut().catch(e=>console.warn("Couldn't reject the recovered session", e));
+      return;
+    }
     state.session = session;
     state.user = session ? session.user : null;
     renderAccountUI();
     if(event === "SIGNED_IN"){
+      signedOutIntentionally = false;
       handleAuthReady().catch(e=>console.warn("Account sync failed", e));
     } else if(event === "SIGNED_OUT"){
       resetSyncState();
