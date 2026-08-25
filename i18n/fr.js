@@ -464,13 +464,7 @@ window.i18n.fr = {
   // --- Share codes now require an account
   exportShareNeedsAccount: "Connectez-vous pour générer des codes et liens de partage.",
   toastShareNeedsAccount: "Connectez-vous pour générer des codes de partage.",
-
-  // --- Merge prompt wording
-  mergeDesc: "Cet appareil contient un pack et des éléments enregistrés, et votre compte en contient déjà aussi.",
-  mergeFavCountOne: "{n} enregistré",
-  mergeFavCountOther: "{n} enregistrés",
-  mergeKeepBothDesc: "Fusionne les éléments enregistrés. Garde le pack de cet appareil actif et laisse celui de votre compte intact pour le moment.",
-  toastMergeBothDone: "Éléments enregistrés fusionnés. Le pack de cet appareil reste actif, et le pack précédent de votre compte est conservé.",
+  toastLoadedAccount: "Compte chargé. Ce qui se trouvait sur cet appareil a été remplacé par votre copie enregistrée.",
 
   savedPackAlreadyOpen: "Déjà ouvert dans Créer",
   toastPackAlreadyOpen: "« {name} » est déjà ouvert dans Créer."
