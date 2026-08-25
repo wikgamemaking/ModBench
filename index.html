@@ -2605,8 +2605,22 @@ async function handleSignOut(){
   closeAccountMenu();
   if(!sb) return;
   try{
+    // Push whatever's active on this device right now, not just the pending
+    // diff - a "keep both" merge earlier can leave the local pack never
+    // having been synced (see promptMergeChoice), so a partial flush isn't
+    // enough to guarantee the account has this device's latest copy.
+    const savedToAccount = await finalizeSyncBeforeSignOut();
     await sb.auth.signOut();
-    showToast(t('toastSignedOut','Signed out.'));
+    if(savedToAccount){
+      // Confirmed the account has this device's data - safe to clear the
+      // local copy so a signed-out visitor starts from a clean slate.
+      clearLocalAccountData();
+      showToast(t('toastSignedOut','Signed out.'));
+    } else {
+      // Couldn't confirm the save (offline, sync error, etc.) - leave local
+      // data alone rather than risk losing it.
+      showToast(t('toastSignOutKeptLocal',"Signed out. Your last changes couldn't be confirmed as saved, so they're kept on this device."), { duration: 8000 });
+    }
   }catch(e){
     console.error("Sign out failed", e);
     showToast(t('toastSignOutError',"Couldn't sign out, try again."));
@@ -3325,6 +3339,46 @@ function resetSyncState(){
   syncPending = {};
   lastPullAt = 0;
   syncStatus = "idle";
+}
+
+// Force-pushes the FULL current snapshot (not just syncPending) so the
+// account is guaranteed to hold whatever's active on this device, including
+// a pack that a "keep both" merge deliberately left unsynced. Returns true
+// only once the push has actually been confirmed - callers use this to
+// decide whether it's safe to clear the local copy.
+async function finalizeSyncBeforeSignOut(){
+  if(!state.session) return false;
+  clearTimeout(syncTimer);
+  syncTimer = null;
+  syncPending = {};
+  const snapshot = buildFullSnapshot();
+  await pushUserData(snapshot);
+  if(syncStatus !== "synced") return false;
+  seedLocalTimestampsFrom(snapshot);
+  return true;
+}
+
+// Clears this device's copy of whatever now lives on the account (pack,
+// favorites, saved packs, pack icon) plus their sync timestamps, so a
+// signed-out visitor starts from a clean guest slate instead of mixing
+// leftover data with whatever the next account turns out to be. Deliberately
+// leaves lang/theme/auto-compat-check alone - those are device preferences,
+// not account data. Only call this once the data is confirmed saved.
+function clearLocalAccountData(){
+  state.pack = [];
+  state.favorites = [];
+  state.savedPacks = [];
+  state.packIcon = "";
+  safeLocalStorageRemove("packsmith_pack");
+  safeLocalStorageRemove("packsmith_favorites");
+  safeLocalStorageRemove("modbench_saved_packs");
+  safeLocalStorageRemove("modbench_pack_icon");
+  SYNC_FIELDS.forEach(f=>safeLocalStorageRemove(localTsKey(f)));
+  updatePackCount();
+  updateFavCount();
+  renderLogoPicker();
+  if(state.tab === "pack") renderPack();
+  if(state.tab === "favorites") renderFavorites();
 }
 
 let syncErrorNotified = false;
