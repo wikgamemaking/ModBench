@@ -350,15 +350,8 @@ window.i18n.fr = {
   toastConfirmEmailSent: "Vérifiez votre boîte mail pour confirmer votre adresse, puis connectez-vous.",
   toastResetEmailSent: "E-mail de réinitialisation envoyé, vérifiez votre boîte mail.",
   toastPasswordUpdated: "Mot de passe mis à jour.",
-  toastMergeBothDone: "Vos favoris ont été fusionnés. Le pack de cet appareil reste actif localement — le pack précédent de votre compte est conservé et se synchronisera dès que vous modifierez un pack ici.",
   toastSyncFailed: "Impossible de synchroniser les données de votre compte. Nouvelle tentative automatique à venir.",
 
-  mergeTitle: "Quelles données voulez-vous conserver\u00A0?",
-  mergeDesc: "Cet appareil a un pack et des favoris, et votre compte en a déjà aussi.",
-  mergeKeepDevice: "Garder cet appareil",
-  mergeKeepAccount: "Garder mon compte",
-  mergeKeepBoth: "Garder les deux",
-  mergeKeepBothDesc: "Fusionne les favoris. Garde le pack de cet appareil actif et laisse pour l'instant le pack de votre compte inchangé.",
   mergePackCountOne: "{n} mod dans le pack",
   mergePackCountOther: "{n} mods dans le pack",
   mergeFavCountOne: "{n} favori",
@@ -423,7 +416,6 @@ window.i18n.fr = {
   syncErrUnknown: "Échec de synchronisation, cause inconnue.",
 
   // --- Account menu tools
-  checkSyncBtn: "Voir le contenu du compte",
   restoreSyncBtn: "Restaurer depuis le compte",
   accountSharesLeft: "{n}/{limit} codes restants",
   toastNotSignedIn: "Vous n'êtes pas connecté.",
@@ -507,5 +499,20 @@ window.i18n.fr = {
   // --- Pack logo upload (now center-cropped)
   logoNotImage: "Veuillez choisir un fichier image.",
   logoTooBig: "Veuillez choisir une image de moins de 5 Mo.",
-  logoBadImage: "Impossible de lire cette image. Essayez-en une autre."
+  logoBadImage: "Impossible de lire cette image. Essayez-en une autre.",
+
+  conflictAddAnyway: "Ajouter quand même",
+  conflictNoteTitle: "Signalé incompatible avec {mods} dans votre pack",
+  conflictNoteOne: "Conflit avec {mods}",
+  conflictNoteOther: "Conflit avec {mods}",
+
+  confirm: "Confirmer",
+  btnAdding: "Ajout…",
+  btnLoading: "Chargement…",
+  alertCouldntAddMod: "Impossible d'ajouter ce mod. Modrinth est peut-être injoignable.",
+  alertPickVersionFirst: "Choisissez d'abord une version.",
+  alertImportModpackFailed: "Impossible d'importer les mods de ce modpack. Modrinth est peut-être injoignable, ou ce modpack n'est pas au format .mrpack standard.",
+  alertExportNeedsTarget: "Choisissez une version de Minecraft et un modloader avant d'exporter.",
+  alertExportMissingVersion: "Au moins un mod n'a pas de fichier ou de version sélectionné. Vérifiez dans Créer.",
+  alertDropMrpack: "Veuillez déposer un fichier .mrpack.",
 };
