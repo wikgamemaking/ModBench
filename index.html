@@ -2492,12 +2492,15 @@ async function syncServerTimeNow(force){
   lastServerTimeSyncPerf = performance.now();
   if(!shareBackendConfigured()) return;
   try{
-    // Cheapest possible authenticated-free request against a table we
-    // already query elsewhere — we only care about the Date response
-    // header, which the wrapped fetch() above captures automatically.
-    await fetch(`${SUPABASE_URL}/rest/v1/${SHARE_TABLE}?select=id&limit=0`, {
+    // Cheapest possible request against a table we already query
+    // elsewhere — we only care about the Date response header, which the
+    // wrapped fetch() above captures automatically. Bounded with a short
+    // timeout: this must never be able to hang a button forever if the
+    // network is slow or unreachable — worst case we fall back to
+    // whatever offset (or none) we already had.
+    await fetchWithTimeout(`${SUPABASE_URL}/rest/v1/${SHARE_TABLE}?select=id&limit=1`, {
       headers: { "apikey": SUPABASE_ANON_KEY }
-    });
+    }, 4000);
   }catch(e){
     console.warn("Server time sync failed", e);
   }
