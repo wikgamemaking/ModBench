@@ -1124,12 +1124,6 @@
     display:flex; align-items:center; justify-content:center;
   }
   .auth-modal-badge svg{ width:18px; height:18px; }
-  /* Three properties move here and the order matters. The old rule ran
-     height and opacity for the same .22s starting on the same frame, so the
-     new content hit full opacity while the box was still ~40% through
-     resizing — that's what read as the container "jerking" mid-animation.
-     Now the height leads and the fade trails it by 80ms, so the box has
-     mostly settled by the time the content is legible. */
   .auth-modal-body{
     overflow:hidden;
     transition: height .32s cubic-bezier(.22,.61,.36,1),
@@ -1179,11 +1173,6 @@
     width:16px; height:16px; color: var(--text-dim); pointer-events:none;
   }
   .auth-field-input-wrap input{ padding-left:36px; }
-  /* Password fields: the real <input> keeps type="password" (so browsers still
-     offer autofill/password-manager suggestions and password-strength hints),
-     but its own text is made invisible so we can draw our own masked
-     characters on top via .pw-reveal-overlay, which briefly shows a just-typed
-     character before turning it into a dot. */
   .pw-reveal-input{ color: transparent !important; caret-color: transparent !important; padding-right:36px !important; }
   .pw-reveal-input::-ms-reveal, .pw-reveal-input::-ms-clear{ display:none; }
   .pw-reveal-input:-webkit-autofill,
@@ -1214,12 +1203,6 @@
     width:18px; height:18px; display:block; pointer-events:none;
   }
   .pw-reveal-toggle:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
-  /* Synthetic caret: the real <input>'s native caret is positioned using the
-     browser's own internal password-mask glyph width, which never matches
-     our overlay's rendered text (dots OR, especially, the fully-revealed
-     characters, which are far wider than a row of dots). We hide the real
-     caret entirely and draw our own, positioned from the overlay's own
-     measured text — see attachPasswordReveal(). */
   .pw-fake-caret{
     position:absolute; top:50%; width:1px; height:1.05em;
     background: var(--text); transform: translateY(-50%);
@@ -1230,10 +1213,6 @@
   @media (prefers-reduced-motion: reduce){
     .pw-fake-caret.active{ animation:none; opacity:1; }
   }
-  /* Password strength meter + requirements checklist, shown under the
-     password field wherever the user is choosing a new password (sign-up,
-     set-new-password) — not on sign-in, since that field holds an existing
-     password and there's nothing to grade. */
   .pw-strength{ margin:8px 0 22px; }
   .pw-strength-bar{ display:flex; gap:4px; margin-bottom:7px; }
   .pw-strength-seg{ height:4px; flex:1; border-radius:2px; background: var(--border); transition: background .2s ease; }
@@ -2605,21 +2584,13 @@ async function handleSignOut(){
   closeAccountMenu();
   if(!sb) return;
   try{
-    // Push whatever's active on this device right now, not just the pending
-    // diff - a "keep both" merge earlier can leave the local pack never
-    // having been synced (see promptMergeChoice), so a partial flush isn't
-    // enough to guarantee the account has this device's latest copy.
     const savedToAccount = await finalizeSyncBeforeSignOut();
     signedOutIntentionally = true;
     await sb.auth.signOut();
     if(savedToAccount){
-      // Confirmed the account has this device's data - safe to clear the
-      // local copy so a signed-out visitor starts from a clean slate.
       clearLocalAccountData();
       showToast(t('toastSignedOut','Signed out.'));
     } else {
-      // Couldn't confirm the save (offline, sync error, etc.) - leave local
-      // data alone rather than risk losing it.
       showToast(t('toastSignOutKeptLocal',"Signed out. Your last changes couldn't be confirmed as saved, so they're kept on this device."), { duration: 8000 });
     }
   }catch(e){
@@ -2687,10 +2658,6 @@ function attachPasswordReveal(input){
     syncScroll();
   }
 
-  // Keeps the caret's position (per input.selectionEnd, which reflects the
-  // real character index regardless of masking) inside the overlay's
-  // visible window, the same way a native input scrolls to keep its caret
-  // in view — then draws our synthetic caret at that same resolved spot.
   function syncScroll(){
     const text = overlay.textContent;
     const caretIndex = Math.max(0, Math.min(text.length, input.selectionEnd ?? text.length));
@@ -2738,8 +2705,6 @@ function attachPasswordReveal(input){
 
     clearTimeout(state.timer);
     if(value.length > common){
-      // Newly typed (or pasted) characters starting at `common` — reveal
-      // just that stretch, then let it fall back to dots on its own.
       state.revealFrom = common;
       state.revealTo = value.length;
       state.timer = setTimeout(()=>{
@@ -2756,8 +2721,6 @@ function attachPasswordReveal(input){
   });
   input.addEventListener("click", syncScroll);
   input.addEventListener("keyup", (e)=>{
-    // Only reposition on keys that can move the caret without changing
-    // the value — "input" already handles anything that edits text.
     if(["ArrowLeft","ArrowRight","Home","End"].includes(e.key)) syncScroll();
   });
   input.addEventListener("change", ()=>{ state.prevValue = stripSpaces(input); render(); }); // covers autofill in browsers that skip "input"
@@ -3003,11 +2966,6 @@ function showAuthModal(initialMode = "signin"){
     setTimeout(()=>{
       renderTitle();
       renderBody();
-      // Measure at natural size rather than trusting scrollHeight: with a
-      // fixed height already applied, scrollHeight reports content overflow,
-      // which is off by the child margins the old code kept fighting. Going
-      // through height:auto and reading offsetHeight gives the true resting
-      // layout, then we snap back to the start value and animate from there.
       bodyEl.style.height = "auto";
       const targetHeight = bodyEl.offsetHeight;
       bodyEl.style.height = startHeight + "px";
@@ -3016,25 +2974,13 @@ function showAuthModal(initialMode = "signin"){
         bodyEl.classList.remove("fading");
         bodyEl.style.height = targetHeight + "px";
       });
-      // Release the fixed height only once the height transition has actually
-      // finished (rather than guessing a timeout), so we never snap to "auto"
-      // mid-animation and cause a visible second jump. transitionend on the
-      // wrong property (e.g. opacity finishing first) is ignored; a timeout
-      // fallback covers browsers/cases where the event never fires.
       let settled = false;
       const release = ()=>{
         if(settled) return;
         settled = true;
         bodyEl.removeEventListener("transitionend", onTransitionEnd);
-        // Only clear the fixed height/overflow if we're still on this mode's
-        // render — an in-flight release from a superseded switchMode() call
-        // must not clobber a newer one.
         if(bodyEl.style.height === targetHeight + "px"){
           bodyEl.style.height = "";
-          // overflow stays hidden permanently (see .auth-modal-body) so the
-          // measured scrollHeight always matches the resting layout — mixing
-          // hidden-during-animation with auto-at-rest let bottom margins
-          // collapse differently and caused a visible jump after the fade.
         }
       };
       const onTransitionEnd = (e)=>{ if(e.target === bodyEl && e.propertyName === "height") release(); };
@@ -3144,11 +3090,6 @@ function showAuthModal(initialMode = "signin"){
   setTimeout(()=>{ const el = backdrop.querySelector("#authEmail"); if(el) el.focus(); }, 50);
 }
 
-// Supabase's password-reset email links back to the app with a recovery
-// token; the SDK exchanges that for a session and fires PASSWORD_RECOVERY
-// on load (see initAuth). Without this, the link had nowhere to go — the
-// user would just land back on the app signed in, with no way to actually
-// set the new password they came here for.
 function showNewPasswordModal(){
   document.querySelectorAll(".modal-backdrop").forEach(b=>b.remove());
   const backdrop = document.createElement("div");
@@ -3218,15 +3159,6 @@ function showNewPasswordModal(){
   setTimeout(()=>{ const el = document.getElementById("newPassword"); if(el) el.focus(); }, 50);
 }
 
-// Supabase's own background session recovery (triggered by tab focus /
-// visibility change) can fire a SIGNED_IN event using a refresh token that
-// technically hadn't finished being revoked yet when we called signOut() -
-// a race, not a real new sign-in. When that happens it silently re-signs
-// the user in and handleAuthReady() re-pulls their account data, undoing
-// the local wipe from handleSignOut. This flag distinguishes "the user just
-// explicitly signed out and hasn't chosen to sign in again" from a genuine
-// new sign-in, so the listener below can tell a phantom recovery apart from
-// the real thing and refuse it instead of quietly acting on it.
 let signedOutIntentionally = false;
 
 async function initAuth(){
@@ -3242,9 +3174,6 @@ async function initAuth(){
 
   sb.auth.onAuthStateChange((event, session)=>{
     if(event === "SIGNED_IN" && signedOutIntentionally && session){
-      // A session got recovered after an intentional sign-out with no new
-      // sign-in in between - reject it rather than silently signing the
-      // user back in and re-pulling data we already cleared locally.
       console.warn("Ignoring a session recovered right after an intentional sign-out.");
       sb.auth.signOut().catch(e=>console.warn("Couldn't reject the recovered session", e));
       return;
@@ -3293,7 +3222,9 @@ function buildSyncRow(overrides){
     saved_packs: Array.isArray(state.savedPacks) ? state.savedPacks : [],
     saved_packs_updated_at: getLocalTimestamp("saved_packs") || now
   };
-  return Object.assign(row, overrides || {});
+  Object.assign(row, overrides || {});
+  missingColumns.forEach(c=>{ delete row[c]; });
+  return row;
 }
 function seedLocalTimestampsNow(){
   SYNC_FIELDS.forEach(bumpLocalTimestamp);
@@ -3364,11 +3295,6 @@ function resetSyncState(){
   syncStatus = "idle";
 }
 
-// Force-pushes the FULL current snapshot (not just syncPending) so the
-// account is guaranteed to hold whatever's active on this device, including
-// a pack that a "keep both" merge deliberately left unsynced. Returns true
-// only once the push has actually been confirmed - callers use this to
-// decide whether it's safe to clear the local copy.
 async function finalizeSyncBeforeSignOut(){
   if(!state.session) return false;
   clearTimeout(syncTimer);
@@ -3381,12 +3307,6 @@ async function finalizeSyncBeforeSignOut(){
   return true;
 }
 
-// Clears this device's copy of whatever now lives on the account (pack,
-// favorites, saved packs, pack icon) plus their sync timestamps, so a
-// signed-out visitor starts from a clean guest slate instead of mixing
-// leftover data with whatever the next account turns out to be. Deliberately
-// leaves lang/theme/auto-compat-check alone - those are device preferences,
-// not account data. Only call this once the data is confirmed saved.
 function clearLocalAccountData(){
   state.pack = [];
   state.favorites = [];
@@ -3405,6 +3325,9 @@ function clearLocalAccountData(){
 }
 
 let syncErrorNotified = false;
+// Columns the server rejected as unknown. buildSyncRow() stops sending them,
+// so one failed write doesn't cost a round trip on every subsequent save.
+const missingColumns = new Set();
 async function pushUserData(partial, opts = {}){
   if(!authConfigured() || !state.session) return;
   setSyncStatus("syncing");
@@ -3426,6 +3349,19 @@ async function pushUserData(partial, opts = {}){
     if(!res.ok){
       let detail = "";
       try{ detail = await res.text(); }catch(e){ /* body already consumed */ }
+
+      const missing = /Could not find the '([^']+)' column/i.exec(detail);
+      if(missing && !opts._retried){
+        const column = missing[1];
+        console.warn(`user_data has no "${column}" column — retrying without it. Run the migration to sync this field.`);
+        const trimmed = Object.assign({}, partial || {});
+        delete trimmed[column];
+        delete trimmed[column.replace(/_updated_at$/, "")];
+        delete trimmed[column + "_updated_at"];
+        missingColumns.add(column);
+        return pushUserData(trimmed, Object.assign({}, opts, { _retried: true }));
+      }
+
       lastSyncError = describeSyncError(res.status, detail);
       throw new Error(`Supabase user_data upsert failed (${res.status}) ${detail}`);
     }
@@ -3508,96 +3444,38 @@ function hasNonDefaultLocalData(){
     || (state.savedPacks && state.savedPacks.length > 0);
 }
 
-function promptMergeChoice(row){
-  return new Promise(resolve=>{
-    document.querySelectorAll(".modal-backdrop").forEach(b=>b.remove());
-    const backdrop = document.createElement("div");
-    backdrop.className = "modal-backdrop";
-    backdrop.style.alignItems = "center";
-    const remotePackCount = Array.isArray(row.pack) ? row.pack.length : 0;
-    const remoteFavCount = Array.isArray(row.favorites) ? row.favorites.length : 0;
-    backdrop.innerHTML = `
-      <div class="modal" style="max-width:440px;">
-        <div class="modal-head" style="margin-bottom:10px;">
-          <div class="name" style="font-size:1.1rem;">${t('mergeTitle','Which data do you want to keep?')}</div>
-        </div>
-        <p style="margin:0 0 16px; font-size:0.88rem; color:var(--text-dim); text-wrap:pretty;">${t('mergeDesc',"This device has a pack and saved items, and your account already has some too.")}</p>
-        <div style="display:flex; flex-direction:column; gap:8px;">
-          <button type="button" class="page-btn" data-choice="device" style="width:100%; text-align:left; height:auto; padding:12px;">
-            <strong style="display:block;">${t('mergeKeepDevice','Keep this device')}</strong>
-            <span style="font-size:0.8rem; color:var(--text-dim);">${tPlural(state.pack.length,'mergePackCountOne','{n} mod in pack','mergePackCountOther','{n} mods in pack')} · ${tPlural(state.favorites.length,'mergeFavCountOne','{n} saved','mergeFavCountOther','{n} saved')}</span>
-          </button>
-          <button type="button" class="page-btn" data-choice="account" style="width:100%; text-align:left; height:auto; padding:12px;">
-            <strong style="display:block;">${t('mergeKeepAccount','Keep my account')}</strong>
-            <span style="font-size:0.8rem; color:var(--text-dim);">${tPlural(remotePackCount,'mergePackCountOne','{n} mod in pack','mergePackCountOther','{n} mods in pack')} · ${tPlural(remoteFavCount,'mergeFavCountOne','{n} saved','mergeFavCountOther','{n} saved')}</span>
-          </button>
-          <button type="button" class="page-btn" data-choice="both" style="width:100%; text-align:left; height:auto; padding:12px;">
-            <strong style="display:block;">${t('mergeKeepBoth','Keep both')}</strong>
-            <span style="font-size:0.8rem; color:var(--text-dim);">${t('mergeKeepBothDesc','Merges saved items. Keeps this device\u2019s pack active and leaves your account\u2019s pack untouched for now.')}</span>
-          </button>
-        </div>
-      </div>`;
-    document.body.appendChild(backdrop);
-    backdrop.querySelectorAll("[data-choice]").forEach(btn=>{
-      btn.addEventListener("click", ()=>{ backdrop.remove(); resolve(btn.dataset.choice); });
-    });
-  });
-}
 
 async function handleAuthReady(){
   if(!state.session) return;
   try{
     const row = await fetchUserDataRow();
+
     if(!row){
+      // Brand-new account: nothing stored yet.
+      if(!hasNonDefaultLocalData()){
+        seedLocalTimestampsFrom(buildFullSnapshot());
+        return;
+      }
       const snapshot = buildFullSnapshot();
       await pushUserData(snapshot);
       seedLocalTimestampsFrom(snapshot);
       return;
     }
-    if(!hasNonDefaultLocalData()){
-      // Remote has a row, this device doesn't have real data: pure download.
-      reconcileRemoteRow(row);
-      return;
-    }
-    const neverSyncedLocally = !getLocalTimestamp("pack") && !getLocalTimestamp("favorites");
-    if(!neverSyncedLocally){
-      reconcileRemoteRow(row);
-      return;
-    }
-    const choice = await promptMergeChoice(row);
-    if(choice === "device"){
-      const snapshot = buildFullSnapshot();
-      await pushUserData(snapshot);
-      seedLocalTimestampsFrom(snapshot);
-    } else if(choice === "account"){
-      SYNC_FIELDS.forEach(f=>applyRemoteField(f, row[f], row[f + "_updated_at"]));
-    } else if(choice === "both"){
-      const remoteFavs = Array.isArray(row.favorites) ? row.favorites : [];
-      const seen = new Set(state.favorites.map(f=>f.id));
-      remoteFavs.forEach(f=>{ if(!seen.has(f.id)){ state.favorites.push(f); seen.add(f.id); } });
-      saveFavorites(false);
-      if(state.tab === "favorites") renderFavorites();
-      // Deliberately don't push "pack" here — the account's existing pack is
-      // left as-is in Supabase rather than silently overwritten by this
-      // device's pack, since the app has no way to merge two mod lists.
-      await pushUserData({
-        favorites: state.favorites,
-        favorites_updated_at: bumpLocalTimestamp("favorites"),
-        settings: buildSettingsSnapshot(),
-        settings_updated_at: bumpLocalTimestamp("settings")
-      });
-      bumpLocalTimestamp("pack");
-      showToast(t('toastMergeBothDone',"Merged your saved items. This device's pack stays active locally, and your account's previous pack is safe."), { duration: 9000 });
+
+    const replacedSomething = hasNonDefaultLocalData();
+    SYNC_FIELDS.forEach(f=>{
+      if(row[f] === null || row[f] === undefined) return;
+      applyRemoteField(f, row[f], row[f + "_updated_at"] || nowIso());
+    });
+    if(replacedSomething){
+      showToast(t('toastLoadedAccount',"Loaded your account. What was on this device has been replaced by your saved copy."), { duration: 7000 });
     }
   }catch(e){
     console.warn("Account sync init failed", e);
-    showToast(t('toastSyncFailed',"Couldn't sync your account data. It'll retry automatically."));
+    showToast(lastSyncError || t('toastSyncFailed',"Couldn't sync your account data. It'll retry automatically."), { duration: 9000 });
   }
 }
 
-/* Run modbenchSyncCheck() in the browser console while signed in to find out
- * in one shot whether the backend half of accounts is actually set up. Prints
- * the real HTTP status and Postgres error for a read and a write. */
 window.modbenchSyncCheck = async function(){
   if(!authConfigured()) return console.error("Supabase client not initialised.");
   if(!state.session) return console.error("Not signed in — sign in first, then re-run.");
@@ -3620,11 +3498,6 @@ window.modbenchSyncCheck = async function(){
   console.log("local favorites:", state.favorites.length, "pack:", state.pack.length);
 };
 
-/* Reads the account row live and reports what the server actually holds.
- * This is the one thing that settles "is it syncing?": localStorage keeps your
- * data on this device whether or not the upload ever worked, so signing out
- * and back in on the same browser can't tell you anything. These numbers come
- * from Supabase, not from this device. */
 window.modbenchAccountContents = ()=>showAccountContents();
 async function showAccountContents(){
   if(!state.session){ showToast(t('toastNotSignedIn','Not signed in.')); return; }
@@ -3649,10 +3522,6 @@ async function showAccountContents(){
   }
 }
 
-/* Force-applies the account's copy over this device, ignoring timestamps.
- * The normal last-write-wins comparison is deliberately conservative and will
- * refuse to overwrite a device whose local clock ran ahead; this is the manual
- * override for exactly that case. */
 async function restoreFromAccount(){
   if(!state.session){ showToast(t('toastNotSignedIn','Not signed in.')); return; }
   if(!confirm(t('confirmRestore',"Replace this device's saved mods, pack and modpacks with the copy stored in your account?"))) return;
@@ -3686,9 +3555,6 @@ async function maybePullOnFocus(){
 document.addEventListener("visibilitychange", ()=>{
   if(document.visibilityState === "visible") maybePullOnFocus();
 });
-// Belt-and-suspenders for the case where this tab never loses visibility at
-// all (e.g. it just sits open on a desktop while you edit from another
-// device) — visibilitychange alone won't fire then, so poll periodically too.
 setInterval(()=>{
   if(document.visibilityState === "visible") maybePullOnFocus();
 }, 45000);
@@ -5975,8 +5841,6 @@ async function showCompatibilityResults(fixNote){
 async function runUpdateCheck(){
   const candidates = state.pack.filter(m=>m.selectedVersionId);
 
-  // Use the same target loader/MC version as the compatibility checker
-  // (getCompatTargets), so updates don't undo a compatibility fix.
   const compatSelected = candidates
     .filter(m=>Array.isArray(m.versions))
     .map(m=>({ mod: m, version: m.versions.find(v=>v.id === m.selectedVersionId) }))
@@ -6799,8 +6663,6 @@ function setImportStatus(kind, text, prefix = "mrpack"){
   }
 }
 
-/* --- Create-tab import lock: grays out Create while a mod import is still running,
-   whether the import was kicked off from Export (file/share code) or Modpacks. --- */
 let packImportLockToastShown = false;
 
 function showPackImportLock(){
@@ -7136,10 +6998,6 @@ async function addModpackToCreate(projectId, btn){
   try{
     const versions = await fetchVersionsRaw(projectId);
     if(!versions.length) throw new Error("No versions available");
-    // Pausing here (rather than leaving the button "loading") is deliberate: the slow-load
-    // toast is meant to reassure the user during actual network/import work, not while they're
-    // sitting on the version-picker modal deciding what to import. Without this, someone who
-    // takes >15s to pick a version would get a "still working on it" toast for no reason.
     if(btn._slowLoadTimer){ clearTimeout(btn._slowLoadTimer); btn._slowLoadTimer = null; }
     const chosen = await pickModpackVersion(versions);
     if(!chosen){
