@@ -485,5 +485,27 @@ window.i18n.fr = {
   compatBlockMsg: "<strong>{mods}</strong> est déjà dans votre pack et ces mods ne fonctionnent pas ensemble.",
   compatWarnMsg: "Ce mod fait doublon avec <strong>{mods}</strong> dans votre pack.",
   compatRedundantMsg: "Vous avez déjà <strong>{mods}</strong>, qui remplit le même rôle.",
-  compatReasonDeclared: "Les auteurs ont déclaré ces deux mods comme incompatibles."
+  compatReasonDeclared: "Les auteurs ont déclaré ces deux mods comme incompatibles.",
+
+   // --- Profile picture (email accounts only)
+  changeAvatarBtn: "Changer la photo de profil",
+  avatarTitle: "Photo de profil",
+  avatarDropLabel: "Choisir ou déposer une image",
+  avatarDropTitle: "Déposez une image ici",
+  avatarDropHint: "ou cliquez pour parcourir · PNG, JPG ou WebP, 5 Mo maximum",
+  avatarSave: "Enregistrer la photo",
+  avatarSaving: "Enregistrement…",
+  avatarSaved: "Photo de profil mise à jour.",
+  avatarRemove: "Supprimer",
+  avatarRemoved: "Photo de profil supprimée.",
+  avatarNotImage: "Ce fichier n'est pas une image.",
+  avatarTooBig: "Cette image dépasse 5 Mo. Choisissez-en une plus petite.",
+  avatarBadImage: "Impossible de lire cette image. Essayez-en une autre.",
+  avatarNoBucket: "Enregistrée sur cet appareil uniquement — le bucket de stockage « avatars » n'existe pas encore.",
+  avatarUploadFailed: "Enregistrée sur cet appareil uniquement — l'envoi n'a pas abouti.",
+
+  // --- Pack logo upload (now center-cropped)
+  logoNotImage: "Veuillez choisir un fichier image.",
+  logoTooBig: "Veuillez choisir une image de moins de 5 Mo.",
+  logoBadImage: "Impossible de lire cette image. Essayez-en une autre."
 };
