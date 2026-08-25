@@ -321,6 +321,7 @@ window.i18n.fr = {
   introGotIt: "Compris, on y va",
   
   toastCreateLockedImporting: "**Les mods sont encore en cours d'importation.** Créer se débloquera **automatiquement** une fois terminé.",
+  toastSignOutKeptLocal: "Déconnecté. Impossible de confirmer que vos derniers changements ont bien été enregistrés, ils restent donc sur cet appareil.",
   historyUndo: "Annuler",
   historyUndoToHere: "Annuler jusqu'ici",
   historyRedo: "Rétablir",
