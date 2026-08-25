@@ -425,7 +425,10 @@
     .toolbar .search-box{ flex:1 1 100%; min-width:0; }
     select#sortSelect, select#modpackSortSelect{ flex:1 1 auto; width:auto; min-width:0; }
     .view-toggle{ flex:0 0 auto; }
-    #favSortBtn{ flex:1 1 100%; }
+    /* 1 1 100% forced the sort button onto its own row, which pushed the view
+       toggle down to a third. Letting it size to content keeps both on one
+       line under the search field. */
+    #favSortBtn{ flex:1 1 auto; min-width:0; }
   }
 
   #createToolbar{ justify-content:flex-end; align-items:center; flex-wrap:wrap; gap:10px; }
@@ -1110,6 +1113,55 @@
   .saved-pack-actions button.primary:hover{ filter: brightness(1.06); }
   .saved-pack-actions button.danger{ flex:0 0 auto; color: var(--danger-text); }
   .saved-pack-actions button.danger:hover{ background: var(--danger-soft); border-color: var(--danger-soft); }
+
+  .avatar-modal{ max-width:400px; }
+  .avatar-preview-wrap{ display:flex; justify-content:center; margin:0 0 18px; }
+  .avatar-preview{
+    width:108px; height:108px; border-radius:50%; overflow:hidden;
+    background: var(--surface-2); border:2px solid var(--border);
+    display:flex; align-items:center; justify-content:center;
+    font-size:2rem; font-weight:800; color: var(--text-dim);
+    transition: border-color .2s ease;
+  }
+  .avatar-preview img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .avatar-preview.is-pop{ animation: avatar-pop .34s cubic-bezier(.18,.85,.32,1.12); border-color: var(--accent); }
+  @keyframes avatar-pop{
+    0%{ transform: scale(.86); opacity:.35; }
+    60%{ transform: scale(1.04); opacity:1; }
+    100%{ transform: scale(1); opacity:1; }
+  }
+
+  .avatar-drop{
+    display:flex; flex-direction:column; align-items:center; gap:5px;
+    padding:22px 18px; border-radius:12px; cursor:pointer;
+    border:1.5px dashed var(--border); background: var(--surface-2);
+    color: var(--text-dim); text-align:center;
+    transition: border-color .18s ease, background .18s ease, transform .18s ease;
+  }
+  .avatar-drop:hover{ border-color: var(--accent); background: var(--accent-soft); color: var(--accent-dark); }
+  .avatar-drop:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+  .avatar-drop.is-over{
+    border-color: var(--accent); background: var(--accent-soft);
+    color: var(--accent-dark); transform: scale(1.015);
+  }
+  .avatar-drop svg{ width:26px; height:26px; opacity:.75; }
+  .avatar-drop strong{ font-size:0.92rem; color: var(--text); }
+  .avatar-drop.is-over strong, .avatar-drop:hover strong{ color: var(--accent-dark); }
+  .avatar-drop span{ font-size:0.78rem; line-height:1.4; }
+
+  .avatar-note{
+    margin:12px 0 0; padding:9px 11px; border-radius:9px;
+    font-size:0.81rem; line-height:1.45; font-weight:700;
+  }
+  .avatar-note.err{ background: var(--danger-soft); color: var(--danger-text); }
+  .avatar-note.warn{ background: var(--accent-soft); color: var(--accent-dark); }
+
+  .avatar-actions{ display:flex; gap:9px; margin-top:16px; }
+  .avatar-actions .page-btn{ height:auto; padding:12px 16px; }
+  @media (prefers-reduced-motion: reduce){
+    .avatar-preview.is-pop{ animation:none; }
+    .avatar-drop.is-over{ transform:none; }
+  }
 
   .auth-modal{ max-width:380px; }
   .auth-modal-title{ display:flex; align-items:center; gap:10px; }
@@ -2398,6 +2450,42 @@ const sb = (SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase)
 
 function authConfigured(){ return Boolean(sb); }
 
+/* Center-crops any image to a square and scales it to `size`, returning both
+ * a data URL and a Blob. Cropping rather than stretching: a 16:9 screenshot
+ * squeezed into a circle distorts faces and text, and users read that as the
+ * site being broken rather than as their own image being the wrong shape. */
+function cropImageToSquare(file, size = 256, quality = 0.86){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onerror = ()=>reject(new Error("read failed"));
+    reader.onload = ()=>{
+      const img = new Image();
+      img.onerror = ()=>reject(new Error("decode failed"));
+      img.onload = ()=>{
+        const side = Math.min(img.naturalWidth, img.naturalHeight);
+        const sx = (img.naturalWidth - side) / 2;
+        const sy = (img.naturalHeight - side) / 2;
+        const canvas = document.createElement("canvas");
+        canvas.width = canvas.height = size;
+        const ctx = canvas.getContext("2d");
+        ctx.imageSmoothingQuality = "high";
+        // Transparent PNGs would go black on a JPEG encode, so lay down the
+        // surface colour first.
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, size, size);
+        ctx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
+        const dataUrl = canvas.toDataURL("image/jpeg", quality);
+        canvas.toBlob(
+          blob=>resolve({ dataUrl, blob, width: size, height: size }),
+          "image/jpeg", quality
+        );
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
 function getInitials(email){
   if(!email) return "?";
   const namePart = email.split("@")[0];
@@ -2408,7 +2496,19 @@ function getInitials(email){
 
 function getAvatarUrl(user){
   const meta = user && user.user_metadata;
-  return (meta && (meta.avatar_url || meta.picture)) || null;
+  const remote = (meta && (meta.avatar_url || meta.picture)) || null;
+  if(remote) return remote;
+  // Local fallback: used while an upload is in flight, and when Storage isn't
+  // reachable so the picture at least works on this device.
+  if(user && getAuthProvider(user) === "email"){
+    return safeLocalStorageGet(`modbench_avatar_${user.id}`) || null;
+  }
+  return null;
+}
+function canChangeAvatar(user){
+  // Google and Discord supply their own picture and re-assert it on every
+  // sign-in, so an override here would silently revert.
+  return Boolean(user) && getAuthProvider(user) === "email";
 }
 function getAuthProvider(user){
   return (user && user.app_metadata && user.app_metadata.provider) || "email";
@@ -2427,6 +2527,7 @@ function getProviderUsername(user){
 const SIGNIN_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><polyline points="10 17 15 12 10 7"></polyline><line x1="15" y1="12" x2="3" y2="12"></line></svg>`;
 const PROFILE_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`;
 const SYNC_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"></path><path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path><path d="M3 22v-6h6"></path><path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path></svg>`;
+const AVATAR_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>`;
 const RESTORE_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>`;
 const SIGNOUT_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>`;
 
@@ -2534,6 +2635,7 @@ function toggleAccountMenu(){
       <span class="account-share-count" id="accountShareCount"></span>
     </div>
     <div class="account-menu-divider"></div>
+    ${canChangeAvatar(user) ? `<button type="button" class="menu-item" id="changeAvatarBtn">${AVATAR_ICON_SVG}${t('changeAvatarBtn','Change profile picture')}</button>` : ""}
     <button type="button" class="menu-item" id="restoreSyncBtn">${RESTORE_ICON_SVG}${t('restoreSyncBtn','Restore from account')}</button>
     <div class="account-menu-divider"></div>
     <button type="button" class="menu-item danger" id="signOutBtn">${SIGNOUT_ICON_SVG}${t('signOutBtn','Sign out')}</button>
@@ -2548,6 +2650,8 @@ function toggleAccountMenu(){
   btn.setAttribute("aria-expanded", "true");
   document.getElementById("signOutBtn").addEventListener("click", handleSignOut);
   updateAccountShareCounter();
+  const avatarBtn = document.getElementById("changeAvatarBtn");
+  if(avatarBtn) avatarBtn.addEventListener("click", (e)=>{ e.stopPropagation(); showAvatarModal(); });
   const restoreBtn = document.getElementById("restoreSyncBtn");
   if(restoreBtn) restoreBtn.addEventListener("click", (e)=>{ e.stopPropagation(); restoreFromAccount(); });
   const syncNote = document.getElementById("accountSyncNote");
@@ -2839,6 +2943,183 @@ function dismissModalBackdrop(backdrop){
   const drop = ()=>{ if(done) return; done = true; backdrop.remove(); };
   backdrop.addEventListener("animationend", drop, { once: true });
   setTimeout(drop, 300);
+}
+
+const AVATAR_BUCKET = "avatars";
+
+async function uploadAvatarToStorage(blob){
+  const path = `${state.user.id}/avatar.jpg`;
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/${AVATAR_BUCKET}/${path}`, {
+    method: "POST",
+    headers: {
+      "apikey": SUPABASE_ANON_KEY,
+      "Authorization": `Bearer ${state.session.access_token}`,
+      "Content-Type": "image/jpeg",
+      "x-upsert": "true"
+    },
+    body: blob
+  });
+  if(!res.ok){
+    let detail = "";
+    try{ detail = await res.text(); }catch(e){}
+    const err = new Error(`avatar upload failed (${res.status}) ${detail}`);
+    err.missingBucket = res.status === 404 || /Bucket not found/i.test(detail);
+    throw err;
+  }
+  // Cache-buster: the path is stable across uploads, so without it the old
+  // picture stays on screen until the browser cache expires.
+  return `${SUPABASE_URL}/storage/v1/object/public/${AVATAR_BUCKET}/${path}?v=${Date.now()}`;
+}
+
+function showAvatarModal(){
+  if(!canChangeAvatar(state.user)) return;
+  closeAccountMenu(true);
+  document.querySelectorAll(".modal-backdrop").forEach(b=>dismissModalBackdrop(b));
+
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  backdrop.style.alignItems = "center";
+  const current = getAvatarUrl(state.user);
+  backdrop.innerHTML = `
+    <div class="modal auth-modal avatar-modal">
+      <div class="modal-head" style="margin-bottom:14px;">
+        <div class="name" style="font-size:1.1rem;">${t('avatarTitle','Profile picture')}</div>
+        <button class="modal-close" id="avatarCloseBtn" aria-label="${t('close','Close')}">✕</button>
+      </div>
+
+      <div class="avatar-preview-wrap">
+        <div class="avatar-preview" id="avatarPreview">
+          ${current ? `<img src="${escapeHtml(current)}" alt="">` : `<span>${escapeHtml(getInitials(state.user.email || ""))}</span>`}
+        </div>
+      </div>
+
+      <div class="avatar-drop" id="avatarDrop" tabindex="0" role="button" aria-label="${t('avatarDropLabel','Choose or drop an image')}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <strong data-i18n="avatarDropTitle">Drop an image here</strong>
+        <span data-i18n="avatarDropHint">or click to browse · PNG, JPG or WebP, up to 5 MB</span>
+      </div>
+      <input type="file" id="avatarFileInput" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+
+      <p class="avatar-note" id="avatarNote" hidden></p>
+
+      <div class="avatar-actions">
+        ${current ? `<button type="button" class="page-btn" id="avatarRemoveBtn">${t('avatarRemove','Remove')}</button>` : ""}
+        <button type="button" class="export-btn" id="avatarSaveBtn" disabled style="margin:0; flex:1;">${t('avatarSave','Save picture')}</button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(backdrop);
+
+  const drop = backdrop.querySelector("#avatarDrop");
+  const input = backdrop.querySelector("#avatarFileInput");
+  const preview = backdrop.querySelector("#avatarPreview");
+  const saveBtn = backdrop.querySelector("#avatarSaveBtn");
+  const note = backdrop.querySelector("#avatarNote");
+  const removeBtn = backdrop.querySelector("#avatarRemoveBtn");
+  let pending = null;
+
+  function setNote(msg, kind){
+    if(!msg){ note.hidden = true; note.textContent = ""; return; }
+    note.hidden = false;
+    note.textContent = msg;
+    note.className = "avatar-note" + (kind ? " " + kind : "");
+  }
+
+  async function accept(file){
+    if(!file) return;
+    if(!file.type.startsWith("image/")){
+      setNote(t('avatarNotImage',"That file isn't an image."), "err");
+      return;
+    }
+    if(file.size > 5 * 1024 * 1024){
+      setNote(t('avatarTooBig',"That image is over 5 MB. Pick a smaller one."), "err");
+      return;
+    }
+    setNote("");
+    try{
+      const result = await cropImageToSquare(file, 256);
+      pending = result;
+      preview.innerHTML = `<img src="${result.dataUrl}" alt="">`;
+      preview.classList.remove("is-pop");
+      void preview.offsetWidth;
+      preview.classList.add("is-pop");
+      saveBtn.disabled = false;
+    }catch(e){
+      console.warn(e);
+      setNote(t('avatarBadImage',"That image couldn't be read. Try another one."), "err");
+    }
+  }
+
+  drop.addEventListener("click", ()=>input.click());
+  drop.addEventListener("keydown", (e)=>{ if(e.key === "Enter" || e.key === " "){ e.preventDefault(); input.click(); } });
+  input.addEventListener("change", ()=>{ accept(input.files[0]); input.value = ""; });
+
+  ["dragenter","dragover"].forEach(ev=>drop.addEventListener(ev, (e)=>{
+    e.preventDefault(); e.stopPropagation();
+    drop.classList.add("is-over");
+  }));
+  ["dragleave","drop"].forEach(ev=>drop.addEventListener(ev, (e)=>{
+    e.preventDefault(); e.stopPropagation();
+    drop.classList.remove("is-over");
+  }));
+  drop.addEventListener("drop", (e)=>{
+    const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    accept(file);
+  });
+  // Without these the browser navigates away to the dropped file if the user
+  // misses the target.
+  backdrop.addEventListener("dragover", (e)=>e.preventDefault());
+  backdrop.addEventListener("drop", (e)=>e.preventDefault());
+
+  saveBtn.addEventListener("click", async ()=>{
+    if(!pending) return;
+    saveBtn.disabled = true;
+    saveBtn.textContent = t('avatarSaving','Saving…');
+    // Store locally first: whatever happens to the upload, the picture is
+    // already correct on this device.
+    safeLocalStorageSet(`modbench_avatar_${state.user.id}`, pending.dataUrl);
+    try{
+      const url = await uploadAvatarToStorage(pending.blob);
+      const { error } = await sb.auth.updateUser({ data: { avatar_url: url } });
+      if(error) throw error;
+      const { data } = await sb.auth.getUser();
+      if(data && data.user) state.user = data.user;
+      safeLocalStorageRemove(`modbench_avatar_${state.user.id}`);
+      renderAccountUI();
+      close();
+      showToast(t('avatarSaved','Profile picture updated.'));
+    }catch(e){
+      console.warn(e);
+      renderAccountUI();
+      setNote(e.missingBucket
+        ? t('avatarNoBucket',"Saved on this device only — the avatars storage bucket doesn't exist yet.")
+        : t('avatarUploadFailed',"Saved on this device only — the upload didn't go through."), "warn");
+      saveBtn.textContent = t('avatarSave','Save picture');
+      saveBtn.disabled = false;
+    }
+  });
+
+  if(removeBtn) removeBtn.addEventListener("click", async ()=>{
+    removeBtn.disabled = true;
+    safeLocalStorageRemove(`modbench_avatar_${state.user.id}`);
+    try{
+      await sb.auth.updateUser({ data: { avatar_url: null } });
+      const { data } = await sb.auth.getUser();
+      if(data && data.user) state.user = data.user;
+    }catch(e){ console.warn(e); }
+    renderAccountUI();
+    close();
+    showToast(t('avatarRemoved','Profile picture removed.'));
+  });
+
+  function close(){
+    document.removeEventListener("keydown", onEscape);
+    dismissModalBackdrop(backdrop);
+  }
+  function onEscape(e){ if(e.key === "Escape") close(); }
+  backdrop.querySelector("#avatarCloseBtn").addEventListener("click", close);
+  backdrop.addEventListener("click", (e)=>{ if(e.target === backdrop) close(); });
+  document.addEventListener("keydown", onEscape);
 }
 
 function showAuthModal(initialMode = "signin"){
@@ -5206,6 +5487,18 @@ function syncModpackSnapshot(mod, version){
 // can remove that mod without requiring it to be focused/opened first.
 let hoveredPackRow = null;
 
+// Rewrites the <option> list of one pack row in place.
+function refreshVersionSelect(mod){
+  const sel = document.querySelector(`[data-vselect="${CSS.escape(mod.id)}"]`);
+  if(!sel) return;
+  const wasOpen = document.activeElement === sel;
+  sel.innerHTML = sortByGameVersionRecency(mod.versions).map(v=>
+    `<option value="${v.id}" ${v.id === mod.selectedVersionId ? "selected" : ""}>${escapeHtml(v.version_number)} (${(v.loaders||[]).join(", ")})</option>`
+  ).join("");
+  sel.value = mod.selectedVersionId || sel.value;
+  if(wasOpen) sel.focus();
+}
+
 const hydratingVersions = new Set();
 async function hydratePackModVersions(modId){
   const mod = state.pack.find(m=>m.id === modId);
@@ -5226,7 +5519,11 @@ async function hydratePackModVersions(modId){
         : [pinned].concat(versions);
       mod.versionsHydrated = true;
       savePack();
-      if(state.tab === "pack") renderPack();
+      // Repaint only this row's <option> list. renderPack() rebuilds every
+      // row in the pack, which on a 150-mod import is a visible stutter and
+      // also drops focus and scroll position the moment the user reaches for
+      // the dropdown — exactly the wrong instant to move things.
+      refreshVersionSelect(mod);
     }
   }catch(e){
     console.warn("Couldn't load the version list for", modId, e);
@@ -7731,27 +8028,30 @@ document.getElementById("mrpackFileInput").addEventListener("change", (e)=>{
   });
 })();
 
-document.getElementById("logoFileInput").addEventListener("change", (e)=>{
+document.getElementById("logoFileInput").addEventListener("change", async (e)=>{
   const file = e.target.files[0];
+  e.target.value = "";
   if(!file) return;
   if(!file.type.startsWith("image/")){
-    alert("Please choose an image file.");
-    e.target.value = "";
+    showToast(t('logoNotImage',"Please choose an image file."));
     return;
   }
-  if(file.size > 2 * 1024 * 1024){
-    alert("Please choose an image under 2 MB.");
-    e.target.value = "";
+  if(file.size > 5 * 1024 * 1024){
+    showToast(t('logoTooBig',"Please choose an image under 5 MB."));
     return;
   }
-  const reader = new FileReader();
-  reader.onload = ()=>{
-    state.packIcon = reader.result;
+  try{
+    // Pack icons are displayed square by every launcher, so crop rather than
+    // let the launcher squash it. 256px also keeps the data URL small enough
+    // to sync without bloating every save.
+    const { dataUrl } = await cropImageToSquare(file, 256);
+    state.packIcon = dataUrl;
     savePackIcon();
     renderLogoPicker();
-  };
-  reader.readAsDataURL(file);
-  e.target.value = "";
+  }catch(err){
+    console.warn(err);
+    showToast(t('logoBadImage',"That image couldn't be read. Try another one."));
+  }
 });
 
 document.getElementById("savePackBtn").addEventListener("click", saveCurrentPack);
