@@ -467,5 +467,23 @@ window.i18n.fr = {
   toastLoadedAccount: "Compte chargé. Ce qui se trouvait sur cet appareil a été remplacé par votre copie enregistrée.",
 
   savedPackAlreadyOpen: "Déjà ouvert dans Créer",
-  toastPackAlreadyOpen: "« {name} » est déjà ouvert dans Créer."
+  toastPackAlreadyOpen: "« {name} » est déjà ouvert dans Créer.",
+
+  // --- First-sign-in prompt (replaces the old 3-way merge)
+  keepLocalTitle: "Ajouter votre travail à ce compte ?",
+  keepLocalDesc: "Vous avez créé tout ceci avant de vous connecter. Votre nouveau compte est vide, nous pouvons donc l'y enregistrer maintenant.",
+  keepLocalYes: "Enregistrer dans mon compte",
+  keepLocalNo: "Repartir de zéro, tout effacer",
+  toastLocalKept: "Ce que vous aviez créé sur cet appareil a été ajouté à votre nouveau compte.",
+  mergePackedCountOne: "{n} modpack enregistré",
+  mergePackedCountOther: "{n} modpacks enregistrés",
+
+  // --- Version list hydration
+  toastVersionListFailed: "Impossible de charger les autres versions de ce mod.",
+
+  // --- Compatibility warnings
+  compatBlockMsg: "<strong>{mods}</strong> est déjà dans votre pack et ces mods ne fonctionnent pas ensemble.",
+  compatWarnMsg: "Ce mod fait doublon avec <strong>{mods}</strong> dans votre pack.",
+  compatRedundantMsg: "Vous avez déjà <strong>{mods}</strong>, qui remplit le même rôle.",
+  compatReasonDeclared: "Les auteurs ont déclaré ces deux mods comme incompatibles."
 };
