@@ -2477,6 +2477,31 @@ function recordServerTimeOffset(dateHeaderValue){
   serverTimeOffsetMs = serverMs - Date.now();
   safeLocalStorageSet("modbench_server_time_offset", String(serverTimeOffsetMs));
 }
+// A *cached* offset only corrects for the discrepancy that existed at the
+// moment it was captured — if the person changes their clock afterwards
+// (then even refreshes the page), the stale offset does nothing to cancel
+// that out, since Date.now() itself now carries the new tampering. So
+// anywhere the daily share limit is actually enforced, we force a fresh
+// round trip to Supabase right before checking, rather than trusting
+// whatever offset happens to be cached from earlier. This is throttled via
+// a monotonic (performance.now()) gate so it can't be used to hammer the
+// network, and monotonic time is itself immune to wall-clock tampering.
+let lastServerTimeSyncPerf = -Infinity;
+async function syncServerTimeNow(force){
+  if(!force && (performance.now() - lastServerTimeSyncPerf) < 4000) return;
+  lastServerTimeSyncPerf = performance.now();
+  if(!shareBackendConfigured()) return;
+  try{
+    // Cheapest possible authenticated-free request against a table we
+    // already query elsewhere — we only care about the Date response
+    // header, which the wrapped fetch() above captures automatically.
+    await fetch(`${SUPABASE_URL}/rest/v1/${SHARE_TABLE}?select=id&limit=0`, {
+      headers: { "apikey": SUPABASE_ANON_KEY }
+    });
+  }catch(e){
+    console.warn("Server time sync failed", e);
+  }
+}
 if(SUPABASE_URL && !window._modbenchFetchWrapped){
   window._modbenchFetchWrapped = true;
   const nativeFetch = window.fetch.bind(window);
@@ -7566,15 +7591,18 @@ function fallbackCopyText(text, done){
 function shareLinkFromCode(code){
   return `${location.origin}${location.pathname}#import=${code}`;
 }
-function showShareModal(){
+async function showShareModal(){
   const data = buildShareData();
   if(data.m.length === 0){
     showToast(t('alertAddModsShareLink',"Add mods to your pack first, then generate a share link."));
     return;
   }
-  if(shareBackendConfigured() && getShareRemaining() <= 0){
-    showShareLimitReachedModal();
-    return;
+  if(shareBackendConfigured()){
+    await syncServerTimeNow(true);
+    if(getShareRemaining() <= 0){
+      showShareLimitReachedModal();
+      return;
+    }
   }
   const longCode = encodeShareData(data);
   const backdrop = document.createElement("div");
@@ -7843,6 +7871,10 @@ function renderLogoPicker(){
 
 function renderExport(){
   renderLogoPicker();
+  // Background-refresh the daily count against the server clock (not the
+  // gating check itself — that happens fresh at generation time — just so
+  // the number shown here doesn't sit stale after a clock change).
+  syncServerTimeNow().then(updateShareUsageDisplays);
   const note = document.getElementById("exportNote");
   const btn = document.getElementById("exportBtn");
   const expMc = document.getElementById("expMcVersion");
@@ -8292,9 +8324,12 @@ document.getElementById("copyShareCodeBtn2").addEventListener("click", async (e)
     showToast(t('alertAddModsShareCode',"Add mods to your pack first, then copy a share code."));
     return;
   }
-  if(shareBackendConfigured() && getShareRemaining() <= 0){
-    showShareLimitReachedModal();
-    return;
+  if(shareBackendConfigured()){
+    await syncServerTimeNow(true);
+    if(getShareRemaining() <= 0){
+      showShareLimitReachedModal();
+      return;
+    }
   }
   const longCode = encodeShareData(data);
   const btn = e.currentTarget;
