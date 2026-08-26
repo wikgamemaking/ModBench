@@ -8523,5 +8523,357 @@ initAuth().finally(()=>{
   }
 });
 </script>
+<!-- ==================================================================
+     ModBench Assistant (Benny) — scripted guide, not an AI chatbot.
+     Everything below is self-contained: markup, styles, and behavior.
+     Delete this block to remove the assistant entirely.
+     Requires: avatar-web (loaded from esm.sh) + ./strobi.avatar.json
+     ================================================================== -->
+<style>
+  .mb-assistant{
+    position: fixed; right: 20px; bottom: 100px; z-index: 45;
+    display: flex; flex-direction: column-reverse; align-items: flex-end; gap: 10px;
+  }
+  .mb-assistant-launcher{ display: flex; align-items: center; gap: 8px; }
+  .mb-assistant-label{
+    font-size: .78rem; font-weight: 700; color: var(--text-dim);
+    padding: 2px 4px; white-space: nowrap;
+  }
+  .mb-assistant-toggle{
+    width: 60px; height: 60px; padding: 7px; flex-shrink: 0;
+    border-radius: 50%; border: 1px solid var(--border); background: var(--surface);
+    box-shadow: 0 6px 18px rgba(0,0,0,.22); cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    transition: transform .15s ease, box-shadow .15s ease;
+  }
+  .mb-assistant-toggle:hover{ transform: scale(1.06); box-shadow: 0 8px 22px rgba(0,0,0,.28); }
+  .mb-assistant-toggle:active{ transform: scale(.94); }
+  .mb-assistant-toggle[aria-expanded="true"]{ border-color: var(--accent); }
+  #mbAssistantAvatar{ width: 100%; height: 100%; pointer-events: none; }
+
+  .mb-assistant-tip, .mb-assistant-panel{
+    background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius);
+    box-shadow: 0 10px 30px rgba(0,0,0,.28);
+    animation: mb-pop-in .18s cubic-bezier(.3,1.4,.4,1);
+  }
+  @keyframes mb-pop-in{ from{ opacity: 0; transform: translateY(8px) scale(.96); } to{ opacity: 1; transform: none; } }
+
+  .mb-assistant-tip{
+    width: 260px; max-width: calc(100vw - 40px);
+    padding: 12px 14px; display: flex; align-items: flex-start; gap: 8px;
+  }
+  .mb-assistant-tip p{ margin: 0; font-size: .86rem; line-height: 1.45; color: var(--text); flex: 1; }
+  .mb-assistant-tip strong{ color: var(--accent-dark); }
+  .mb-assistant-tip-close{
+    flex-shrink: 0; background: none; border: none; color: var(--text-dim);
+    font-size: 1rem; line-height: 1; cursor: pointer; padding: 2px 4px; border-radius: 6px;
+  }
+  .mb-assistant-tip-close:hover{ background: var(--surface-2); color: var(--text); }
+
+  .mb-assistant-panel{ width: 300px; max-width: calc(100vw - 40px); padding: 14px; }
+  .mb-assistant-panel-head{ display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px; }
+  .mb-assistant-name{ font-weight: 700; font-size: .95rem; }
+  .mb-assistant-close{
+    background: none; border: none; color: var(--text-dim); font-size: 1.1rem;
+    line-height: 1; cursor: pointer; padding: 2px 6px; border-radius: 6px;
+  }
+  .mb-assistant-close:hover{ background: var(--surface-2); color: var(--text); }
+  .mb-assistant-message{
+    background: var(--surface-2); border: 1px solid var(--border); border-radius: 12px;
+    padding: 10px 12px; font-size: .88rem; line-height: 1.45; color: var(--text);
+    margin-bottom: 10px; max-height: 220px; overflow-y: auto;
+  }
+  .mb-assistant-message strong{ color: var(--accent-dark); }
+  .mb-assistant-chips{ display: flex; flex-wrap: wrap; gap: 6px; }
+  .mb-assistant-chips button{
+    font: inherit; font-size: .8rem; padding: 6px 10px; border-radius: 999px;
+    border: 1px solid var(--border); background: var(--surface); color: var(--text-dim);
+    cursor: pointer; transition: background .15s ease, color .15s ease, border-color .15s ease;
+  }
+  .mb-assistant-chips button:hover{ background: var(--accent-soft); color: var(--accent-dark); border-color: var(--accent-soft); }
+
+  @media (max-width: 760px){
+    .mb-assistant{ right: 12px; bottom: 88px; }
+    .mb-assistant-tip, .mb-assistant-panel{ width: calc(100vw - 24px); }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .mb-assistant-tip, .mb-assistant-panel{ animation: none; }
+  }
+</style>
+
+<div class="mb-assistant" id="mbAssistant" hidden>
+  <div class="mb-assistant-launcher">
+    <span class="mb-assistant-label" id="mbAssistantLabel">Benny</span>
+    <button type="button" class="mb-assistant-toggle" id="mbAssistantToggle"
+      aria-haspopup="true" aria-expanded="false" aria-label="Chat with Benny, the ModBench guide" title="Chat with Benny">
+      <div id="mbAssistantAvatar"></div>
+    </button>
+  </div>
+
+  <div class="mb-assistant-panel" id="mbAssistantPanel" hidden>
+    <div class="mb-assistant-panel-head">
+      <span class="mb-assistant-name">Benny</span>
+      <button type="button" class="mb-assistant-close" id="mbAssistantClose" aria-label="Close">×</button>
+    </div>
+    <div class="mb-assistant-message" id="mbAssistantMessage" role="status" aria-live="polite"></div>
+    <div class="mb-assistant-chips" id="mbAssistantChips"></div>
+  </div>
+
+  <div class="mb-assistant-tip" id="mbAssistantTip" role="status" aria-live="polite" hidden>
+    <p id="mbAssistantTipText"></p>
+    <button type="button" class="mb-assistant-tip-close" id="mbAssistantTipClose" aria-label="Dismiss">×</button>
+  </div>
+</div>
+
+<script>
+(function initModBenchAssistant(){
+  "use strict";
+
+  const AVATAR_MODULE_URL = "https://esm.sh/@bible-strong/avatar-web@0.1.0";
+  const DEFINITION_URL = "./strobi.avatar.json";
+  const SEEN_KEY = "modbench_assistant_tips_seen";
+  const TIP_COOLDOWN_MS = 45000;
+  const CHECK_INTERVAL_MS = 6000;
+
+  // ---- little local helpers (mirror the app's own safe-storage pattern) ----
+  function getSeenTips(){
+    try{ return JSON.parse(safeLocalStorageGet(SEEN_KEY, "[]")); }catch(e){ return []; }
+  }
+  function markTipSeen(id){
+    const seen = getSeenTips();
+    if(seen.indexOf(id) === -1){
+      seen.push(id);
+      safeLocalStorageSet(SEEN_KEY, JSON.stringify(seen));
+    }
+  }
+  function hasSeenTip(id){
+    return getSeenTips().indexOf(id) !== -1;
+  }
+  function renderRich(text){
+    // Same lightweight **bold** convention the app's toasts already use.
+    return escapeHtml(text).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  }
+  function anyModalOpen(){
+    return !!document.querySelector(".modal-backdrop");
+  }
+
+  // ---- scripted content: canned answers, no external calls, no AI ----
+  const FAQS = [
+    {
+      id: "faq-browse-vs-modpacks",
+      chip: t("mbAssistantFaqBrowseChip", "Browse vs Modpacks?"),
+      answer: t("mbAssistantFaqBrowseAnswer", "**Browse** searches individual mods, shaders, and resource packs one at a time. **Modpacks** searches whole existing modpacks on Modrinth that you can import in one click as a starting point."),
+      expression: "curious-left"
+    },
+    {
+      id: "faq-shortcuts",
+      chip: t("mbAssistantFaqShortcutsChip", "Keyboard shortcuts?"),
+      answer: t("mbAssistantFaqShortcutsAnswer", "Hover a mod and press **A** to add it. Hover a mod in your pack and press **R** to remove it. Press **/** to jump to search. **Ctrl/Cmd + Enter** exports."),
+      expression: "attentive-left"
+    },
+    {
+      id: "faq-export",
+      chip: t("mbAssistantFaqExportChip", "How do I export?"),
+      answer: t("mbAssistantFaqExportAnswer", "Head to the **Export** tab, pick a Minecraft version and loader, name your pack, then hit the export button for a ready-to-use .mrpack file."),
+      expression: "joyful-down-right"
+    },
+    {
+      id: "faq-favorites",
+      chip: t("mbAssistantFaqFavoritesChip", "What's Favorites for?"),
+      answer: t("mbAssistantFaqFavoritesAnswer", "Like mods while you browse to save them for later — independent of whatever pack you're currently building."),
+      expression: "joyful-wide"
+    },
+    {
+      id: "faq-tour",
+      chip: t("mbAssistantFaqTourChip", "Show the full tour"),
+      run: function(){ if(typeof showGettingStarted === "function") showGettingStarted(true); }
+    }
+  ];
+
+  // Evaluated top-to-bottom; first unseen match wins. Kept deliberately small
+  // and non-nagging — each tip fires once ever, at most one every 45s.
+  const TIPS = [
+    {
+      id: "tip-modpacks-first-visit",
+      condition: function(){ return state.tab === "modpacks" && !state.modpackSearched; },
+      message: t("mbAssistantTipModpacks", "Importing a modpack here pulls its whole mod list straight into Create — a fast starting point."),
+      expression: "curious-left",
+      animation: "searching"
+    },
+    {
+      id: "tip-empty-export",
+      condition: function(){ return state.tab === "export" && (!state.pack || state.pack.length === 0); },
+      message: t("mbAssistantTipEmptyExport", "Your pack is empty — add some mods in Browse first, then come back here to export."),
+      expression: "uneasy-left",
+      animation: "idle"
+    },
+    {
+      id: "tip-favorites-nudge",
+      condition: function(){ return (state.pack || []).length >= 5 && (state.favorites || []).length === 0; },
+      message: t("mbAssistantTipFavorites", "Building a big pack? Try liking mods you're unsure about instead of adding them — they'll wait for you in Favorites."),
+      expression: "playful-right",
+      animation: "idle"
+    }
+  ];
+
+  let avatar = null;
+  let panelOpen = false;
+  let lastTipAt = 0;
+
+  function setReaction(expression, animation){
+    if(!avatar) return;
+    try{
+      if(animation) avatar.play(animation);
+      if(expression) avatar.setExpression(expression);
+    }catch(e){ /* non-critical */ }
+  }
+
+  function showTipBubble(tip){
+    const tipEl = document.getElementById("mbAssistantTip");
+    const tipText = document.getElementById("mbAssistantTipText");
+    hidePanel();
+    tipText.innerHTML = renderRich(tip.message);
+    tipEl.hidden = false;
+    setReaction(tip.expression, tip.animation);
+    markTipSeen(tip.id);
+    lastTipAt = Date.now();
+    window.clearTimeout(showTipBubble._timer);
+    showTipBubble._timer = window.setTimeout(hideTipBubble, 9000);
+  }
+  function hideTipBubble(){
+    const tipEl = document.getElementById("mbAssistantTip");
+    tipEl.hidden = true;
+    if(!panelOpen) setReaction("neutral", "idle");
+  }
+
+  function checkForTip(){
+    if(panelOpen || anyModalOpen()) return;
+    if(Date.now() - lastTipAt < TIP_COOLDOWN_MS) return;
+    for(let i = 0; i < TIPS.length; i++){
+      const tip = TIPS[i];
+      if(hasSeenTip(tip.id)) continue;
+      try{
+        if(tip.condition()){ showTipBubble(tip); return; }
+      }catch(e){ /* skip a misbehaving condition rather than break the loop */ }
+    }
+  }
+
+  function renderChips(){
+    const chips = document.getElementById("mbAssistantChips");
+    chips.innerHTML = "";
+    FAQS.forEach(function(faq){
+      const btn = document.createElement("button");
+      btn.type = "button";
+      btn.textContent = faq.chip;
+      btn.addEventListener("click", function(){ answerFaq(faq); });
+      chips.appendChild(btn);
+    });
+  }
+
+  function answerFaq(faq){
+    if(faq.run){ faq.run(); return; }
+    const msgEl = document.getElementById("mbAssistantMessage");
+    setReaction("small-attentive", "thinking");
+    window.setTimeout(function(){
+      msgEl.innerHTML = renderRich(faq.answer);
+      setReaction(faq.expression, "listening");
+    }, 550);
+  }
+
+  function openPanel(){
+    const panel = document.getElementById("mbAssistantPanel");
+    const msgEl = document.getElementById("mbAssistantMessage");
+    hideTipBubble();
+    window.clearTimeout(showTipBubble._timer);
+    if(!msgEl.dataset.greeted){
+      msgEl.innerHTML = renderRich(t("mbAssistantGreeting", "Hi, I'm Benny! Ask me something below, or use the **?** menu for the full tour."));
+      msgEl.dataset.greeted = "1";
+    }
+    panel.hidden = false;
+    panelOpen = true;
+    document.getElementById("mbAssistantToggle").setAttribute("aria-expanded", "true");
+    document.getElementById("mbAssistantLabel").hidden = true;
+    setReaction("attentive-left", "listening");
+  }
+  function hidePanel(){
+    const panel = document.getElementById("mbAssistantPanel");
+    panel.hidden = true;
+    panelOpen = false;
+    document.getElementById("mbAssistantToggle").setAttribute("aria-expanded", "false");
+    document.getElementById("mbAssistantLabel").hidden = false;
+    setReaction("neutral", "idle");
+  }
+
+  function watchExportSuccess(){
+    const exportBtn = document.getElementById("exportBtn");
+    if(!exportBtn || !window.MutationObserver) return;
+    const observer = new MutationObserver(function(){
+      if(!exportBtn.classList.contains("success")) return;
+      setReaction(hasSeenTip("tip-first-export") ? "joyful-wide" : "joyful-wide", "celebrate");
+      if(!hasSeenTip("tip-first-export") && !panelOpen){
+        showTipBubble({
+          id: "tip-first-export",
+          message: t("mbAssistantTipFirstExport", "Nicely done — your pack is downloaded! Drop the .mrpack into a launcher like Prism or MultiMC to play it."),
+          expression: "joyful-wide",
+          animation: "celebrate"
+        });
+      }
+      window.setTimeout(function(){ if(!panelOpen) setReaction("neutral", "idle"); }, 2200);
+    });
+    observer.observe(exportBtn, { attributes: true, attributeFilter: ["class"] });
+  }
+
+  async function boot(){
+    const root = document.getElementById("mbAssistant");
+    try{
+      const mod = await import(/* webpackIgnore: true */ AVATAR_MODULE_URL);
+      const res = await fetch(DEFINITION_URL);
+      if(!res.ok) throw new Error("avatar definition fetch failed: " + res.status);
+      const definition = await res.json();
+      avatar = mod.createAvatar("#mbAssistantAvatar", { definition: definition, size: "100%" });
+      // avatar-web resolves synchronously with no error even when the canvas
+      // never actually paints (e.g. WebGL disabled in a sandboxed preview),
+      // so double-check the mount point actually produced a child before
+      // revealing the widget — otherwise we'd show an empty circle forever.
+      await new Promise(function(r){ requestAnimationFrame(r); });
+      const mount = document.getElementById("mbAssistantAvatar");
+      if(!mount || mount.children.length === 0) throw new Error("avatar mounted but did not render");
+    }catch(e){
+      console.warn("ModBench assistant disabled (couldn't load or render avatar):", e);
+      root.hidden = true;
+      return;
+    }
+
+    root.hidden = false;
+    renderChips();
+    watchExportSuccess();
+
+    document.getElementById("mbAssistantToggle").addEventListener("click", function(){
+      if(panelOpen) hidePanel(); else openPanel();
+    });
+    document.getElementById("mbAssistantClose").addEventListener("click", hidePanel);
+    document.getElementById("mbAssistantTipClose").addEventListener("click", hideTipBubble);
+    document.addEventListener("keydown", function(e){
+      if(e.key === "Escape" && panelOpen) hidePanel();
+    });
+    document.addEventListener("click", function(e){
+      if(!panelOpen) return;
+      if(root.contains(e.target)) return;
+      hidePanel();
+    });
+
+    avatar.play("waking");
+    window.setTimeout(function(){ if(!panelOpen) setReaction("neutral", "idle"); }, 1500);
+
+    window.setTimeout(checkForTip, 2000);
+    window.setInterval(checkForTip, CHECK_INTERVAL_MS);
+    document.querySelectorAll("nav.tabs button").forEach(function(btn){
+      btn.addEventListener("click", function(){ window.setTimeout(checkForTip, 400); });
+    });
+  }
+
+  boot();
+})();
+</script>
 </body>
 </html>
