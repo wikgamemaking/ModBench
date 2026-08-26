@@ -7814,12 +7814,12 @@ function renderExport(){
   const statsEl = document.getElementById("exportStats");
   const heroIcon = document.getElementById("exportHeroIcon");
   document.getElementById("exportImportTip").style.display = "none";
-  if(!expMc.value && state.mcVersion) expMc.value = state.mcVersion;
   if(!expMc.value || !expLoader.value){
     const guess = guessPackTarget();
     if(!expMc.value && guess.mcVersion) expMc.value = guess.mcVersion;
     if(!expLoader.value && guess.loader) expLoader.value = guess.loader;
   }
+  if(!expMc.value && state.mcVersion) expMc.value = state.mcVersion;
   if(state.pack.length === 0){
     note.textContent = t('exportNoteDefault',"Add mods to your pack first, then choose a version and loader.");
     btn.disabled = true;
@@ -7863,6 +7863,31 @@ function renderExport(){
   }
 }
 
+// TODO: forge/neoforge loader versions not resolved yet.
+const LOADER_VERSION_FALLBACK = { fabric: "0.16.9", quilt: "0.26.3" };
+async function getLoaderDependencyVersion(loader){
+  try{
+    if(loader === "fabric"){
+      const res = await fetchWithTimeout("https://meta.fabricmc.net/v2/versions/loader", {}, 8000);
+      if(res.ok){
+        const versions = await res.json();
+        const best = versions.find(v=>v.loader && v.loader.stable) || versions[0];
+        if(best && best.loader && best.loader.version) return best.loader.version;
+      }
+    } else if(loader === "quilt"){
+      const res = await fetchWithTimeout("https://meta.quiltmc.org/v3/versions/loader", {}, 8000);
+      if(res.ok){
+        const versions = await res.json();
+        const best = versions.find(v=>v.version && !/beta|alpha|rc/i.test(v.version)) || versions[0];
+        if(best && best.version) return best.version;
+      }
+    }
+  }catch(e){
+    console.error(`Failed to resolve latest ${loader} loader version, using fallback`, e);
+  }
+  return LOADER_VERSION_FALLBACK[loader] || "";
+}
+
 document.getElementById("exportBtn").addEventListener("click", async ()=>{
   const mcVersion = document.getElementById("expMcVersion").value;
   const loader = document.getElementById("expLoader").value;
@@ -7882,6 +7907,9 @@ document.getElementById("exportBtn").addEventListener("click", async ()=>{
   const folderForType = t => PACK_FOLDER[t] || "mods";
 
   const LOADER_DEP_KEY = { fabric: "fabric-loader", quilt: "quilt-loader", forge: "forge", neoforge: "neoforge" };
+  const loaderDepVersion = (loader === "fabric" || loader === "quilt")
+    ? await getLoaderDependencyVersion(loader)
+    : "";
 
   const manifest = {
     formatVersion: 1,
@@ -7901,7 +7929,7 @@ document.getElementById("exportBtn").addEventListener("click", async ()=>{
       downloads: [mod.selectedFile.url],
       fileSize: mod.selectedFile.size
     })),
-    dependencies: { minecraft: mcVersion, ...(LOADER_DEP_KEY[loader] ? { [LOADER_DEP_KEY[loader]]: "" } : {}) }
+    dependencies: { minecraft: mcVersion, ...(LOADER_DEP_KEY[loader] && loaderDepVersion ? { [LOADER_DEP_KEY[loader]]: loaderDepVersion } : {}) }
   };
 
   const zip = new JSZip();
