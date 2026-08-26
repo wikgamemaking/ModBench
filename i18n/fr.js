@@ -12,7 +12,7 @@ window.i18n.fr = {
 
   browseMcVersion: "Version du jeu",
   browseAnyVersion: "Toute les versions",
-  browseModloader: "Chargeur",
+  browseModloader: "Modloader",
   browseCategory: "Catégorie",
   browseEnvironment: "Environnement",
   loaderFabric: "Fabric",
