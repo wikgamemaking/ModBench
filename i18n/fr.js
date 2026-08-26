@@ -532,7 +532,7 @@ window.i18n.fr = {
   compatLabelProbe: "affichage d'informations sur les blocs",
   compatReasonProbe: "Tous descendent de WAILA et dessinent le même affichage. Deux d'entre eux se superposent à l'écran.",
   compatLabelMinimap: "minicarte",
-  compatReasonMinimap: "Deux minicartes se disputent le même coin de l'écran et suivent chacune toutes les entités, ce qui coûte des images par seconde pour rien.",
+  compatReasonMinimap: "Deux minicartes se disputent le même coin de l'écran et suivent chacune toutes les entités, ce qui coûte des FPS pour rien.",
   compatLabelWaystones: "système de points de téléportation",
   compatReasonWaystones: "Réseaux de téléportation distincts qui ne reconnaissent pas les points de l'autre.",
 
