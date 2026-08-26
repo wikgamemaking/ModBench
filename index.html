@@ -2287,15 +2287,6 @@ function showToast(message, opts = {}){
   const stack = document.getElementById("toastStack");
   if(!stack) return null;
 
-  const MAX_VISIBLE_TOASTS = 5;
-  // Oldest-first: toasts are appended to the end of the stack as they're
-  // shown, so the earliest still-active one is the first non-leaving child.
-  const active = Array.from(stack.children).filter(el=>!el.classList.contains("leaving"));
-  if(active.length >= MAX_VISIBLE_TOASTS){
-    const oldest = active[0];
-    if(oldest && oldest._dismiss) oldest._dismiss();
-  }
-
   const toast = document.createElement("div");
   toast.className = "toast";
   toast.setAttribute("role", "status");
@@ -2313,7 +2304,6 @@ function showToast(message, opts = {}){
     toast.addEventListener("animationend", ()=>toast.remove(), { once:true });
     setTimeout(()=>toast.remove(), 250);
   };
-  toast._dismiss = dismiss;
 
   if(actionLabel && onAction){
     const actionBtn = document.createElement("button");
@@ -2487,10 +2477,17 @@ function cropImageToSquare(file, size = 256, quality = 0.86){
         ctx.fillRect(0, 0, size, size);
         ctx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
         const dataUrl = canvas.toDataURL("image/jpeg", quality);
-        canvas.toBlob(
-          blob=>resolve({ dataUrl, blob, width: size, height: size }),
-          "image/jpeg", quality
-        );
+        canvas.toBlob(blob=>{
+          // Safari has historically returned null here for large canvases.
+          // Rebuild the blob from the data URL rather than failing the crop.
+          if(blob) return resolve({ dataUrl, blob, width: size, height: size });
+          try{
+            const bin = atob(dataUrl.split(",")[1]);
+            const bytes = new Uint8Array(bin.length);
+            for(let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            resolve({ dataUrl, blob: new Blob([bytes], { type: "image/jpeg" }), width: size, height: size });
+          }catch(err){ reject(err); }
+        }, "image/jpeg", quality);
       };
       img.src = reader.result;
     };
@@ -2727,6 +2724,7 @@ function toggleAccountMenu(){
   btn.setAttribute("aria-expanded", "true");
   document.getElementById("signOutBtn").addEventListener("click", handleSignOut);
   updateAccountShareCounter();
+  refreshShareUsageFromServer();
   const avatarBtn = document.getElementById("changeAvatarBtn");
   if(avatarBtn) avatarBtn.addEventListener("click", (e)=>{ e.stopPropagation(); showAvatarModal(); });
   const restoreBtn = document.getElementById("restoreSyncBtn");
@@ -2770,24 +2768,6 @@ const PW_REVEAL_MS = 650;
 const PW_MASK_CHAR = "\u2022"; // same bullet the browser's own password mask uses
 const PW_ICON_EYE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
 const PW_ICON_EYE_OFF = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a20.7 20.7 0 0 1 5.06-6.06M9.9 4.24A10.4 10.4 0 0 1 12 4c7 0 11 8 11 8a20.6 20.6 0 0 1-3.22 4.66M14.12 14.12a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>`;
-
-// Restricts a text input to letters, numbers, hyphens and underscores —
-// used for the display name field, which otherwise accepts emojis and any
-// other unicode punctuation/symbols. Mirrors stripSpaces()'s approach of
-// filtering in place while preserving the caret position.
-const NAME_DISALLOWED_RE = /[^A-Za-z0-9_-]/g;
-function sanitizeNameInput(input){
-  const value = input.value;
-  if(!NAME_DISALLOWED_RE.test(value)) return value;
-  NAME_DISALLOWED_RE.lastIndex = 0;
-  const selStart = input.selectionStart ?? value.length;
-  const removedBefore = (value.slice(0, selStart).match(NAME_DISALLOWED_RE) || []).length;
-  const cleaned = value.replace(NAME_DISALLOWED_RE, "");
-  input.value = cleaned;
-  const newPos = Math.max(0, selStart - removedBefore);
-  try{ input.setSelectionRange(newPos, newPos); }catch(e){ /* selection API unsupported; harmless */ }
-  return cleaned;
-}
 
 function stripSpaces(input){
   const value = input.value;
@@ -3043,6 +3023,7 @@ function dismissModalBackdrop(backdrop){
 const AVATAR_BUCKET = "avatars";
 
 async function uploadAvatarToStorage(blob){
+  if(!state.user || !state.session) throw new Error("not signed in");
   const path = `${state.user.id}/avatar.jpg`;
   const res = await fetch(`${SUPABASE_URL}/storage/v1/object/${AVATAR_BUCKET}/${path}`, {
     method: "POST",
@@ -3094,7 +3075,7 @@ function showAvatarModal(){
           placeholder="${escapeHtml(nameFromEmail(state.user.email || "") || "")}"
           value="${escapeHtml(getDisplayName(state.user) || "")}"
           style="width:100%;">
-        <p style="margin:6px 0 0; font-size:0.76rem; color:var(--text-dim);">${t('displayNameHint','Letters, numbers, hyphens and underscores only. Leave empty to use the name derived from your email address.')}</p>
+        <p style="margin:6px 0 0; font-size:0.76rem; color:var(--text-dim);">${t('displayNameHint','Leave empty to use the name derived from your email address.')}</p>
       </div>
 
       <div class="avatar-drop" id="avatarDrop" tabindex="0" role="button" aria-label="${t('avatarDropLabel','Choose or drop an image')}">
@@ -3175,15 +3156,9 @@ function showAvatarModal(){
   backdrop.addEventListener("drop", (e)=>e.preventDefault());
 
   const nameInput = backdrop.querySelector("#displayNameInput");
-  // Live-filter as the user types/pastes so emojis and other symbols never
-  // make it into the field in the first place.
-  nameInput.addEventListener("input", ()=>sanitizeNameInput(nameInput));
-  nameInput.addEventListener("change", ()=>sanitizeNameInput(nameInput));
 
   saveBtn.addEventListener("click", async ()=>{
-    // Belt-and-braces: strip anything disallowed even if it got in via a
-    // path the input listener didn't catch (e.g. programmatic value sets).
-    const newName = sanitizeNameInput(nameInput).trim();
+    const newName = (nameInput.value || "").trim();
     const currentName = getDisplayName(state.user) || "";
     const nameChanged = newName !== currentName;
     if(!pending && !nameChanged){ close(); return; }
@@ -3590,6 +3565,7 @@ async function initAuth(){
       signedOutIntentionally = false;
       handleAuthReady(true).catch(e=>console.warn("Account sync failed", e));
       resolveGravatar(state.user);
+      refreshShareUsageFromServer();
     } else if(event === "SIGNED_OUT"){
       authReadyRunFor = null;
       resetSyncState();
@@ -3617,6 +3593,7 @@ function buildFullSnapshot(){
   return buildSyncRow();
 }
 function buildSyncRow(overrides){
+  if(!state.user) return null;
   const now = nowIso();
   const row = {
     user_id: state.user.id,
@@ -3738,12 +3715,13 @@ let syncErrorNotified = false;
 // so one failed write doesn't cost a round trip on every subsequent save.
 const missingColumns = new Set();
 async function pushUserData(partial, opts = {}){
-  if(!authConfigured() || !state.session) return;
+  if(!authConfigured() || !state.session || !state.user) return;
   setSyncStatus("syncing");
   try{
     // Always a full row — see buildSyncRow() for why a partial body here
     // silently destroys the columns it omits.
     const body = buildSyncRow(partial);
+    if(!body) return;
     const res = await fetch(`${SUPABASE_URL}/rest/v1/${USER_DATA_TABLE}`, {
       method: "POST",
       keepalive: !!opts.keepalive,
@@ -3790,7 +3768,7 @@ async function pushUserData(partial, opts = {}){
 }
 
 async function fetchUserDataRow(){
-  if(!authConfigured() || !state.session) return null;
+  if(!authConfigured() || !state.session || !state.user) return null;
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${USER_DATA_TABLE}?user_id=eq.${state.user.id}&select=*`, {
     headers: {
       "apikey": SUPABASE_ANON_KEY,
@@ -3888,7 +3866,7 @@ function promptKeepLocalWork(){
 }
 
 async function handleAuthReady(isNewSignIn = false){
-  if(!state.session) return;
+  if(!state.session || !state.user) return;
   // getSession() and the SIGNED_IN event both fire for the same sign-in.
   // Run the load once per user id.
   if(authReadyRunFor === state.user.id) return;
@@ -4017,51 +3995,27 @@ setInterval(()=>{
 }, 45000);
 
 const DAILY_SHARE_LIMIT = 10;
-// Converts a UTC timestamp into a "which local day is this" integer bucket,
-// using a *fixed* offset rather than whatever the device's timezone happens
-// to report right now.
-function localDayKey(ms, offsetMinutes){
-  return Math.floor((ms - offsetMinutes * 60000) / 86400000);
-}
-function getShareUsageState(){
-  let usage;
-  try{ usage = JSON.parse(safeLocalStorageGet("modbench_share_usage", "null")); }catch(e){ usage = null; }
-  // The offset is locked in the first time we create a record for this
-  // device and reused from then on. If we instead re-read the device's
-  // current timezone on every check, someone could reset their daily count
-  // early just by changing their system clock/timezone settings. Once
-  // locked, only a fresh (missing) record picks up the live offset again.
-  const offsetMinutes = (usage && typeof usage.tzOffset === "number")
-    ? usage.tzOffset
-    : new Date().getTimezoneOffset();
-  const dayKey = localDayKey(Date.now(), offsetMinutes);
-  if(!usage || usage.day !== dayKey || typeof usage.tzOffset !== "number"){
-    usage = { day: dayKey, used: 0, tzOffset: offsetMinutes };
-    safeLocalStorageSet("modbench_share_usage", JSON.stringify(usage));
-  }
-  return usage;
-}
 function getShareRemaining(){
-  return Math.max(0, DAILY_SHARE_LIMIT - getShareUsageState().used);
+  // Display only. The server decides; this just avoids offering a button that
+  // is going to be refused.
+  return Math.max(0, DAILY_SHARE_LIMIT - shareUsedToday);
 }
 function recordShareUsage(){
-  const usage = getShareUsageState();
-  usage.used = Math.min(DAILY_SHARE_LIMIT, usage.used + 1);
-  safeLocalStorageSet("modbench_share_usage", JSON.stringify(usage));
+  // The count is incremented by createShortShareCode on a successful insert
+  // and reconciled against the server here.
   updateShareUsageDisplays();
+  refreshShareUsageFromServer();
 }
 function exhaustShareUsage(){
-  const usage = getShareUsageState();
-  usage.used = DAILY_SHARE_LIMIT;
-  safeLocalStorageSet("modbench_share_usage", JSON.stringify(usage));
+  shareUsedToday = DAILY_SHARE_LIMIT;
   updateShareUsageDisplays();
 }
 function getNextShareResetTime(){
-  const usage = getShareUsageState();
-  const offsetMinutes = usage.tzOffset;
-  const nextDayKey = localDayKey(Date.now(), offsetMinutes) + 1;
-  // Back to a real UTC instant: the start of the next locked-in local day.
-  return new Date(nextDayKey * 86400000 + offsetMinutes * 60000);
+  // UTC midnight: the server counts in UTC, so a local-midnight countdown
+  // would be wrong for most of the world.
+  const next = new Date();
+  next.setUTCHours(24, 0, 0, 0);
+  return next;
 }
 function formatShareResetTime(){
   return getNextShareResetTime().toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
@@ -4103,30 +4057,72 @@ function generateShortCode(len = 7){
   return out;
 }
 async function createShortShareCode(payload, attempts = 4){
+  if(!state.session || !state.user){
+    const err = new Error("share codes require an account");
+    err.needsAccount = true;
+    throw err;
+  }
   for(let i=0;i<attempts;i++){
     const id = generateShortCode();
     const res = await fetch(`${SUPABASE_URL}/rest/v1/${SHARE_TABLE}`, {
       method: "POST",
       headers: {
         "apikey": SUPABASE_ANON_KEY,
-        "Authorization": `Bearer ${SUPABASE_ANON_KEY}`,
+        // The user's token, not the anon key: the row must be attributable,
+        // or a per-user quota is unenforceable by construction.
+        "Authorization": `Bearer ${state.session.access_token}`,
         "Content-Type": "application/json",
         "Prefer": "return=minimal"
       },
-      body: JSON.stringify({ id, data: payload })
+      body: JSON.stringify({ id, data: payload, user_id: state.user.id })
     });
-    if(res.ok) return id;
+    if(res.ok){
+      shareUsedToday = Math.min(DAILY_SHARE_LIMIT, shareUsedToday + 1);
+      return id;
+    }
     if(res.status === 409) continue; // short code collision, try another
     let message = "";
     try{ const body = await res.json(); message = (body && body.message) || ""; }catch(e){}
-    if(/rate_limit_exceeded/i.test(message)){
+    if(/rate_limit_exceeded|daily share limit/i.test(message)){
       const err = new Error("share pack rate limited");
       err.rateLimited = true;
       throw err;
     }
-    throw new Error(`Supabase insert failed (${res.status})`);
+    throw new Error(`Supabase insert failed (${res.status}) ${message}`);
   }
   throw new Error("Couldn't generate a unique short code, try again.");
+}
+
+/* Authoritative count, straight from the table. Prefer: count=exact makes
+ * PostgREST report the total in Content-Range without shipping the rows. */
+let shareUsedToday = 0;
+async function refreshShareUsageFromServer(){
+  if(!shareBackendConfigured() || !state.session || !state.user){
+    shareUsedToday = 0;
+    updateShareUsageDisplays();
+    return;
+  }
+  const since = new Date();
+  since.setUTCHours(0, 0, 0, 0);
+  try{
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/${SHARE_TABLE}?user_id=eq.${state.user.id}&created_at=gte.${since.toISOString()}&select=id`,
+      {
+        headers: {
+          "apikey": SUPABASE_ANON_KEY,
+          "Authorization": `Bearer ${state.session.access_token}`,
+          "Prefer": "count=exact",
+          "Range": "0-0"
+        }
+      }
+    );
+    const range = res.headers.get("content-range") || "";
+    const total = parseInt(range.split("/")[1], 10);
+    if(!isNaN(total)) shareUsedToday = total;
+  }catch(e){
+    console.warn("Couldn't read share usage from the server", e);
+  }
+  updateShareUsageDisplays();
 }
 async function fetchShortShareCode(id){
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${SHARE_TABLE}?id=eq.${encodeURIComponent(id)}&select=data`, {
@@ -5273,10 +5269,13 @@ function showConfirm(messageHtml, {confirmLabel = null, danger = true} = {}){
           <button class="export-btn" data-choice="confirm" style="width:auto; margin-top:0; padding:9px 16px; ${danger ? 'background:var(--danger);' : ''}">${escapeHtml(confirmLabel)}</button>
         </div>
       </div>`;
+    function onEscape(e){ if(e.key === "Escape") finish(false); }
     function finish(result){
+      document.removeEventListener("keydown", onEscape);
       backdrop.remove();
       resolve(result);
     }
+    document.addEventListener("keydown", onEscape);
     backdrop.addEventListener("click", (e)=>{ if(e.target === backdrop) finish(false); });
     backdrop.querySelector('[data-choice="cancel"]').addEventListener("click", ()=>finish(false));
     backdrop.querySelector('[data-choice="confirm"]').addEventListener("click", ()=>finish(true));
@@ -5669,7 +5668,7 @@ function refreshVersionSelect(mod){
   if(!sel) return;
   const wasOpen = document.activeElement === sel;
   sel.innerHTML = sortByGameVersionRecency(mod.versions).map(v=>
-    `<option value="${v.id}" ${v.id === mod.selectedVersionId ? "selected" : ""}>${escapeHtml(v.version_number)} (${(v.loaders||[]).join(", ")})</option>`
+    `<option value="${v.id}" ${v.id === mod.selectedVersionId ? "selected" : ""}>${escapeHtml(v.version_number)} (${escapeHtml((v.loaders||[]).join(", "))})</option>`
   ).join("");
   sel.value = mod.selectedVersionId || sel.value;
   if(wasOpen) sel.focus();
@@ -7194,7 +7193,7 @@ async function pickModpackVersion(versions){
           ${latestIds.has(v.id) ? `<span class="latest-dot" title="${t('latestUploadTitle','Latest version uploaded')}"></span>` : ""}
           <span class="version-loaders">${loaderIconsHtml(v.loaders)}</span>
           <span class="vname">${escapeHtml(v.version_number)}</span>
-          <span class="vmeta">${(v.game_versions||[]).slice(-3).join(", ")} · ${(v.loaders||[]).join(", ")}</span>
+          <span class="vmeta">${escapeHtml((v.game_versions||[]).slice(-3).join(", "))} · ${escapeHtml((v.loaders||[]).join(", "))}</span>
         </div>`).join("");
       listEl.querySelectorAll(".version-row").forEach(row=>{
         row.addEventListener("click", ()=>finish(current[Number(row.dataset.idx)]));
