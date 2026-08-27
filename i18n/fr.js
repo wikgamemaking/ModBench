@@ -540,4 +540,18 @@ window.i18n.fr = {
   displayNameHint: "Laissez vide pour utiliser le nom déduit de votre adresse e-mail.",
   displayNameFailed: "Votre nom n'a pas pu être enregistré.",
   profileSaved: "Profil mis à jour.",
+
+  alertExportEmpty: "Il n'y a rien dans Créer à exporter pour l'instant.",
+  exportUnknownVersion: "version inconnue",
+  exportAndMore: "et {n} de plus",
+  exportBlockedIntro: "Ce pack ne se lancerait pas sur Minecraft {mc} avec {loader}. Voici ce qu'il faut corriger :",
+  exportWrongMc: "Mauvaise version de Minecraft",
+  exportWrongLoader: "Mauvais modloader",
+  exportNoFile: "Aucun fichier sélectionné",
+  exportNoHash: "Sommes de contrôle manquantes",
+  exportDuplicate: "Deux mods produisent le même nom de fichier",
+  exportFixNow: "Essayer de corriger automatiquement",
+  exportStillBroken: "Ces points n'ont pas pu être résolus automatiquement. Changez la version ou le loader cible, ou retirez les mods listés ci-dessus.",
+  exportNoLoaderVersion: "Impossible de déterminer quelle version de {loader} associer à Minecraft {mc}. Exporter maintenant produirait un pack sans modloader, donc rien ne se chargerait. Réessayez dans un instant, ou choisissez une autre cible.",
+  depsUnresolvable: "{mod} a besoin de {deps}, mais aucune version de cette dépendance ne fonctionne avec la cible de ce pack. Elle a été laissée de côté plutôt que d'ajouter une version qui casserait le pack.",
 };
