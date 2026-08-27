@@ -1176,10 +1176,16 @@
     padding:12px 14px; margin:0 0 14px;
     border-radius:12px; border:1px solid var(--border); background: var(--surface-2);
     animation: import-summary-in .34s cubic-bezier(.2,.85,.3,1);
+    transform-origin: left center;
+    transition: opacity .38s cubic-bezier(.22,1,.36,1), transform .38s cubic-bezier(.22,1,.36,1), filter .38s cubic-bezier(.22,1,.36,1);
   }
+  .import-summary.import-summary-clear-out{ opacity:0; transform: scale(.94) translateX(-10px); filter: blur(3px); pointer-events:none; }
   @keyframes import-summary-in{
     from{ opacity:0; transform: translateY(-7px); }
     to{ opacity:1; transform: translateY(0); }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .import-summary{ transition: none; }
   }
   .import-summary svg{ width:17px; height:17px; flex-shrink:0; margin-top:2px; color: var(--accent-dark); }
   .import-summary-body{ flex:1; min-width:0; font-size:0.85rem; line-height:1.5; }
@@ -8478,6 +8484,10 @@ document.getElementById("removeAllBtn").addEventListener("click", async ()=>{
   );
   if(ok){
     const listEl = document.getElementById("packList");
+    const summaryEl = document.getElementById("importSummary");
+    // A dismissed banner (or one from a previous, already-cleared import)
+    // has nothing left to animate - only fade it if it's still on screen.
+    const summaryVisible = !!(summaryEl && !summaryEl.hidden);
     const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     const doClear = ()=>{
       state.pack = [];
@@ -8486,6 +8496,7 @@ document.getElementById("removeAllBtn").addEventListener("click", async ()=>{
       renderLogoPicker();
       refreshAllViews();
       listEl.classList.remove("pack-clear-out");
+      if(summaryVisible) summaryEl.classList.remove("import-summary-clear-out");
       const emptyEl = document.getElementById("packEmpty");
       if(!reduceMotion && emptyEl){
         emptyEl.classList.remove("empty-pop-in");
@@ -8500,6 +8511,7 @@ document.getElementById("removeAllBtn").addEventListener("click", async ()=>{
       let done = false;
       const finish = ()=>{ if(done) return; done = true; doClear(); };
       listEl.classList.add("pack-clear-out");
+      if(summaryVisible) requestAnimationFrame(()=> summaryEl.classList.add("import-summary-clear-out"));
       const stagger = Math.min(28, 260 / rows.length);
       rows.forEach((row, i)=>{
         row.style.transitionDelay = `${i * stagger}ms`;
