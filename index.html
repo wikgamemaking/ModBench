@@ -1185,6 +1185,9 @@
     .modal-backdrop.closing .confirm-modal{ animation:none; }
   }
 
+  /* `hidden` is display:none at UA-stylesheet priority, which any class rule
+     with a display beats - hence the leftover empty bar after closing. */
+  .import-summary[hidden]{ display:none !important; }
   .import-summary{
     display:flex; align-items:flex-start; gap:11px;
     padding:12px 14px; margin:0 0 14px;
@@ -2281,6 +2284,21 @@
 
 <script>
 const API = "https://api.modrinth.com/v2";
+
+/* Import/dependency reporting state.
+ *
+ * Declared here, at the very top, rather than next to the code that fills it.
+ * `let` has no hoisting: reading one of these before its declaration
+ * statement runs is a ReferenceError, not undefined. applyLanguage() runs at
+ * the bottom of this script but calls renderImportSummary(), which reads
+ * lastImportReport - so a declaration further down killed the whole script
+ * on load and froze the page. */
+/* Required dependencies with no build that fits the pack target. */
+let unresolvableDeps = [];
+/* Dependencies an imported pack appears not to include. Reported, not added. */
+let importedPackNotes = [];
+/* What the last modpack import did, for the Create tab summary. */
+let lastImportReport = null;
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = 15000){
   const controller = new AbortController();
@@ -4395,6 +4413,7 @@ function updateFooterSeparator(){
 }
 
 function refreshDynamicContentForLanguage(){
+  renderImportSummary();
   if(state.tab === "browse" && state.results.length) renderResults();
   if(state.tab === "pack") renderPack();
   if(state.tab === "favorites") renderFavorites();
@@ -4417,7 +4436,9 @@ document.querySelectorAll("nav.tabs button").forEach(btn=>{
   btn.addEventListener("click", ()=>{
     document.querySelectorAll("nav.tabs button").forEach(b=>{b.classList.remove("active"); b.setAttribute("aria-selected","false");});
     btn.classList.add("active"); btn.setAttribute("aria-selected","true");
+    const leavingPack = state.tab === "pack";
     state.tab = btn.dataset.tab;
+    if(leavingPack && state.tab !== "pack" && lastImportReport) lastImportReport = null;
     updateFooterSeparator();
     ["browse","favorites","modpacks","pack","export"].forEach(t=>{
       const sec = document.getElementById("tab-"+t);
@@ -5336,15 +5357,6 @@ function showConfirm(messageHtml, {confirmLabel = null, danger = true} = {}){
   });
 }
 
-/* Populated by autoAddDependencies when a required dependency has no version
- * that fits the pack target. Surfaced to the user rather than swallowed. */
-let unresolvableDeps = [];
-/* Dependencies an imported pack appears not to include. Reported once after
- * the import rather than silently added. */
-let importedPackNotes = [];
-/* What the last modpack import actually did, so the Create tab can state it
- * plainly instead of leaving the user to interpret a rising number. */
-let lastImportReport = null;
 
 async function autoAddDependencies(version, visited, hostProjectType, packTarget, trusted = false){
   if(!version || !Array.isArray(version.dependencies)) return;
@@ -5869,6 +5881,9 @@ function packRowHtml(mod){
 function renderImportSummary(){
   const el = document.getElementById("importSummary");
   if(!el) return;
+  // Nothing left to describe once the pack is empty.
+  if(lastImportReport && !state.pack.length) lastImportReport = null;
+  if(lastImportReport && lastImportReport.seen && state.tab !== "pack") lastImportReport = null;
   if(!lastImportReport){ el.hidden = true; el.innerHTML = ""; return; }
   const r = lastImportReport;
   const targetBits = [];
@@ -5878,12 +5893,17 @@ function renderImportSummary(){
   const unresolved = r.filesInManifest - r.resolved;
   const lines = [];
   lines.push(`<strong>${escapeHtml(tf('importSummaryMain',
-    'Imported {added} of the {total} files in this modpack.',
+    'Added all {total} mods from this modpack.',
     { added: r.added, total: r.filesInManifest }))}</strong>`);
   if(targetBits.length){
     lines.push(`<span>${escapeHtml(tf('importSummaryTarget',
       'Export target set to {target} from the pack\u2019s own manifest.',
       { target: targetBits.join(" · ") }))}</span>`);
+  }
+  if(r.added !== r.filesInManifest || unresolved > 0){
+    lines[0] = `<strong>${escapeHtml(tf('importSummaryPartial',
+      'Added {added} of the {total} mods in this modpack.',
+      { added: r.added, total: r.filesInManifest }))}</strong>`;
   }
   if(unresolved > 0){
     lines.push(`<span>${escapeHtml(tPlural(unresolved,
@@ -5892,8 +5912,8 @@ function renderImportSummary(){
   }
   if(r.notes && r.notes.length){
     lines.push(`<span>${escapeHtml(tPlural(r.notes.length,
-      'importSummaryNotesOne','{n} declared dependency is not in the pack. Left as the author shipped it.',
-      'importSummaryNotesOther','{n} declared dependencies are not in the pack. Left as the author shipped it.'))}</span>`);
+      'importSummaryNotesOne','{n} mod lists a dependency this pack does not include. Nothing was added: the pack ships as its author built it.',
+      'importSummaryNotesOther','{n} mods list dependencies this pack does not include. Nothing was added: the pack ships as its author built it.'))}</span>`);
   }
 
   el.hidden = false;
@@ -5903,6 +5923,9 @@ function renderImportSummary(){
     <button type="button" class="import-summary-close" id="importSummaryClose" aria-label="${escapeHtml(t('close','Close'))}">✕</button>`;
   const close = el.querySelector("#importSummaryClose");
   if(close) close.addEventListener("click", ()=>{ lastImportReport = null; renderImportSummary(); });
+  // One viewing is enough. Leaving Create and coming back should not replay a
+  // message about something that already happened.
+  lastImportReport.seen = true;
 }
 
 function renderPack(){
@@ -8085,7 +8108,11 @@ function renderExport(){
   }
 }
 
-const LOADER_VERSION_FALLBACK = { fabric: "0.16.9", quilt: "0.26.3" };
+/* No hardcoded fallback. A stale pinned loader is worse than no answer:
+ * 0.16.9 was emitted for Minecraft 26.1.2, and that Fabric Loader's bundled
+ * ASM cannot read Java 25 class files, so the instance died at startup with
+ * "Unsupported class file major version 69" before a single mod loaded.
+ * If the real version cannot be resolved, the exporter refuses instead. */
 
 /* Resolves the loader version that goes in modrinth.index.json.
  *
@@ -8098,6 +8125,20 @@ const LOADER_VERSION_FALLBACK = { fabric: "0.16.9", quilt: "0.26.3" };
 async function getLoaderDependencyVersion(loader, mcVersion){
   try{
     if(loader === "fabric"){
+      // Per-version endpoint, not the global list. The global list is ordered
+      // newest-first overall, which says nothing about whether that build can
+      // run the Minecraft version being targeted; /loader/<mc> returns only
+      // builds that can.
+      if(mcVersion){
+        const res = await fetchWithTimeout(`https://meta.fabricmc.net/v2/versions/loader/${encodeURIComponent(mcVersion)}`, {}, 9000);
+        if(res.ok){
+          const entries = await res.json();
+          if(Array.isArray(entries) && entries.length){
+            const best = entries.find(e=>e.loader && e.loader.stable) || entries[0];
+            if(best && best.loader && best.loader.version) return best.loader.version;
+          }
+        }
+      }
       const res = await fetchWithTimeout("https://meta.fabricmc.net/v2/versions/loader", {}, 8000);
       if(res.ok){
         const versions = await res.json();
@@ -8105,6 +8146,16 @@ async function getLoaderDependencyVersion(loader, mcVersion){
         if(best && best.loader && best.loader.version) return best.loader.version;
       }
     } else if(loader === "quilt"){
+      if(mcVersion){
+        const res = await fetchWithTimeout(`https://meta.quiltmc.org/v3/versions/loader/${encodeURIComponent(mcVersion)}`, {}, 9000);
+        if(res.ok){
+          const entries = await res.json();
+          if(Array.isArray(entries) && entries.length){
+            const best = entries.find(e=>e.loader && e.loader.version && !/beta|alpha|rc/i.test(e.loader.version)) || entries[0];
+            if(best && best.loader && best.loader.version) return best.loader.version;
+          }
+        }
+      }
       const res = await fetchWithTimeout("https://meta.quiltmc.org/v3/versions/loader", {}, 8000);
       if(res.ok){
         const versions = await res.json();
@@ -8136,7 +8187,7 @@ async function getLoaderDependencyVersion(loader, mcVersion){
   }catch(e){
     console.warn(`Couldn't resolve the ${loader} loader version`, e);
   }
-  return LOADER_VERSION_FALLBACK[loader] || "";
+  return "";
 }
 
 /* ------------------------------------------------------------------ *
@@ -8271,6 +8322,7 @@ document.getElementById("exportBtn").addEventListener("click", async ()=>{
   // Without a loader entry the launcher builds a vanilla instance and nothing
   // loads. Better to stop than to hand over a pack that silently does nothing.
   if(!loaderDepVersion){
+    console.warn(`No ${loader} build is published for Minecraft ${mcVersion}.`);
     await showConfirm(
       escapeHtml(tf('exportNoLoaderVersion',
         "Couldn't work out which {loader} version to pair with Minecraft {mc}. Exporting now would produce a pack with no mod loader, so nothing would load. Try again in a moment, or pick a different target.",
