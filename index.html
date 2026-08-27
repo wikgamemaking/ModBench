@@ -1165,6 +1165,47 @@
     .avatar-drop.is-over{ transform:none; }
   }
 
+  .confirm-modal-body{
+    margin:0 0 20px; font-size:0.95rem; line-height:1.55;
+    max-height:min(52vh, 420px); overflow-y:auto;
+    /* Long problem lists used to run off the bottom of the screen with the
+       buttons pushed out of reach. */
+    padding-right:4px;
+  }
+  .confirm-modal-body::-webkit-scrollbar{ width:8px; }
+  .confirm-modal-body::-webkit-scrollbar-thumb{ background: var(--border); border-radius:99px; }
+  .confirm-modal-body ul{ animation: confirm-list-in .4s cubic-bezier(.2,.85,.3,1) backwards .06s; }
+  @keyframes confirm-list-in{
+    from{ opacity:0; transform: translateY(6px); }
+    to{ opacity:1; transform: translateY(0); }
+  }
+  .modal-backdrop.closing .confirm-modal{ animation: modal-pop-out .18s cubic-bezier(.4,0,.7,.2) forwards; }
+  @media (prefers-reduced-motion: reduce){
+    .confirm-modal-body ul{ animation:none; }
+    .modal-backdrop.closing .confirm-modal{ animation:none; }
+  }
+
+  .import-summary{
+    display:flex; align-items:flex-start; gap:11px;
+    padding:12px 14px; margin:0 0 14px;
+    border-radius:12px; border:1px solid var(--border); background: var(--surface-2);
+    animation: import-summary-in .34s cubic-bezier(.2,.85,.3,1);
+  }
+  @keyframes import-summary-in{
+    from{ opacity:0; transform: translateY(-7px); }
+    to{ opacity:1; transform: translateY(0); }
+  }
+  .import-summary svg{ width:17px; height:17px; flex-shrink:0; margin-top:2px; color: var(--accent-dark); }
+  .import-summary-body{ flex:1; min-width:0; font-size:0.85rem; line-height:1.5; }
+  .import-summary-body strong{ color: var(--text); }
+  .import-summary-body span{ color: var(--text-dim); }
+  .import-summary-close{
+    background:none; border:none; cursor:pointer; color: var(--text-dim);
+    padding:3px 5px; border-radius:7px; font-size:0.85rem; line-height:1;
+    transition: background .15s ease, color .15s ease;
+  }
+  .import-summary-close:hover{ background: var(--surface); color: var(--text); }
+
   .auth-modal{ max-width:380px; }
   .auth-modal-title{ display:flex; align-items:center; gap:10px; }
   .auth-modal-badge{
@@ -2111,6 +2152,7 @@
       <button class="page-btn" id="removeAllBtn" style="color:var(--danger); border-color:var(--danger-border);" data-i18n="createRemoveAll">Remove all contents</button>
     </div>
     <div id="packIssueBanner" class="compat-summary bad" style="display:none;"></div>
+    <div id="importSummary" class="import-summary" hidden></div>
     <div id="packList"></div>
     <div id="packEmpty" class="empty-state" style="display:none;">
       <div class="big">🧰</div>
@@ -5270,8 +5312,8 @@ function showConfirm(messageHtml, {confirmLabel = null, danger = true} = {}){
     backdrop.className = "modal-backdrop";
     backdrop.style.alignItems = "center";
     backdrop.innerHTML = `
-      <div class="modal" style="max-width:380px;">
-        <p style="margin:0 0 20px; font-size:0.95rem;">${messageHtml}</p>
+      <div class="modal confirm-modal" style="max-width:440px;">
+        <div class="confirm-modal-body">${messageHtml}</div>
         <div style="display:flex; gap:10px; justify-content:flex-end;">
           <button class="page-btn" data-choice="cancel" style="height:auto; padding:9px 16px; font-size:1rem;">${t('cancel','Cancel')}</button>
           <button class="export-btn" data-choice="confirm" style="width:auto; margin-top:0; padding:9px 16px; ${danger ? 'background:var(--danger);' : ''}">${escapeHtml(confirmLabel)}</button>
@@ -5280,8 +5322,11 @@ function showConfirm(messageHtml, {confirmLabel = null, danger = true} = {}){
     function onEscape(e){ if(e.key === "Escape") finish(false); }
     function finish(result){
       document.removeEventListener("keydown", onEscape);
-      backdrop.remove();
+      // Resolve immediately and let the exit animation play out on its own:
+      // making the caller wait on an animation is how modals end up feeling
+      // sluggish.
       resolve(result);
+      dismissModalBackdrop(backdrop);
     }
     document.addEventListener("keydown", onEscape);
     backdrop.addEventListener("click", (e)=>{ if(e.target === backdrop) finish(false); });
@@ -5297,6 +5342,9 @@ let unresolvableDeps = [];
 /* Dependencies an imported pack appears not to include. Reported once after
  * the import rather than silently added. */
 let importedPackNotes = [];
+/* What the last modpack import actually did, so the Create tab can state it
+ * plainly instead of leaving the user to interpret a rising number. */
+let lastImportReport = null;
 
 async function autoAddDependencies(version, visited, hostProjectType, packTarget, trusted = false){
   if(!version || !Array.isArray(version.dependencies)) return;
@@ -5815,7 +5863,50 @@ function packRowHtml(mod){
     </div>`;
 }
 
+/* States plainly what the import did. The count pill going up is ambiguous -
+ * it cannot distinguish "the pack has 174 files" from "we added 4 mods it
+ * never asked for" - so the numbers are spelled out instead. */
+function renderImportSummary(){
+  const el = document.getElementById("importSummary");
+  if(!el) return;
+  if(!lastImportReport){ el.hidden = true; el.innerHTML = ""; return; }
+  const r = lastImportReport;
+  const targetBits = [];
+  if(r.target && r.target.mcVersion) targetBits.push(r.target.mcVersion);
+  if(r.target && r.target.loader) targetBits.push(formatLoaderName(r.target.loader));
+
+  const unresolved = r.filesInManifest - r.resolved;
+  const lines = [];
+  lines.push(`<strong>${escapeHtml(tf('importSummaryMain',
+    'Imported {added} of the {total} files in this modpack.',
+    { added: r.added, total: r.filesInManifest }))}</strong>`);
+  if(targetBits.length){
+    lines.push(`<span>${escapeHtml(tf('importSummaryTarget',
+      'Export target set to {target} from the pack\u2019s own manifest.',
+      { target: targetBits.join(" · ") }))}</span>`);
+  }
+  if(unresolved > 0){
+    lines.push(`<span>${escapeHtml(tPlural(unresolved,
+      'importSummaryUnresolvedOne','{n} file is not on Modrinth and could not be included.',
+      'importSummaryUnresolvedOther','{n} files are not on Modrinth and could not be included.'))}</span>`);
+  }
+  if(r.notes && r.notes.length){
+    lines.push(`<span>${escapeHtml(tPlural(r.notes.length,
+      'importSummaryNotesOne','{n} declared dependency is not in the pack. Left as the author shipped it.',
+      'importSummaryNotesOther','{n} declared dependencies are not in the pack. Left as the author shipped it.'))}</span>`);
+  }
+
+  el.hidden = false;
+  el.innerHTML = `
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+    <div class="import-summary-body">${lines.join("<br>")}</div>
+    <button type="button" class="import-summary-close" id="importSummaryClose" aria-label="${escapeHtml(t('close','Close'))}">✕</button>`;
+  const close = el.querySelector("#importSummaryClose");
+  if(close) close.addEventListener("click", ()=>{ lastImportReport = null; renderImportSummary(); });
+}
+
 function renderPack(){
+  renderImportSummary();
   // Adding or removing a mod can flip a saved card between "Open in Create"
   // and "Already in Create"; refresh them whenever the pack is redrawn.
   renderSavedPacks();
@@ -6235,6 +6326,10 @@ async function runCompatibilityCheck(){
         continue;
       }
       if(dep.dependency_type === "required"){
+        // Still on the exact version the modpack shipped: the author tested
+        // this combination, so a "missing" dependency here is our metadata
+        // being wrong, not the pack being broken.
+        if(mod.trustedFromModpack) continue;
         const depProjectId = await resolveDepProjectId(dep);
         if(!depProjectId) continue;
         if(state.pack.some(p=>p.id === depProjectId)) continue;
@@ -7375,6 +7470,31 @@ async function importMrpackZipIntoPack(zip, meta = {}){
   foundVersions.forEach(v=>updateCardButtonsEverywhere(v.project_id));
 
   const packTarget = { loader: loaders[0] || null, mcVersion: gameVersions[0] || null };
+
+  // Adopt the manifest's target as the export target. Marked as touched so
+  // nothing downstream second-guesses it: the author's own numbers beat any
+  // heuristic we could run over the file list.
+  if(packTarget.mcVersion){
+    const expMcEl = document.getElementById("expMcVersion");
+    if(expMcEl){
+      if(!Array.from(expMcEl.options).some(o=>o.value === packTarget.mcVersion)){
+        // Older or snapshot targets are not in the dropdown; add it rather
+        // than silently falling back to something the pack cannot run on.
+        expMcEl.insertAdjacentHTML("afterbegin",
+          `<option value="${escapeHtml(packTarget.mcVersion)}">${escapeHtml(packTarget.mcVersion)}</option>`);
+      }
+      expMcEl.value = packTarget.mcVersion;
+      state.expMcTouched = true;
+    }
+  }
+  if(packTarget.loader){
+    const expLoaderEl = document.getElementById("expLoader");
+    if(expLoaderEl && Array.from(expLoaderEl.options).some(o=>o.value === packTarget.loader)){
+      expLoaderEl.value = packTarget.loader;
+      state.expLoaderTouched = true;
+    }
+  }
+
   importedPackNotes = [];
   const depVisited = new Set(foundVersions.map(v=>v.project_id));
   for(const v of foundVersions){
@@ -7389,6 +7509,13 @@ async function importMrpackZipIntoPack(zip, meta = {}){
   if(importedPackNotes.length){
     console.info("[ModBench] Imported pack does not list these declared dependencies (left untouched):", importedPackNotes);
   }
+  lastImportReport = {
+    filesInManifest: hashes.length,
+    resolved: foundVersions.length,
+    added,
+    target: packTarget,
+    notes: importedPackNotes.slice()
+  };
   savePack();
   foundVersions.forEach(v=>updateCardButtonsEverywhere(v.project_id));
 
@@ -8054,14 +8181,16 @@ function validatePackForExport(mcVersion, loader){
     if(!version){ problems.wrongMc.push(`${mod.title} (${t('exportUnknownVersion','version unknown')})`); return; }
 
     const gvs = version.game_versions || [];
-    if(mcVersion && gvs.length && !gvs.includes(mcVersion)){
+    if(mcVersion && gvs.length && !mod.trustedFromModpack && !gvs.includes(mcVersion)){
       problems.wrongMc.push(`${mod.title} (${gvs.slice(-3).join(", ")})`);
     }
 
     const loaders = version.loaders || [];
     const agnostic = !loaders.length
       || loaders.every(l=>["minecraft","iris","optifine","canvas","vanilla","datapack"].includes(l));
-    if(loader && !agnostic && !loaders.some(l=>runnable.includes(l))){
+    // A file still on the version its modpack shipped is left alone: the pack
+    // ran with it, whatever the loader tags say.
+    if(loader && !agnostic && !mod.trustedFromModpack && !loaders.some(l=>runnable.includes(l))){
       problems.wrongLoader.push(`${mod.title} (${loaders.join(", ")})`);
     }
   });
