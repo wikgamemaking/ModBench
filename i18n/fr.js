@@ -9,6 +9,7 @@ window.i18n.fr = {
   helpToggleLabel: "Guide de démarrage",
   themeToggleLabel: "Basculer en mode sombre",
   langToggleLabel: "Changer de langue",
+  menuTitle: "Paramètres",
 
   browseMcVersion: "Version du jeu",
   browseAnyVersion: "Toutes les versions",
