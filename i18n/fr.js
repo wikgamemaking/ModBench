@@ -554,4 +554,11 @@ window.i18n.fr = {
   exportStillBroken: "Ces points n'ont pas pu être résolus automatiquement. Changez la version ou le loader cible, ou retirez les mods listés ci-dessus.",
   exportNoLoaderVersion: "Impossible de déterminer quelle version de {loader} associer à Minecraft {mc}. Exporter maintenant produirait un pack sans modloader, donc rien ne se chargerait. Réessayez dans un instant, ou choisissez une autre cible.",
   depsUnresolvable: "{mod} a besoin de {deps}, mais aucune version de cette dépendance ne fonctionne avec la cible de ce pack. Elle a été laissée de côté plutôt que d'ajouter une version qui casserait le pack.",
+
+  importSummaryMain: "{added} des {total} fichiers de ce modpack ont été importés.",
+  importSummaryTarget: "Cible d'export réglée sur {target} d'après le manifeste du pack.",
+  importSummaryUnresolvedOne: "{n} fichier n'est pas sur Modrinth et n'a pas pu être inclus.",
+  importSummaryUnresolvedOther: "{n} fichiers ne sont pas sur Modrinth et n'ont pas pu être inclus.",
+  importSummaryNotesOne: "{n} dépendance déclarée ne figure pas dans le pack. Laissé tel que l'auteur l'a publié.",
+  importSummaryNotesOther: "{n} dépendances déclarées ne figurent pas dans le pack. Laissé tel que l'auteur l'a publié.",
 };
