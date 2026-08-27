@@ -5222,8 +5222,16 @@ async function quickAdd(projectId){
     });
     savePack();
     if(state.tab === "pack") renderPack();
-    await autoAddDependencies(best, new Set([hitId]), hit.project_type || state.browseType || "mod");
+    unresolvableDeps = [];
+    const target = currentPackTarget();
+    await autoAddDependencies(best, new Set([hitId]), hit.project_type || state.browseType || "mod", target);
     await ensureLoaderApis(best ? best.game_versions : null, best ? best.loaders : null);
+    if(unresolvableDeps.length){
+      const names = unresolvableDeps.map(d=>d.title).join(", ");
+      showToast(tf('depsUnresolvable',
+        "{mod} needs {deps}, but no build of it runs on this pack's target. It was left out rather than adding a version that would break the pack.",
+        { mod: hit.title, deps: names }), { duration: 10000 });
+    }
     savePack();
     if(state.tab === "pack") renderPack();
   }catch(e){
@@ -5283,8 +5291,18 @@ function showConfirm(messageHtml, {confirmLabel = null, danger = true} = {}){
   });
 }
 
+/* Populated by autoAddDependencies when a required dependency has no version
+ * that fits the pack target. Surfaced to the user rather than swallowed. */
+let unresolvableDeps = [];
+/* Dependencies an imported pack appears not to include. Reported once after
+ * the import rather than silently added. */
+let importedPackNotes = [];
+
 async function autoAddDependencies(version, visited, hostProjectType, packTarget, trusted = false){
   if(!version || !Array.isArray(version.dependencies)) return;
+  // Always aim at the pack target. Callers used to omit this, which sent
+  // resolution through the Browse filters instead.
+  const target = packTarget || currentPackTarget();
   for(const dep of version.dependencies){
     if(dep.dependency_type !== "required") continue;
     let depProjectId = dep.project_id;
@@ -5298,14 +5316,32 @@ async function autoAddDependencies(version, visited, hostProjectType, packTarget
     visited.add(depProjectId);
     if(state.pack.some(p=>p.id === depProjectId)) continue;
     if(hasEquivalentInPack(depProjectId)) continue;
+    if(trusted){
+      // Note it, do not add it. The author shipped what the pack needs.
+      try{
+        const proj = await getProjectInfoCached(depProjectId);
+        importedPackNotes.push(proj ? proj.title : depProjectId);
+      }catch(e){ importedPackNotes.push(depProjectId); }
+      continue;
+    }
     try{
       const proj = await fetchWithTimeout(`${API}/project/${depProjectId}`).then(r=>r.ok?r.json():null);
       if(!proj) continue;
       const versions = await fetchVersions(depProjectId);
-      const best = packTarget
-        ? pickBestVersionForPackTarget(versions, packTarget.loader, packTarget.mcVersion, version.game_versions, version.loaders)
-        : pickBestVersion(versions, version.game_versions, version.loaders);
-      if(!best) continue;
+      const best = pickCompatibleVersion(versions, target.loader, target.mcVersion);
+      if(!best){
+        // No build of this dependency runs on the pack's target. Adding the
+        // newest one anyway is exactly what produced broken exports, so it is
+        // recorded and skipped instead.
+        unresolvableDeps.push({
+          id: depProjectId,
+          title: proj.title,
+          requiredBy: version.name || version.version_number || "",
+          loader: target.loader,
+          mcVersion: target.mcVersion
+        });
+        continue;
+      }
       state.pack.push({
         id: depProjectId,
         title: proj.title,
@@ -5324,7 +5360,7 @@ async function autoAddDependencies(version, visited, hostProjectType, packTarget
         selectedFile: best.files.find(f=>f.primary) || best.files[0],
         versions
       });
-      await autoAddDependencies(best, visited, proj.project_type, packTarget, trusted);
+      await autoAddDependencies(best, visited, proj.project_type, target, trusted);
       updateCardButtonsEverywhere(depProjectId);
     }catch(e){ console.error("Failed to add dependency", depProjectId, e); }
   }
@@ -5349,9 +5385,11 @@ async function addLoaderApiMod(apiId, hintGameVersions, requiredLoader, trusted 
     if(!proj) return;
     const versions = await fetchVersions(apiId);
     if(!versions.length) return;
-    const loaderMatched = versions.filter(v=>v.loaders.includes(requiredLoader));
-    const pool = loaderMatched.length ? loaderMatched : versions;
-    const best = pickBestVersion(pool, hintGameVersions, [requiredLoader]);
+    const target = currentPackTarget();
+    const best = pickCompatibleVersion(versions, requiredLoader, target.mcVersion)
+      || pickCompatibleVersion(versions, requiredLoader, (hintGameVersions || [])[0]);
+    // If no build of the loader API fits the target, adding one at random is
+    // worse than adding none: it guarantees a version mismatch at launch.
     if(!best) return;
     state.pack.push({
       id: apiId,
@@ -5388,6 +5426,11 @@ function packLeansFabric(){
 }
 
 async function ensureLoaderApis(hintGameVersions, loadersInvolved, trusted = false){
+  // A modpack import already contains every file the author shipped. Adding
+  // Fabric API or Quilt API on top is how the mod count crept up on packs
+  // that were complete to begin with, and it can install a build that does
+  // not match the one the pack was tested against.
+  if(trusted) return;
   let loaders = (loadersInvolved && loadersInvolved.length) ? loadersInvolved : state.loaders;
   if(state.loaders.length && loadersInvolved && loadersInvolved.length){
     const narrowed = loadersInvolved.filter(l=>state.loaders.includes(l));
@@ -5403,6 +5446,52 @@ async function ensureLoaderApis(hintGameVersions, loadersInvolved, trusted = fal
     }
   }
   await Promise.all(tasks);
+}
+
+/* Returns only versions that genuinely run on the target, newest first.
+ * Empty array means "this project cannot satisfy the target" - which is a
+ * real answer and must be allowed to propagate, not papered over. */
+function versionsMatchingTarget(versions, targetLoader, targetMc, bridges){
+  if(!Array.isArray(versions) || !versions.length) return [];
+  const runnable = targetLoader
+    ? (LOADER_RUNS_ON[targetLoader] || [targetLoader]).concat(
+        (bridges || []).filter(b=>b.on.includes(targetLoader)).flatMap(b=>b.runs)
+      )
+    : null;
+  return sortByGameVersionRecency(versions).filter(v=>{
+    const loaders = v.loaders || [];
+    // Resource packs and shaders declare "minecraft"/"iris"/"optifine"
+    // rather than a mod loader; they are loader agnostic by nature.
+    const agnostic = !loaders.length
+      || loaders.every(l=>["minecraft","iris","optifine","canvas","vanilla","datapack"].includes(l));
+    const loaderOk = !runnable || agnostic || loaders.some(l=>runnable.includes(l));
+    const mcOk = !targetMc || (v.game_versions || []).includes(targetMc);
+    const hasFile = Array.isArray(v.files) && v.files.length > 0;
+    return loaderOk && mcOk && hasFile;
+  });
+}
+
+function pickCompatibleVersion(versions, targetLoader, targetMc, bridges){
+  return versionsMatchingTarget(versions, targetLoader, targetMc, bridges)[0] || null;
+}
+
+// The pack's export target, read straight from the Export tab when the user
+// has set it. Dependency resolution must aim at THIS, never at the Browse
+// sidebar filters, which are a browsing convenience and unrelated.
+function currentPackTarget(){
+  const expLoaderEl = document.getElementById("expLoader");
+  const expMcEl = document.getElementById("expMcVersion");
+  const explicitLoader = (expLoaderEl && expLoaderEl.value) ? expLoaderEl.value : null;
+  const explicitMc = (expMcEl && expMcEl.value) ? expMcEl.value : null;
+  if(explicitLoader || explicitMc) return { loader: explicitLoader, mcVersion: explicitMc };
+
+  const selected = state.pack
+    .filter(m=>m.selectedVersionId && Array.isArray(m.versions))
+    .map(m=>({ mod: m, version: m.versions.find(v=>v.id === m.selectedVersionId) }))
+    .filter(x=>x.version);
+  if(!selected.length) return { loader: null, mcVersion: null };
+  try{ return getCompatTargets(selected); }
+  catch(e){ return { loader: null, mcVersion: null }; }
 }
 
 function pickBestVersion(versions, hintGameVersions, hintLoaders){
@@ -6264,14 +6353,11 @@ async function autoAddMissingDependency(depProjectId, targetLoader, targetMc){
     const versions = await fetchVersions(depProjectId);
     if(!versions.length) return false;
 
-    const runnableLoaders = targetLoader ? (LOADER_RUNS_ON[targetLoader] || [targetLoader]) : null;
-    const matching = sortByGameVersionRecency(versions).filter(v=>{
-      const loaderOk = !runnableLoaders || (v.loaders||[]).some(l=>runnableLoaders.includes(l));
-      const mcOk = !targetMc || (v.game_versions||[]).includes(targetMc);
-      return loaderOk && mcOk;
-    });
-    const best = matching[0] || pickBestVersion(versions);
-    if(!best || !best.files || !best.files.length) return false;
+    const best = pickCompatibleVersion(versions, targetLoader, targetMc);
+    // Was: `matching[0] || pickBestVersion(versions)`. That fallback is the
+    // bug - if nothing matches, the honest answer is that this dependency
+    // cannot be satisfied, and the caller reports it as unresolved.
+    if(!best) return false;
 
     state.pack.push({
       id: depProjectId,
@@ -6288,7 +6374,7 @@ async function autoAddMissingDependency(depProjectId, targetLoader, targetMc){
       selectedFile: best.files.find(f=>f.primary) || best.files[0],
       versions
     });
-    await autoAddDependencies(best, new Set([depProjectId]), proj.project_type || "mod");
+    await autoAddDependencies(best, new Set([depProjectId]), proj.project_type || "mod", { loader: targetLoader, mcVersion: targetMc });
     await ensureLoaderApis(best.game_versions, best.loaders);
     return true;
   }catch(e){
@@ -7289,6 +7375,7 @@ async function importMrpackZipIntoPack(zip, meta = {}){
   foundVersions.forEach(v=>updateCardButtonsEverywhere(v.project_id));
 
   const packTarget = { loader: loaders[0] || null, mcVersion: gameVersions[0] || null };
+  importedPackNotes = [];
   const depVisited = new Set(foundVersions.map(v=>v.project_id));
   for(const v of foundVersions){
     const proj = projectById[v.project_id];
@@ -7299,6 +7386,9 @@ async function importMrpackZipIntoPack(zip, meta = {}){
   try{
     await ensureLoaderApis(gameVersions, loaders, true);
   }catch(e){ console.error("Loader API resolution failed", e); }
+  if(importedPackNotes.length){
+    console.info("[ModBench] Imported pack does not list these declared dependencies (left untouched):", importedPackNotes);
+  }
   savePack();
   foundVersions.forEach(v=>updateCardButtonsEverywhere(v.project_id));
 
@@ -7677,12 +7767,17 @@ async function importSharedPack(rawInput){
       added++;
     });
 
+    // A share code is a complete pack that already exported cleanly, so it is
+    // treated exactly like an imported .mrpack: resolve against its own
+    // target, and do not add to it.
+    const shareTarget = { loader: data.l || null, mcVersion: data.mc || null };
+    importedPackNotes = [];
     const depVisited = new Set(versions.map(v=>v.project_id));
     for(const v of versions){
       const proj = projectById[v.project_id];
-      await autoAddDependencies(v, depVisited, (proj && proj.project_type) || "mod");
+      await autoAddDependencies(v, depVisited, (proj && proj.project_type) || "mod", shareTarget, true);
     }
-    await ensureLoaderApis(data.mc ? [data.mc] : [], data.l ? [data.l] : []);
+    await ensureLoaderApis(data.mc ? [data.mc] : [], data.l ? [data.l] : [], true);
     savePack();
     versions.forEach(v=>updateCardButtonsEverywhere(v.project_id));
 
@@ -7863,9 +7958,17 @@ function renderExport(){
   }
 }
 
-// TODO: forge/neoforge loader versions not resolved yet.
 const LOADER_VERSION_FALLBACK = { fabric: "0.16.9", quilt: "0.26.3" };
-async function getLoaderDependencyVersion(loader){
+
+/* Resolves the loader version that goes in modrinth.index.json.
+ *
+ * This used to handle only Fabric and Quilt, and returned "" for Forge and
+ * NeoForge - at which point the caller omitted the loader from `dependencies`
+ * entirely. A .mrpack with no loader is a vanilla instance: the launcher
+ * accepts it, installs nothing, and every mod fails to load. That is the
+ * single most likely cause of a "worked in ModBench, broken on launch" pack.
+ */
+async function getLoaderDependencyVersion(loader, mcVersion){
   try{
     if(loader === "fabric"){
       const res = await fetchWithTimeout("https://meta.fabricmc.net/v2/versions/loader", {}, 8000);
@@ -7881,11 +7984,113 @@ async function getLoaderDependencyVersion(loader){
         const best = versions.find(v=>v.version && !/beta|alpha|rc/i.test(v.version)) || versions[0];
         if(best && best.version) return best.version;
       }
+    } else if(loader === "neoforge"){
+      // NeoForge versions encode the Minecraft version: 1.21.1 -> 21.1.x,
+      // 1.20.4 -> 20.4.x. Filter to the matching series, newest stable first.
+      const res = await fetchWithTimeout("https://maven.neoforged.net/api/maven/versions/releases/net/neoforged/neoforge", {}, 9000);
+      if(res.ok){
+        const all = ((await res.json()).versions || []).filter(v=>!/beta/i.test(v));
+        const m = /^1\.(\d+)(?:\.(\d+))?$/.exec(mcVersion || "");
+        if(m){
+          const prefix = `${m[1]}.${m[2] || "0"}.`;
+          const series = all.filter(v=>v.startsWith(prefix));
+          if(series.length) return series[series.length - 1];
+        }
+        if(all.length) return all[all.length - 1];
+      }
+    } else if(loader === "forge"){
+      const res = await fetchWithTimeout("https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json", {}, 9000);
+      if(res.ok){
+        const promos = (await res.json()).promos || {};
+        const pick = promos[`${mcVersion}-recommended`] || promos[`${mcVersion}-latest`];
+        if(pick) return pick;
+      }
     }
   }catch(e){
-    console.error(`Failed to resolve latest ${loader} loader version, using fallback`, e);
+    console.warn(`Couldn't resolve the ${loader} loader version`, e);
   }
   return LOADER_VERSION_FALLBACK[loader] || "";
+}
+
+/* ------------------------------------------------------------------ *
+ * Export preflight.
+ *
+ * Nothing downstream of this can produce a valid pack from invalid input, so
+ * this is the gate: every problem that would break the instance at launch is
+ * caught here and reported by name, and export is refused until it is clear.
+ * ------------------------------------------------------------------ */
+function validatePackForExport(mcVersion, loader){
+  const problems = { wrongMc: [], wrongLoader: [], noFile: [], noHash: [], duplicatePath: [] };
+  const bridges = (typeof getActiveLoaderBridges === "function")
+    ? getActiveLoaderBridges(state.pack
+        .filter(m=>m.selectedVersionId && Array.isArray(m.versions))
+        .map(m=>({ mod: m, version: m.versions.find(v=>v.id === m.selectedVersionId) }))
+        .filter(x=>x.version))
+    : [];
+  const runnable = (LOADER_RUNS_ON[loader] || [loader]).concat(
+    bridges.filter(b=>b.on.includes(loader)).flatMap(b=>b.runs)
+  );
+  const seenPaths = new Map();
+
+  state.pack.forEach(mod=>{
+    const version = Array.isArray(mod.versions)
+      ? mod.versions.find(v=>v.id === mod.selectedVersionId)
+      : null;
+    const file = mod.selectedFile;
+
+    if(!file || !file.filename || !file.url){ problems.noFile.push(mod.title); return; }
+    if(!file.hashes || !file.hashes.sha1 || !file.hashes.sha512){ problems.noHash.push(mod.title); }
+
+    const folder = ({ mod: "mods", shader: "shaderpacks", resourcepack: "resourcepacks" })[mod.projectType] || "mods";
+    const path = `${folder}/${file.filename}`;
+    if(seenPaths.has(path)){
+      problems.duplicatePath.push(`${mod.title} / ${seenPaths.get(path)}`);
+    } else {
+      seenPaths.set(path, mod.title);
+    }
+
+    // A missing version record means we cannot prove compatibility either
+    // way. Treat it as a failure rather than assuming the best.
+    if(!version){ problems.wrongMc.push(`${mod.title} (${t('exportUnknownVersion','version unknown')})`); return; }
+
+    const gvs = version.game_versions || [];
+    if(mcVersion && gvs.length && !gvs.includes(mcVersion)){
+      problems.wrongMc.push(`${mod.title} (${gvs.slice(-3).join(", ")})`);
+    }
+
+    const loaders = version.loaders || [];
+    const agnostic = !loaders.length
+      || loaders.every(l=>["minecraft","iris","optifine","canvas","vanilla","datapack"].includes(l));
+    if(loader && !agnostic && !loaders.some(l=>runnable.includes(l))){
+      problems.wrongLoader.push(`${mod.title} (${loaders.join(", ")})`);
+    }
+  });
+
+  const total = Object.values(problems).reduce((n, arr)=>n + arr.length, 0);
+  return { problems, total };
+}
+
+function exportProblemsHtml(problems, mcVersion, loader){
+  const block = (list, headingKey, headingFallback)=>{
+    if(!list.length) return "";
+    return `<div style="margin-top:12px;">
+      <div style="font-weight:800; font-size:0.86rem; margin-bottom:5px;">${escapeHtml(t(headingKey, headingFallback))}</div>
+      <ul style="margin:0; padding-left:18px; font-size:0.83rem; color:var(--text-dim); line-height:1.55;">
+        ${list.slice(0, 12).map(x=>`<li>${escapeHtml(x)}</li>`).join("")}
+        ${list.length > 12 ? `<li>${escapeHtml(tf('exportAndMore','and {n} more', { n: list.length - 12 }))}</li>` : ""}
+      </ul>
+    </div>`;
+  };
+  return `<div style="text-align:left;">
+    <p style="margin:0; font-size:0.9rem;">${escapeHtml(tf('exportBlockedIntro',
+      'This pack would not launch on Minecraft {mc} with {loader}. Here is what needs fixing:',
+      { mc: mcVersion, loader: formatLoaderName(loader) }))}</p>
+    ${block(problems.wrongMc, 'exportWrongMc', 'Wrong Minecraft version')}
+    ${block(problems.wrongLoader, 'exportWrongLoader', 'Wrong mod loader')}
+    ${block(problems.noFile, 'exportNoFile', 'No file selected')}
+    ${block(problems.noHash, 'exportNoHash', 'Missing file checksums')}
+    ${block(problems.duplicatePath, 'exportDuplicate', 'Two mods produce the same filename')}
+  </div>`;
 }
 
 document.getElementById("exportBtn").addEventListener("click", async ()=>{
@@ -7898,38 +8103,87 @@ document.getElementById("exportBtn").addEventListener("click", async ()=>{
     showToast(t('alertExportNeedsTarget',"Choose a Minecraft version and mod loader before exporting."));
     return;
   }
-  if(state.pack.some(m=>!m.selectedFile)){
-    showToast(t('alertExportMissingVersion',"One or more mods is missing a selected file or version. Check Create."));
+  if(!state.pack.length){
+    showToast(t('alertExportEmpty',"There is nothing in Create to export yet."));
     return;
+  }
+
+  // Preflight. Refusing here is the whole point: a pack that fails at launch
+  // costs the user a download, an install and a crash log to read.
+  const check = validatePackForExport(mcVersion, loader);
+  if(check.total){
+    const fix = await showConfirm(exportProblemsHtml(check.problems, mcVersion, loader), {
+      confirmLabel: t('exportFixNow','Try to fix automatically'),
+      danger: false
+    });
+    if(!fix) return;
+    if(typeof autoFixCompatibility === "function"){
+      try{ await autoFixCompatibility([]); }catch(e){ console.warn(e); }
+    }
+    const recheck = validatePackForExport(mcVersion, loader);
+    if(recheck.total){
+      await showConfirm(
+        exportProblemsHtml(recheck.problems, mcVersion, loader)
+        + `<p style="margin:14px 0 0; font-size:0.86rem;">${escapeHtml(t('exportStillBroken',
+            'These could not be resolved automatically. Change the target version or loader, or remove the mods listed above.'))}</p>`,
+        { confirmLabel: t('close','Close'), danger: false }
+      );
+      return;
+    }
+    renderPack();
   }
 
   const PACK_FOLDER = { mod: "mods", shader: "shaderpacks", resourcepack: "resourcepacks" };
   const folderForType = t => PACK_FOLDER[t] || "mods";
 
   const LOADER_DEP_KEY = { fabric: "fabric-loader", quilt: "quilt-loader", forge: "forge", neoforge: "neoforge" };
-  const loaderDepVersion = (loader === "fabric" || loader === "quilt")
-    ? await getLoaderDependencyVersion(loader)
-    : "";
+  const loaderDepVersion = await getLoaderDependencyVersion(loader, mcVersion);
+
+  // Without a loader entry the launcher builds a vanilla instance and nothing
+  // loads. Better to stop than to hand over a pack that silently does nothing.
+  if(!loaderDepVersion){
+    await showConfirm(
+      escapeHtml(tf('exportNoLoaderVersion',
+        "Couldn't work out which {loader} version to pair with Minecraft {mc}. Exporting now would produce a pack with no mod loader, so nothing would load. Try again in a moment, or pick a different target.",
+        { loader: formatLoaderName(loader), mc: mcVersion })),
+      { confirmLabel: t('close','Close'), danger: false }
+    );
+    return;
+  }
 
   const manifest = {
     formatVersion: 1,
     game: "minecraft",
     versionId: packVersion,
     name: packName,
-    files: state.pack.map(mod=>({
-      path: `${folderForType(mod.projectType)}/${mod.selectedFile.filename}`,
-      hashes: {
-        sha1: mod.selectedFile.hashes.sha1,
-        sha512: mod.selectedFile.hashes.sha512
-      },
-      env: {
-        client: normalizeEnvSupport(mod.clientSide),
-        server: normalizeEnvSupport(mod.serverSide)
-      },
-      downloads: [mod.selectedFile.url],
-      fileSize: mod.selectedFile.size
-    })),
-    dependencies: { minecraft: mcVersion, ...(LOADER_DEP_KEY[loader] && loaderDepVersion ? { [LOADER_DEP_KEY[loader]]: loaderDepVersion } : {}) }
+    files: state.pack.map(mod=>{
+      const file = mod.selectedFile;
+      const hashes = {};
+      if(file.hashes && file.hashes.sha1) hashes.sha1 = file.hashes.sha1;
+      if(file.hashes && file.hashes.sha512) hashes.sha512 = file.hashes.sha512;
+
+      // Shaders and resource packs are client-side by definition. Trusting
+      // Modrinth's project-level flags here produced entries marking a
+      // shaderpack as server-required, which breaks a server install.
+      const clientOnly = mod.projectType === "shader" || mod.projectType === "resourcepack";
+      const entry = {
+        path: `${folderForType(mod.projectType)}/${file.filename}`,
+        hashes,
+        env: {
+          client: clientOnly ? "required" : normalizeEnvSupport(mod.clientSide),
+          server: clientOnly ? "unsupported" : normalizeEnvSupport(mod.serverSide)
+        },
+        downloads: [file.url]
+      };
+      // fileSize is optional in the spec, and emitting `undefined` makes the
+      // whole entry unparseable for some launchers.
+      if(typeof file.size === "number" && file.size > 0) entry.fileSize = file.size;
+      return entry;
+    }),
+    dependencies: {
+      minecraft: mcVersion,
+      [LOADER_DEP_KEY[loader]]: loaderDepVersion
+    }
   };
 
   const zip = new JSZip();
