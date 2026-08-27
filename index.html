@@ -2299,6 +2299,12 @@ let unresolvableDeps = [];
 let importedPackNotes = [];
 /* What the last modpack import did, for the Create tab summary. */
 let lastImportReport = null;
+/* Manifest entries that resolved to no Modrinth project. Re-emitted verbatim
+ * at export so the pack keeps every file its author shipped. */
+let passthroughFiles = [];
+/* overrides/ and server-overrides/ from the imported pack, kept as raw blobs
+ * for this session so the export can reproduce them. */
+let importedOverrides = [];
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = 15000){
   const controller = new AbortController();
@@ -3751,7 +3757,13 @@ async function finalizeSyncBeforeSignOut(){
   return true;
 }
 
+function clearImportedExtras(){
+  passthroughFiles = [];
+  importedOverrides = [];
+}
+
 function clearLocalAccountData(){
+  clearImportedExtras();
   // Card buttons are repainted at the end of this function.
   state.pack = [];
   state.favorites = [];
@@ -5890,25 +5902,31 @@ function renderImportSummary(){
   if(r.target && r.target.mcVersion) targetBits.push(r.target.mcVersion);
   if(r.target && r.target.loader) targetBits.push(formatLoaderName(r.target.loader));
 
-  const unresolved = r.filesInManifest - r.resolved;
   const lines = [];
   lines.push(`<strong>${escapeHtml(tf('importSummaryMain',
-    'Added all {total} mods from this modpack.',
+    'Added all {total} files from this modpack.',
     { added: r.added, total: r.filesInManifest }))}</strong>`);
   if(targetBits.length){
     lines.push(`<span>${escapeHtml(tf('importSummaryTarget',
       'Export target set to {target} from the pack\u2019s own manifest.',
       { target: targetBits.join(" · ") }))}</span>`);
   }
-  if(r.added !== r.filesInManifest || unresolved > 0){
+  // Passthrough files count as included, because they are.
+  const covered = r.added + r.passthrough;
+  if(covered !== r.filesInManifest){
     lines[0] = `<strong>${escapeHtml(tf('importSummaryPartial',
-      'Added {added} of the {total} mods in this modpack.',
-      { added: r.added, total: r.filesInManifest }))}</strong>`;
+      'Added {added} of the {total} files in this modpack.',
+      { added: covered, total: r.filesInManifest }))}</strong>`;
   }
-  if(unresolved > 0){
-    lines.push(`<span>${escapeHtml(tPlural(unresolved,
-      'importSummaryUnresolvedOne','{n} file is not on Modrinth and could not be included.',
-      'importSummaryUnresolvedOther','{n} files are not on Modrinth and could not be included.'))}</span>`);
+  if(r.passthrough > 0){
+    lines.push(`<span>${escapeHtml(tPlural(r.passthrough,
+      'importSummaryPassthroughOne','{n} file is hosted outside Modrinth. It is carried through to your export unchanged.',
+      'importSummaryPassthroughOther','{n} files are hosted outside Modrinth. They are carried through to your export unchanged.'))}</span>`);
+  }
+  if(r.overrides > 0){
+    lines.push(`<span>${escapeHtml(tPlural(r.overrides,
+      'importSummaryOverridesOne','{n} extra file from the pack (configs, resources) will be included too.',
+      'importSummaryOverridesOther','{n} extra files from the pack (configs, resources) will be included too.'))}</span>`);
   }
   if(r.notes && r.notes.length){
     lines.push(`<span>${escapeHtml(tPlural(r.notes.length,
@@ -7451,6 +7469,39 @@ async function importMrpackZipIntoPack(zip, meta = {}){
   const foundVersions = Object.values(versionMap);
   const projectIds = [...new Set(foundVersions.map(v=>v.project_id))];
 
+  // Anything the lookup did not answer for. Keyed on the sha1 we sent, so a
+  // file is "unresolved" only when Modrinth genuinely returned nothing.
+  passthroughFiles = (index.files || []).filter(f=>{
+    const sha1 = f.hashes && f.hashes.sha1;
+    return sha1 && !versionMap[sha1];
+  }).map(f=>({
+    path: f.path,
+    hashes: f.hashes || {},
+    downloads: Array.isArray(f.downloads) ? f.downloads : [],
+    env: f.env,
+    fileSize: typeof f.fileSize === "number" ? f.fileSize : undefined
+  })).filter(f=>f.path && f.downloads.length);
+
+  // overrides/ is copied into the instance directory as-is. It regularly
+  // contains configs the pack needs, and sometimes jars for mods that are not
+  // on Modrinth at all.
+  importedOverrides = [];
+  try{
+    const overrideEntries = [];
+    zip.forEach((relPath, entry)=>{
+      if(entry.dir) return;
+      if(relPath.startsWith("overrides/") || relPath.startsWith("server-overrides/")){
+        overrideEntries.push({ path: relPath, entry });
+      }
+    });
+    importedOverrides = await Promise.all(overrideEntries.map(async o=>({
+      path: o.path,
+      data: await o.entry.async("uint8array")
+    })));
+  }catch(e){
+    console.warn("Couldn't read the modpack's overrides folder", e);
+  }
+
   const projectsRes = await fetchWithTimeout(`${API}/projects?ids=${encodeURIComponent(JSON.stringify(projectIds))}`);
   const projects = projectsRes.ok ? await projectsRes.json() : [];
   const projectById = Object.fromEntries(projects.map(p=>[p.id, p]));
@@ -7533,9 +7584,11 @@ async function importMrpackZipIntoPack(zip, meta = {}){
     console.info("[ModBench] Imported pack does not list these declared dependencies (left untouched):", importedPackNotes);
   }
   lastImportReport = {
-    filesInManifest: hashes.length,
+    filesInManifest: (index.files || []).length,
     resolved: foundVersions.length,
     added,
+    passthrough: passthroughFiles.length,
+    overrides: importedOverrides.length,
     target: packTarget,
     notes: importedPackNotes.slice()
   };
@@ -8198,6 +8251,8 @@ async function getLoaderDependencyVersion(loader, mcVersion){
  * caught here and reported by name, and export is refused until it is clear.
  * ------------------------------------------------------------------ */
 function validatePackForExport(mcVersion, loader){
+  // passthroughFiles are deliberately not checked here: they carry no version
+  // metadata to check, and they came verbatim from a pack that worked.
   const problems = { wrongMc: [], wrongLoader: [], noFile: [], noHash: [], duplicatePath: [] };
   const bridges = (typeof getActiveLoaderBridges === "function")
     ? getActiveLoaderBridges(state.pack
@@ -8367,14 +8422,39 @@ document.getElementById("exportBtn").addEventListener("click", async ()=>{
     }
   };
 
+  // Files that were never Modrinth projects go back in exactly as they came.
+  passthroughFiles.forEach(f=>{
+    if(manifest.files.some(x=>x.path === f.path)) return;
+    const entry = {
+      path: f.path,
+      hashes: f.hashes || {},
+      env: f.env || { client: "required", server: "required" },
+      downloads: f.downloads
+    };
+    if(typeof f.fileSize === "number" && f.fileSize > 0) entry.fileSize = f.fileSize;
+    manifest.files.push(entry);
+  });
+
   const zip = new JSZip();
   zip.file("modrinth.index.json", JSON.stringify(manifest, null, 2));
-  const overrides = zip.folder("overrides");
+
+  // Reproduce overrides/ and server-overrides/ byte for byte. Dropping these
+  // silently changes a pack's configuration, and can drop mods outright when
+  // the author bundled jars there.
+  importedOverrides.forEach(o=>{ zip.file(o.path, o.data); });
   try{
-    const iconRes = await fetch(state.packIcon || "icons/logo.png");
-    if(iconRes.ok){
-      const iconBlob = await iconRes.blob();
-      overrides.file("icon.png", iconBlob);
+    // Don't clobber an icon the imported pack already shipped.
+    if(!importedOverrides.some(o=>o.path === "overrides/icon.png")){
+      const iconRes = await fetch(state.packIcon || "icons/logo.png");
+      if(iconRes.ok){
+        const iconBlob = await iconRes.blob();
+        // Only add something JSZip can actually read. An unusable blob does
+        // not throw here, it throws later inside generateAsync, outside this
+        // try block, and takes the whole export down with it.
+        if(iconBlob && typeof iconBlob.size === "number" && iconBlob.size > 0){
+          zip.file("overrides/icon.png", iconBlob);
+        }
+      }
     }
   }catch(e){
     console.warn("Couldn't bundle modpack icon", e);
