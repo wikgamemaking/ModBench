@@ -427,9 +427,6 @@
     .toolbar .search-box{ flex:1 1 100%; min-width:0; }
     select#sortSelect, select#modpackSortSelect{ flex:1 1 auto; width:auto; min-width:0; }
     .view-toggle{ flex:0 0 auto; }
-    /* 1 1 100% forced the sort button onto its own row, which pushed the view
-       toggle down to a third. Letting it size to content keeps both on one
-       line under the search field. */
     #favSortBtn{ flex:1 1 auto; min-width:0; }
   }
 
@@ -906,8 +903,6 @@
   .header-menu > *:nth-child(2){ animation-delay: .07s; }
   .header-menu > *:nth-child(3){ animation-delay: .11s; }
   .header-menu.closing > *{ animation:none; opacity:1; }
-  /* Reuses .theme-toggle for the icon crossfade, but nothing else about a
-     36px circle survives inside a menu row. */
   .header-menu-item{
     width:100%; height:auto; justify-content:flex-start; gap:10px;
     padding:9px 10px; border-radius:9px; overflow:visible;
@@ -916,8 +911,6 @@
   }
   .header-menu-item:hover{ background: var(--surface-2); color: var(--text); border-color: transparent; transform:none; }
   .header-menu-item:active{ transform: scale(.985); }
-  /* The theme icons are absolutely centred against their nearest positioned
-     ancestor, so they need their own box now that the button is a wide row. */
   .header-menu-icon{ position:relative; display:block; width:20px; height:20px; flex-shrink:0; }
   .header-menu-icon svg{ width:18px; height:18px; }
   .header-menu-icon > span{
@@ -973,8 +966,6 @@
     from{ opacity:1; transform: translateY(0) scale(1); }
     to{ opacity:0; transform: translateY(-4px) scale(.97); }
   }
-  /* The rows inside stagger in behind the container so the menu reads as
-     "unfolding" instead of one flat block appearing. */
   .account-menu > *{ opacity:0; animation: account-menu-row-in .28s ease forwards; }
   .account-menu > *:nth-child(1){ animation-delay: .04s; }
   .account-menu > *:nth-child(2){ animation-delay: .07s; }
@@ -984,8 +975,6 @@
   .account-menu > *:nth-child(6){ animation-delay: .19s; }
   .account-menu > *:nth-child(7){ animation-delay: .22s; }
   .account-menu > *:nth-child(8){ animation-delay: .25s; }
-  /* Anything past the eighth row still fades in, just without its own step —
-     better than the previous silent failure of appearing fully formed. */
   .account-menu > *:nth-child(n+9){ animation-delay: .27s; }
   .account-menu.closing > *{ animation:none; opacity:1; }
   @keyframes account-menu-row-in{
@@ -1043,8 +1032,6 @@
 
   .export-action-row{ display:flex; gap:10px; align-items:stretch; margin-top:22px; }
   .export-action-row .export-btn{ flex:1; margin-top:0; }
-  /* Saving is the lower-stakes of the two, so it reads as the quieter one —
-     same size and weight, just not carrying the accent fill. */
   .export-action-row .export-btn.secondary{
     display:flex; align-items:center; justify-content:center; gap:8px;
     background: var(--surface-2); color: var(--text); border:1px solid var(--border);
@@ -1168,8 +1155,6 @@
   .confirm-modal-body{
     margin:0 0 20px; font-size:0.95rem; line-height:1.55;
     max-height:min(52vh, 420px); overflow-y:auto;
-    /* Long problem lists used to run off the bottom of the screen with the
-       buttons pushed out of reach. */
     padding-right:4px;
   }
   .confirm-modal-body::-webkit-scrollbar{ width:8px; }
@@ -1185,8 +1170,6 @@
     .modal-backdrop.closing .confirm-modal{ animation:none; }
   }
 
-  /* `hidden` is display:none at UA-stylesheet priority, which any class rule
-     with a display beats - hence the leftover empty bar after closing. */
   .import-summary[hidden]{ display:none !important; }
   .import-summary{
     display:flex; align-items:flex-start; gap:11px;
@@ -1223,14 +1206,10 @@
                 opacity .2s ease .08s,
                 transform .26s cubic-bezier(.22,.61,.36,1) .06s;
   }
-  /* Fading OUT is quick and undelayed — waiting to hide stale content is
-     what makes a swap feel sluggish. */
   .auth-modal-body.fading{
     opacity:0; transform: translateY(-5px);
     transition: opacity .13s ease, transform .13s ease;
   }
-  /* The header margin changes between reset mode and the others; without
-     this it snapped while the body was still animating. */
   .auth-modal .modal-head{ transition: margin-bottom .32s cubic-bezier(.22,.61,.36,1); }
   @media (prefers-reduced-motion: reduce){
     .auth-modal-body{ transition: height .22s cubic-bezier(.2,.8,.2,1); }
@@ -1449,8 +1428,6 @@
   }
   .modal-backdrop.closing{ animation: modal-fade-out .18s ease-in forwards; }
   .intro-modal.closing{ animation: modal-pop-out .16s ease-in forwards; }
-  /* Scoped to the auth modals so the other dozen modals keep their existing
-     instant close — this only reverses the pop-in they already open with. */
   .modal-backdrop.closing .auth-modal{ animation: modal-pop-out .18s cubic-bezier(.4,0,.7,.2) forwards; }
   @media (prefers-reduced-motion: reduce){
     .modal-backdrop.closing .auth-modal{ animation:none; }
@@ -2285,25 +2262,13 @@
 <script>
 const API = "https://api.modrinth.com/v2";
 
-/* Import/dependency reporting state.
- *
- * Declared here, at the very top, rather than next to the code that fills it.
- * `let` has no hoisting: reading one of these before its declaration
- * statement runs is a ReferenceError, not undefined. applyLanguage() runs at
- * the bottom of this script but calls renderImportSummary(), which reads
- * lastImportReport - so a declaration further down killed the whole script
- * on load and froze the page. */
 /* Required dependencies with no build that fits the pack target. */
 let unresolvableDeps = [];
 /* Dependencies an imported pack appears not to include. Reported, not added. */
 let importedPackNotes = [];
 /* What the last modpack import did, for the Create tab summary. */
 let lastImportReport = null;
-/* Manifest entries that resolved to no Modrinth project. Re-emitted verbatim
- * at export so the pack keeps every file its author shipped. */
 let passthroughFiles = [];
-/* overrides/ and server-overrides/ from the imported pack, kept as raw blobs
- * for this session so the export can reproduce them. */
 let importedOverrides = [];
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = 15000){
@@ -2518,10 +2483,6 @@ const sb = (SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase)
 
 function authConfigured(){ return Boolean(sb); }
 
-/* Center-crops any image to a square and scales it to `size`, returning both
- * a data URL and a Blob. Cropping rather than stretching: a 16:9 screenshot
- * squeezed into a circle distorts faces and text, and users read that as the
- * site being broken rather than as their own image being the wrong shape. */
 function cropImageToSquare(file, size = 256, quality = 0.86){
   return new Promise((resolve, reject)=>{
     const reader = new FileReader();
@@ -2574,14 +2535,6 @@ function getInitials(email){
   return namePart.slice(0, 2).toUpperCase();
 }
 
-/* Email/password sign-ups carry no picture of their own. Gravatar is keyed on
- * the email address, so an account that already has one elsewhere gets it here
- * for free. d=404 makes Gravatar 404 instead of serving a generated default,
- * which is how we tell "has a picture" from "doesn't".
- *
- * Resolved once and cached: the result only changes if the user edits their
- * Gravatar, and a failed lookup is cached too so we don't probe on every load.
- */
 async function resolveGravatar(user){
   if(!user || getAuthProvider(user) !== "email") return;
   const email = (user.email || "").trim().toLowerCase();
@@ -4165,8 +4118,6 @@ async function createShortShareCode(payload, attempts = 4){
   throw new Error("Couldn't generate a unique short code, try again.");
 }
 
-/* Authoritative count, straight from the table. Prefer: count=exact makes
- * PostgREST report the total in Content-Range without shipping the rows. */
 let shareUsedToday = 0;
 async function refreshShareUsageFromServer(){
   if(!shareBackendConfigured() || !state.session || !state.user){
@@ -4980,8 +4931,6 @@ function packHasMod(aliasList){
   });
 }
 
-/* Curated clashes between `title` and what's already in the pack.
- * Returns [{ title, severity, label, reason, mitigated }]. */
 function getCuratedCompatIssues(title, excludeId){
   const issues = [];
   COMPAT_GROUPS.forEach(group=>{
@@ -5241,8 +5190,6 @@ function findHitAnywhere(projectId){
     || state.favorites.find(h=>h.id === projectId);
 }
 
-/* One gate for both sources of trouble: Modrinth's declared incompatibilities
- * and the curated list above. Returns false if the user backs out. */
 async function confirmCompatBeforeAdd(projectId, title){
   const declared = getConflictingPackMods(projectId).map(c=>({
     title: c.title, severity: "conflict", label: "",
@@ -5520,9 +5467,6 @@ async function ensureLoaderApis(hintGameVersions, loadersInvolved, trusted = fal
   await Promise.all(tasks);
 }
 
-/* Returns only versions that genuinely run on the target, newest first.
- * Empty array means "this project cannot satisfy the target" - which is a
- * real answer and must be allowed to propagate, not papered over. */
 function versionsMatchingTarget(versions, targetLoader, targetMc, bridges){
   if(!Array.isArray(versions) || !versions.length) return [];
   const runnable = targetLoader
@@ -5887,9 +5831,6 @@ function packRowHtml(mod){
     </div>`;
 }
 
-/* States plainly what the import did. The count pill going up is ambiguous -
- * it cannot distinguish "the pack has 174 files" from "we added 4 mods it
- * never asked for" - so the numbers are spelled out instead. */
 function renderImportSummary(){
   const el = document.getElementById("importSummary");
   if(!el) return;
@@ -5902,36 +5843,25 @@ function renderImportSummary(){
   if(r.target && r.target.mcVersion) targetBits.push(r.target.mcVersion);
   if(r.target && r.target.loader) targetBits.push(formatLoaderName(r.target.loader));
 
+  // Only the two numbers people actually came here to check: how many mods
+  // landed, and what the pack will export as. File-level bookkeeping
+  // (passthrough files, overrides, unresolved deps) is still logged to the
+  // console for debugging, just not surfaced in the banner.
   const lines = [];
   lines.push(`<strong>${escapeHtml(tf('importSummaryMain',
-    'Added all {total} files from this modpack.',
-    { added: r.added, total: r.filesInManifest }))}</strong>`);
+    'Added {added} mods from this modpack.',
+    { added: r.added }))}</strong>`);
   if(targetBits.length){
     lines.push(`<span>${escapeHtml(tf('importSummaryTarget',
       'Export target set to {target} from the pack\u2019s own manifest.',
       { target: targetBits.join(" · ") }))}</span>`);
   }
-  // Passthrough files count as included, because they are.
-  const covered = r.added + r.passthrough;
-  if(covered !== r.filesInManifest){
-    lines[0] = `<strong>${escapeHtml(tf('importSummaryPartial',
-      'Added {added} of the {total} files in this modpack.',
-      { added: covered, total: r.filesInManifest }))}</strong>`;
-  }
-  if(r.passthrough > 0){
-    lines.push(`<span>${escapeHtml(tPlural(r.passthrough,
-      'importSummaryPassthroughOne','{n} file is hosted outside Modrinth. It is carried through to your export unchanged.',
-      'importSummaryPassthroughOther','{n} files are hosted outside Modrinth. They are carried through to your export unchanged.'))}</span>`);
-  }
-  if(r.overrides > 0){
-    lines.push(`<span>${escapeHtml(tPlural(r.overrides,
-      'importSummaryOverridesOne','{n} extra file from the pack (configs, resources) will be included too.',
-      'importSummaryOverridesOther','{n} extra files from the pack (configs, resources) will be included too.'))}</span>`);
-  }
-  if(r.notes && r.notes.length){
-    lines.push(`<span>${escapeHtml(tPlural(r.notes.length,
-      'importSummaryNotesOne','{n} mod lists a dependency this pack does not include. Nothing was added: the pack ships as its author built it.',
-      'importSummaryNotesOther','{n} mods list dependencies this pack does not include. Nothing was added: the pack ships as its author built it.'))}</span>`);
+  if(r.passthrough > 0 || r.overrides > 0 || (r.notes && r.notes.length)){
+    console.info("[ModBench] Import details:", {
+      passthroughFiles: r.passthrough,
+      overrideFiles: r.overrides,
+      unresolvedDependencyNotes: r.notes
+    });
   }
 
   el.hidden = false;
@@ -8161,20 +8091,7 @@ function renderExport(){
   }
 }
 
-/* No hardcoded fallback. A stale pinned loader is worse than no answer:
- * 0.16.9 was emitted for Minecraft 26.1.2, and that Fabric Loader's bundled
- * ASM cannot read Java 25 class files, so the instance died at startup with
- * "Unsupported class file major version 69" before a single mod loaded.
- * If the real version cannot be resolved, the exporter refuses instead. */
 
-/* Resolves the loader version that goes in modrinth.index.json.
- *
- * This used to handle only Fabric and Quilt, and returned "" for Forge and
- * NeoForge - at which point the caller omitted the loader from `dependencies`
- * entirely. A .mrpack with no loader is a vanilla instance: the launcher
- * accepts it, installs nothing, and every mod fails to load. That is the
- * single most likely cause of a "worked in ModBench, broken on launch" pack.
- */
 async function getLoaderDependencyVersion(loader, mcVersion){
   try{
     if(loader === "fabric"){
@@ -8243,13 +8160,6 @@ async function getLoaderDependencyVersion(loader, mcVersion){
   return "";
 }
 
-/* ------------------------------------------------------------------ *
- * Export preflight.
- *
- * Nothing downstream of this can produce a valid pack from invalid input, so
- * this is the gate: every problem that would break the instance at launch is
- * caught here and reported by name, and export is refused until it is clear.
- * ------------------------------------------------------------------ */
 function validatePackForExport(mcVersion, loader){
   // passthroughFiles are deliberately not checked here: they carry no version
   // metadata to check, and they came verbatim from a pack that worked.
