@@ -11,7 +11,7 @@ window.i18n.fr = {
   langToggleLabel: "Changer de langue",
 
   browseMcVersion: "Version du jeu",
-  browseAnyVersion: "Toute les versions",
+  browseAnyVersion: "Toutes les versions",
   browseModloader: "Modloader",
   browseCategory: "Catégorie",
   browseEnvironment: "Environnement",
