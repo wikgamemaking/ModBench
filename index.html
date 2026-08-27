@@ -281,11 +281,18 @@
     background:var(--surface-2); border:1px solid var(--border); color:var(--text-dim);
     padding:8px 10px; border-radius:8px; cursor:pointer;
     display:flex; align-items:center; justify-content:center; gap:8px;
-    transition: background .15s ease, color .15s ease, border-color .15s ease;
+    transition: background .18s cubic-bezier(.3,1.4,.4,1), color .18s ease, border-color .18s ease;
   }
   .type-btn-icon{ width:16px; height:16px; flex-shrink:0; }
   .type-btn:hover{ background: var(--accent-soft); color: var(--accent-dark); }
-  .type-btn.active{ background: var(--accent); color:#fff; border-color: var(--accent); }
+  .type-btn.active{ background: var(--accent); color:#fff; border-color: var(--accent); animation: type-btn-activate .22s ease-out; }
+  @keyframes type-btn-activate{
+    0%{ transform: scale(.97); }
+    100%{ transform: scale(1); }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .type-btn.active{ animation:none; }
+  }
   .pack-type-label{
     font-size:0.75rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em;
     color: var(--text-dim); margin:0 0 8px; padding-bottom:6px; border-bottom:1px solid var(--border);
@@ -999,6 +1006,7 @@
     to{ opacity:0; transform: translateY(-4px) scale(.97); }
   }
   .account-menu > *{ opacity:0; animation: account-menu-row-in .28s ease forwards; }
+  .account-menu > .account-menu-header{ opacity:1; animation:none; }
   .account-menu > *:nth-child(1){ animation-delay: .04s; }
   .account-menu > *:nth-child(2){ animation-delay: .07s; }
   .account-menu > *:nth-child(3){ animation-delay: .10s; }
