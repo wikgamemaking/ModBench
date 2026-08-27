@@ -2725,6 +2725,7 @@ function closeAccountMenu(immediate){
 }
 function toggleAccountMenu(){
   if(accountMenuEl){ closeAccountMenu(); return; }
+  if(typeof closeHeaderMenu === "function") closeHeaderMenu(true);
   const slot = document.getElementById("accountSlot");
   const btn = document.getElementById("accountMenuBtn");
   if(!slot || !btn) return;
@@ -8935,6 +8936,7 @@ function closeHeaderMenuOnEscape(e){
   if(e.key === "Escape"){ closeHeaderMenu(); headerMenuBtn.focus(); }
 }
 function openHeaderMenu(){
+  if(typeof closeAccountMenu === "function") closeAccountMenu(true);
   headerMenuEl.classList.remove("closing");
   headerMenuEl.hidden = false;
   headerMenuOpen = true;
