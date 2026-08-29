@@ -70,7 +70,7 @@
   }
   *{ box-sizing: border-box; }
   html,body{ margin:0; padding:0; }
-  html{ touch-action: manipulation; }
+  html{ touch-action: manipulation; scrollbar-gutter: stable; }
   select{
     appearance: none !important;
     -webkit-appearance: none !important;
@@ -318,8 +318,34 @@
   }
   .filter-group select:hover{ border-color: var(--accent); }
   .filter-group select:focus-visible{ box-shadow: 0 0 0 3px var(--accent-soft); }
-  input[type=checkbox]{ width:16px; height:16px; accent-color: var(--accent); transition: transform .12s ease; cursor:pointer; }
-  input[type=checkbox]:active{ transform: scale(.85); }
+  input[type=checkbox]{
+    appearance:none; -webkit-appearance:none; -moz-appearance:none;
+    width:16px; height:16px; margin:0; flex-shrink:0;
+    border:1.5px solid var(--border); border-radius:4px;
+    background: var(--surface);
+    box-shadow:none; background-clip:border-box;
+    color-scheme: light;
+    display:inline-block; position:relative;
+    transition: background .15s ease, border-color .15s ease;
+    cursor:pointer;
+  }
+  input[type=checkbox]::after{
+    content:"";
+    position:absolute; inset:0;
+    background-color:#fff;
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'%3E%3C/polyline%3E%3C/svg%3E");
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'%3E%3C/polyline%3E%3C/svg%3E");
+    -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
+    -webkit-mask-position:center; mask-position:center;
+    -webkit-mask-size:11px; mask-size:11px;
+    opacity:0; transform: scale(.4);
+    transition: opacity .12s ease, transform .18s cubic-bezier(.34,1.56,.64,1);
+  }
+  input[type=checkbox]:hover{ border-color: var(--accent); }
+  input[type=checkbox]:checked{ background: var(--accent); border-color: var(--accent); }
+  input[type=checkbox]:checked::after{ opacity:1; transform: scale(1); }
+  input[type=checkbox]:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
+  input[type=checkbox]:active{ transform: scale(.9); }
   .filter-icon{
     width:15px; height:15px; flex-shrink:0; color: var(--text-dim); vertical-align:-3px;
     transition: transform .22s cubic-bezier(.2,.8,.3,1), color .22s ease;
@@ -349,21 +375,22 @@
     display: flex;
     flex-direction: column;
     min-height: 0;
+    margin-left: -6px;
   }
   .cat-body-inner.scrollable{
     max-height: 272px;
     overflow-y: auto;
     padding-right: 4px;
-    scrollbar-width: thin;
-    scrollbar-color: var(--border) transparent;
   }
-  .cat-body-inner.scrollable::-webkit-scrollbar{ width:6px; }
-  .cat-body-inner.scrollable::-webkit-scrollbar-track{ background:transparent; }
-  .cat-body-inner.scrollable::-webkit-scrollbar-thumb{ background:var(--border); border-radius:4px; }
-  .cat-body-inner.scrollable::-webkit-scrollbar-thumb:hover{ background:var(--text-dim); }
+  html{ scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+  ::-webkit-scrollbar{ width:8px; height:8px; }
+  ::-webkit-scrollbar-track{ background:transparent; }
+  ::-webkit-scrollbar-thumb{ background:var(--border); border-radius:4px; }
+  ::-webkit-scrollbar-thumb:hover{ background:var(--text-dim); }
+  html[data-theme="dark"]{ color-scheme: dark; }
   .cat-body label{
     display:flex; align-items:center; gap:6px;
-    border-radius:6px; padding:4px 6px; cursor:pointer;
+    border-radius:6px; padding:4px 6px; margin:0; cursor:pointer;
     transition: background .22s cubic-bezier(.2,.8,.3,1), color .22s cubic-bezier(.2,.8,.3,1), transform .18s cubic-bezier(.2,.8,.3,1), box-shadow .22s ease;
   }
   .cat-body label:hover{ background: var(--surface-2); transform: translateX(3px); }
@@ -9002,12 +9029,14 @@ document.addEventListener("keydown", (e)=>{
   }
   if((e.key === "a" || e.key === "A") && !isTyping && hoveredAddCard && document.body.contains(hoveredAddCard)){
     e.preventDefault();
+    if(e.repeat) return;
     const addBtn = hoveredAddCard.querySelector("[data-add]");
     if(addBtn && !addBtn.disabled) addBtn.click();
     return;
   }
   if((e.key === "r" || e.key === "R") && !isTyping && hoveredPackRow && document.body.contains(hoveredPackRow)){
     e.preventDefault();
+    if(e.repeat) return;
     const removeBtn = hoveredPackRow.querySelector("[data-remove]");
     if(removeBtn) removeBtn.click();
     return;
