@@ -38,7 +38,7 @@ window.i18n.fr = {
   catTechnology: "Technologie",
   catTransportation: "Transportation",
   catUtility: "Utile",
-  catWorldGeneration: "Génération du monde",
+  catWorldGeneration: "Worldgen",
   sideClient: "Client",
   sideServer: "Serveur",
   sortRelevance: "Pertinence",
