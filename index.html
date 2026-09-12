@@ -5066,12 +5066,13 @@ function cardHtml(hit){
   const inPack = state.pack.some(p=>p.id === hit.project_id);
   const isFav = state.favorites.some(f=>f.id === hit.project_id);
   const icon = hit.icon_url || "";
+  const safeId = escapeHtml(hit.project_id);
   const conflicts = inPack ? [] : getConflictingPackMods(hit.project_id);
   const conflictNames = conflicts.map(c=>c.title).join(", ");
   return `
-    <div class="card${conflicts.length ? " card-conflict" : ""}" data-id="${hit.project_id}" tabindex="0" role="button" aria-label="View ${escapeHtml(hit.title)}">
+    <div class="card${conflicts.length ? " card-conflict" : ""}" data-id="${safeId}" tabindex="0" role="button" aria-label="View ${escapeHtml(hit.title)}">
       <div class="card-top">
-        ${icon ? `<img class="card-icon" src="${icon}" alt="" loading="lazy">` : `<div class="card-icon"></div>`}
+        ${icon ? `<img class="card-icon" src="${escapeHtml(icon)}" alt="" loading="lazy">` : `<div class="card-icon"></div>`}
         <div>
           <div class="card-title">${escapeHtml(hit.title)}${hit.pinned ? ` <span class="tag" style="text-transform:uppercase; font-size:0.62rem; vertical-align:1px;">Pinned</span>` : ""}</div>
           <div class="card-author">${t('cardBy','by')} ${escapeHtml(hit.author || "unknown")}</div>
@@ -5083,8 +5084,8 @@ function cardHtml(hit){
       <div class="card-stats">
         <span>${DOWNLOAD_ICON} ${formatNum(hit.downloads)}</span>
         <span>${HEART_ICON_FILLED.replace('<svg ', '<svg style="width:13px;height:13px;vertical-align:-2px;" ')} ${formatNum(hit.follows)}</span>
-        <button class="card-fav ${isFav?'faved':''}" data-fav="${hit.project_id}" title="${isFav?t('favRemove','Remove from saved'):t('favAdd','Save')}" aria-label="${isFav?t('favRemove','Remove from saved'):t('favAdd','Save')}">${isFav ? HEART_ICON_FILLED : HEART_ICON_OUTLINE}</button>
-        <button class="card-add ${inPack?'added':''}" data-add="${hit.project_id}">${inPack ? t('cardAdded','Added ✓') : t('cardAdd','+ Add')}</button>
+        <button class="card-fav ${isFav?'faved':''}" data-fav="${safeId}" title="${isFav?t('favRemove','Remove from saved'):t('favAdd','Save')}" aria-label="${isFav?t('favRemove','Remove from saved'):t('favAdd','Save')}">${isFav ? HEART_ICON_FILLED : HEART_ICON_OUTLINE}</button>
+        <button class="card-add ${inPack?'added':''}" data-add="${safeId}">${inPack ? t('cardAdded','Added ✓') : t('cardAdd','+ Add')}</button>
       </div>
     </div>`;
 }
@@ -5667,7 +5668,7 @@ async function openModal(projectId, hitLookup){
     const modalIsFav = state.favorites.some(f=>f.id === projectId);
     backdrop.querySelector(".modal").innerHTML = `
       <div class="modal-head">
-        ${hit.icon_url ? `<img src="${hit.icon_url}" alt="">` : `<div style="width:72px;height:72px;border-radius:12px;background:var(--surface-2)"></div>`}
+        ${hit.icon_url ? `<img src="${escapeHtml(hit.icon_url)}" alt="">` : `<div style="width:72px;height:72px;border-radius:12px;background:var(--surface-2)"></div>`}
         <div style="flex:1; min-width:0;">
           <div class="name">${escapeHtml(projRes.title)}</div>
           <div class="card-author">${t('cardBy','by')} ${escapeHtml(hit.author||"")}</div>
@@ -5896,8 +5897,8 @@ async function hydratePackModVersions(modId){
 function packRowHtml(mod){
   const displayVersions = sortByGameVersionRecency(mod.versions);
   return `
-    <div class="pack-row" data-id="${mod.id}" tabindex="0" role="button" aria-label="View ${escapeHtml(mod.title)}">
-      ${mod.icon_url ? `<img src="${mod.icon_url}" alt="">` : `<img alt="">`}
+    <div class="pack-row" data-id="${escapeHtml(mod.id)}" tabindex="0" role="button" aria-label="View ${escapeHtml(mod.title)}">
+      ${mod.icon_url ? `<img src="${escapeHtml(mod.icon_url)}" alt="">` : `<img alt="">`}
       <div class="info">
         <div class="name">${escapeHtml(mod.title)}${mod.isDependency ? ` <span class="tag" style="margin-left:4px;">${t('autoAddedTag','auto-added')}</span>` : ''}<span class="pack-row-issue-badge" hidden title=""></span></div>
         <div class="sub">${t('cardBy','by')} ${escapeHtml(mod.author||"")} · ${escapeHtml(mod.selectedVersionNumber||t('createNoVersion','no version'))}</div>
@@ -6194,7 +6195,7 @@ const UPDATE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" 
 
 function modChipHtml(mod){
   const inPack = state.pack.some(m=>m.id === mod.id);
-  return `<span class="compat-mod-chip${inPack ? " clickable" : ""}" ${inPack ? `data-jump-id="${escapeHtml(mod.id)}" role="button" tabindex="0" title="${tf('compatJumpTo','Jump to {name} in your pack', {name: escapeHtml(mod.title)})}"` : ""}>${mod.icon_url ? `<img src="${mod.icon_url}" alt="">` : ""}${escapeHtml(mod.title)}</span>`;
+  return `<span class="compat-mod-chip${inPack ? " clickable" : ""}" ${inPack ? `data-jump-id="${escapeHtml(mod.id)}" role="button" tabindex="0" title="${tf('compatJumpTo','Jump to {name} in your pack', {name: escapeHtml(mod.title)})}"` : ""}>${mod.icon_url ? `<img src="${escapeHtml(mod.icon_url)}" alt="">` : ""}${escapeHtml(mod.title)}</span>`;
 }
 
 function modChipsHtml(mods, limit = 12){
@@ -6897,7 +6898,7 @@ async function showUpdateResults(){
   const rowsHtml = outdated.map(r=>`
     <div class="compat-issue" data-update-row="${escapeHtml(r.mod.id)}">
       <div class="issue-title">
-        ${r.mod.icon_url ? `<img src="${r.mod.icon_url}" alt="" style="width:18px;height:18px;border-radius:5px;object-fit:cover;vertical-align:-4px;margin-right:4px;">` : ""}${escapeHtml(r.mod.title)}
+        ${r.mod.icon_url ? `<img src="${escapeHtml(r.mod.icon_url)}" alt="" style="width:18px;height:18px;border-radius:5px;object-fit:cover;vertical-align:-4px;margin-right:4px;">` : ""}${escapeHtml(r.mod.title)}
       </div>
       <div class="issue-detail">${tf('updateVersionChange','{from} → <strong>{to}</strong>', {from: escapeHtml(r.mod.selectedVersionNumber || "?"), to: escapeHtml(r.best.version_number)})}</div>
       <button class="page-btn update-mod-btn" data-update="${escapeHtml(r.mod.id)}" style="margin-top:8px;">${UPDATE_ICON} ${t('updateThisMod','Update')}</button>
