@@ -5348,11 +5348,13 @@ updateCardButtonsEverywhere(projectId);
 const IMPORT_STATUS_ICON_CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
 const IMPORT_STATUS_ICON_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
 const IMPORT_STATUS_ICON_LOADING = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" stroke-dasharray="42" stroke-dashoffset="14"/></svg>';
-function setImportStatus(kind, text, prefix = "mrpack"){
+const importStatusHideTimers = {};
+function setImportStatus(kind, text, prefix = "mrpack", autoHideMs = 0){
 const statusEl = document.getElementById(`${prefix}ImportStatus`);
 const iconEl = document.getElementById(`${prefix}ImportStatusIcon`);
 const textEl = document.getElementById(`${prefix}ImportStatusText`);
-statusEl.style.display = "flex";
+if(importStatusHideTimers[prefix]){ clearTimeout(importStatusHideTimers[prefix]); importStatusHideTimers[prefix] = null; }
+statusEl.style.display = statusEl.classList.contains("import-status-compact") ? "inline-flex" : "flex";
 statusEl.classList.remove("success", "error");
 if(kind === "success") statusEl.classList.add("success");
 if(kind === "error") statusEl.classList.add("error");
@@ -5362,6 +5364,12 @@ if(kind === "success" || kind === "error"){
 statusEl.classList.remove("pop");
 void statusEl.offsetWidth;
 statusEl.classList.add("pop");
+}
+if(autoHideMs > 0 && (kind === "success" || kind === "error")){
+importStatusHideTimers[prefix] = setTimeout(()=>{
+statusEl.style.display = "none";
+importStatusHideTimers[prefix] = null;
+}, autoHideMs);
 }
 }
 let packImportLockToastShown = false;
@@ -5437,7 +5445,7 @@ async function sha1Hex(buf){
 const digest = await crypto.subtle.digest("SHA-1", buf);
 return Array.from(new Uint8Array(digest)).map(b=>b.toString(16).padStart(2,"0")).join("");
 }
-const MOD_FILE_BATCH_CAP = 10;
+const MOD_FILE_BATCH_CAP = 20;
 async function importOneModJar(file){
 if(!file.name.toLowerCase().endsWith(".jar")) return { status: "badtype", name: file.name };
 try{
@@ -5521,12 +5529,12 @@ const errored = results.filter(r=>r.status === "error");
 const cancelled = results.filter(r=>r.status === "cancelled");
 if(results.length === 1){
 const r = results[0];
-if(r.status === "added") setImportStatus("success", tf("modFileAdded","Added {mod} to Create.", { mod: r.title }), "modFile");
-else if(r.status === "already") setImportStatus("success", t("modFileAlreadyInCreate","That mod is already in Create."), "modFile");
-else if(r.status === "notfound") setImportStatus("error", t("modFileNotOnModrinth","This file doesn't match anything listed on Modrinth, so it can't be added."), "modFile");
-else if(r.status === "badtype") setImportStatus("error", t("modFileChooseJar","Please choose a .jar mod file."), "modFile");
-else if(r.status === "cancelled") setImportStatus("error", t("modFileCancelled","Not added."), "modFile");
-else setImportStatus("error", t("modFileImportFailed","Couldn't check that file against Modrinth. Try again."), "modFile");
+if(r.status === "added") setImportStatus("success", tf("modFileAdded","Added {mod} to Create.", { mod: r.title }), "modFile", 6000);
+else if(r.status === "already") setImportStatus("success", t("modFileAlreadyInCreate","That mod is already in Create."), "modFile", 6000);
+else if(r.status === "notfound") setImportStatus("error", t("modFileNotOnModrinth","This file doesn't match anything listed on Modrinth, so it can't be added."), "modFile", 6000);
+else if(r.status === "badtype") setImportStatus("error", t("modFileChooseJar","Please choose a .jar mod file."), "modFile", 6000);
+else if(r.status === "cancelled") setImportStatus("error", t("modFileCancelled","Not added."), "modFile", 6000);
+else setImportStatus("error", t("modFileImportFailed","Couldn't check that file against Modrinth. Try again."), "modFile", 6000);
 return;
 }
 const parts = [];
@@ -5538,7 +5546,7 @@ if(cancelled.length) parts.push(tf("modFileSkippedCancelled","{n} skipped",{n:ca
 if(errored.length) parts.push(tf("modFileSkippedError","{n} failed to check",{n:errored.length}));
 let summary = parts.join(", ") + ".";
 if(overflow > 0) summary += " " + tf("modFileBatchCapNotice","Only the first {cap} files were checked ({overflow} ignored).", { cap: MOD_FILE_BATCH_CAP, overflow });
-setImportStatus(added.length > 0 ? "success" : "error", summary, "modFile");
+setImportStatus(added.length > 0 ? "success" : "error", summary, "modFile", 6000);
 }
 function buildShareData(){
 const versionIds = state.pack.filter(m=>m.selectedVersionId).map(m=>m.selectedVersionId);
