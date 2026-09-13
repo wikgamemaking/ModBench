@@ -8,10 +8,27 @@
 <meta property="og:site_name" content="ModBench">
 <meta name="description" content="Build and export Minecraft modpacks, right in your browser.">
 <meta property="og:description" content="Build and export Minecraft modpacks, right in your browser.">
-<meta property="og:image" content="https://raw.githubusercontent.com/wikgamemaking/ModBench/main/icons/logo.png">
+<meta property="og:image" content="https://modbench.net/icons/logo.png">
 <meta property="og:url" content="https://modbench.net/">
 <meta name="theme-color" content="#4e9a52">
+<link rel="canonical" href="https://modbench.net/">
 <link rel="icon" type="image/png" href="icons/logo.png">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "ModBench",
+  "url": "https://modbench.net/",
+  "description": "Build and export Minecraft modpacks, right in your browser.",
+  "applicationCategory": "UtilitiesApplication",
+  "operatingSystem": "Any (Web Browser)",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  }
+}
+</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
@@ -8871,7 +8888,7 @@ function showGettingStarted(force){
   backdrop.innerHTML = `
     <div class="modal intro-modal">
       <div class="modal-head">
-        <span class="intro-logo"><img src="icons/logo.png" alt=""></span>
+        <span class="intro-logo"><img src="icons/logo.png" alt="ModBench logo"></span>
         <div class="intro-head-text">
           <div class="name">${t('introWelcomeTitle','Welcome to ModBench')}</div>
           <p style="margin:2px 0 0; color:var(--text-dim); font-size:0.86rem;">${t('introWelcomeSubtitle','Here is a quick tour before you start building a pack.')}</p>
