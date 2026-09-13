@@ -270,11 +270,8 @@ msg.innerHTML = escapeHtml(message).replace(/\*\*(.+?)\*\*/g, "<strong>$1</stron
 toast.appendChild(msg);
 let dismissTimer;
 const dismiss = ()=>{
-if(!toast.isConnected) return;
 clearTimeout(dismissTimer);
-toast.classList.add("leaving");
-toast.addEventListener("animationend", ()=>toast.remove(), { once:true });
-setTimeout(()=>toast.remove(), 250);
+collapseAndRemoveToast(toast);
 };
 if(actionLabel && onAction){
 const actionBtn = document.createElement("button");
