@@ -2719,6 +2719,16 @@ async function runSearch(){
   const resultsEl = document.getElementById("results");
   const statusEl = document.getElementById("statusMsg");
   const pageEl = document.getElementById("pagination");
+  // #results sits next to the sticky filter sidebar inside a CSS grid
+  // (aside.filters is position:sticky, .layout is align-items:start).
+  // Clearing #results synchronously below collapses that grid row's
+  // height until the fetch resolves and cards render back in, which
+  // yanks the sticky sidebar (and whichever checkbox the user just
+  // clicked in it) up the page and then snaps it back down - the
+  // jump/jitter. Pin the row to its pre-search height for the
+  // duration of the request so the collapse never happens.
+  const prevHeight = resultsEl.offsetHeight;
+  if(prevHeight > 0) resultsEl.style.minHeight = prevHeight + "px";
   statusEl.style.display = "block";
   statusEl.textContent = t('browseSearching','Searching…');
   resultsEl.innerHTML = "";
@@ -2743,6 +2753,8 @@ async function runSearch(){
     } else {
       statusEl.textContent = t('browseApiError',"Couldn't reach Modrinth's API from this page.");
     }
+  }finally{
+    resultsEl.style.minHeight = "";
   }
 }
 
@@ -5758,19 +5770,38 @@ const match = trimmed.match(/[?&#]import=([^&\s]+)/);
 return match ? decodeURIComponent(match[1]) : trimmed;
 }
 function copyTextToClipboard(text, btn){
+// Returns a promise so callers that need to (e.g. to keep a button
+// disabled for the full duration of the copy) can await it; callers
+// that don't care can keep firing-and-forgetting as before.
+return new Promise((resolve)=>{
 const done = ()=>{
-if(!btn) return;
-const original = btn.dataset.originalHtml !== undefined ? btn.dataset.originalHtml : btn.innerHTML;
-btn.dataset.originalHtml = original;
-btn.innerHTML = t("copiedConfirm","Copied ✓");
+if(!btn){ resolve(); return; }
+// Buttons that pair an icon with a text label (like the export
+// tab's icon+<span> buttons) shouldn't have their whole innerHTML
+// swapped out - that destroys the icon for the duration of the
+// "Copied" confirmation. When a label element is present, swap
+// only its text; only fall back to swapping the whole button for
+// plain-text buttons that have no such label.
+const labelEl = btn.querySelector("span");
+const snapshotKey = labelEl ? "originalLabel" : "originalHtml";
+const getCurrent = ()=> labelEl ? labelEl.textContent : btn.innerHTML;
+const setCurrent = (value)=>{ if(labelEl) labelEl.textContent = value; else btn.innerHTML = value; };
+const original = btn.dataset[snapshotKey] !== undefined ? btn.dataset[snapshotKey] : getCurrent();
+btn.dataset[snapshotKey] = original;
+// t() always falls back to the literal "Copied ✓" when passed a
+// fallback, but guard defensively anyway - this label should never
+// be able to end up showing "undefined".
+setCurrent(t("copiedConfirm","Copied ✓") || "Copied ✓");
 clearTimeout(btn._copyResetTimer);
-btn._copyResetTimer = setTimeout(()=>{ btn.innerHTML = original; }, 1400);
+btn._copyResetTimer = setTimeout(()=>{ setCurrent(original); }, 1400);
+resolve();
 };
 if(navigator.clipboard && navigator.clipboard.writeText){
 navigator.clipboard.writeText(text).then(done).catch(()=>fallbackCopyText(text, done));
 } else {
 fallbackCopyText(text, done);
 }
+});
 }
 function fallbackCopyText(text, done){
 const ta = document.createElement("textarea");
@@ -6567,7 +6598,10 @@ return;
 btn.disabled = true;
 try{
 const md = await generateModlistMarkdown();
-if(md) copyTextToClipboard(md, btn);
+// Await the copy itself so the button stays disabled for the whole
+// operation - otherwise it re-enables before navigator.clipboard's
+// async write settles, and a second click can land mid-flight.
+if(md) await copyTextToClipboard(md, btn);
 }catch(e){
 console.error(e);
 showToast(t('alertExportMdFailed',"Couldn't build the mod list. Try again."));
