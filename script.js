@@ -241,10 +241,25 @@ const rest = document.getElementById(toggle.dataset.target);
 if(rest){ rest.hidden = false; }
 toggle.remove();
 });
+const MAX_VISIBLE_TOASTS = 4;
+function dismissToastEl(el){
+clearTimeout(el._dismissTimer);
+el.classList.add("leaving");
+el.addEventListener("animationend", ()=>el.remove(), { once:true });
+setTimeout(()=>el.remove(), 250);
+}
 function showToast(message, opts = {}){
 const { actionLabel, onAction, duration = 6000, variant } = opts;
 const stack = document.getElementById("toastStack");
 if(!stack) return null;
+// Cap how many toasts can be stacked on screen at once - bump the
+// oldest one(s) out (with the same leaving animation as a normal
+// dismissal) to make room, rather than letting the stack grow
+// unbounded when several toasts fire in quick succession.
+const excess = stack.children.length - (MAX_VISIBLE_TOASTS - 1);
+if(excess > 0){
+Array.from(stack.children).slice(0, excess).forEach(dismissToastEl);
+}
 const toast = document.createElement("div");
 toast.className = "toast";
 if(variant === "success" || variant === "error") toast.classList.add(variant);
