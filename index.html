@@ -911,6 +911,7 @@
   }
   .mod-drag-overlay-card strong{ font-size:1.02rem; color:var(--text); }
   .mod-drag-overlay-card p{ margin:0; font-size:0.85rem; color:var(--text-dim); }
+  .tab-pack-section{ min-height: 65vh; }
   .import-skeleton{ display:flex; flex-direction:column; gap:10px; }
   .import-skeleton-row{
     display:flex; align-items:center; gap:12px; padding:12px 14px;
@@ -2258,14 +2259,7 @@
     </div>
     <div id="packIssueBanner" class="compat-summary bad" style="display:none;"></div>
     <div id="importSummary" class="import-summary" hidden></div>
-    <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px; flex-wrap:wrap;">
-      <label class="page-btn" for="modFileInput" style="display:inline-flex; align-items:center; gap:6px; cursor:pointer;">
-        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
-        <span data-i18n="createImportModJar">Add mod files</span>
-      </label>
-      <input type="file" id="modFileInput" accept=".jar" multiple style="display:none;">
-      <span style="font-size:0.82rem; color:var(--text-dim);" data-i18n="createImportModJarHint">or drag .jar files anywhere in here (up to 10 at once)</span>
-    </div>
+    <input type="file" id="modFileInput" accept=".jar" multiple style="display:none;">
     <div class="import-status" id="modFileImportStatus" style="display:none; margin-bottom:12px;">
       <span class="import-status-icon" id="modFileImportStatusIcon"></span>
       <span id="modFileImportStatusText"></span>
@@ -2274,6 +2268,7 @@
     <div id="packEmpty" class="empty-state" style="display:none;">
       <div class="big">🧰</div>
       <p data-i18n="createEmptyText">Your pack is empty. Head to <strong>Browse</strong> or <strong>Modpacks</strong> to add mods.</p>
+      <p style="font-size:0.78rem; color:var(--text-dim); margin-top:4px;" data-i18n="createImportModJarHint">or drag .jar files anywhere in here (up to 20 at once)</p>
       <button type="button" class="export-btn quick-action" id="packEmptyBrowseBtn" data-i18n="createEmptyBrowseBtn">Browse mods</button>
     </div>
     </div>
