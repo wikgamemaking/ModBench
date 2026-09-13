@@ -2985,7 +2985,7 @@ function formatNum(n){
   if(n >= 1e3) return (n/1e3).toFixed(1)+"k";
   return String(n);
 }
-const LOADER_ICON_MAP = { fabric: "icons/fabric.png", forge: "icons/forge.png", quilt: "icons/quilt.png", neoforge: "icons/neoforge.png" };
+const LOADER_ICON_MAP = { fabric: "/icons/fabric.png", forge: "/icons/forge.png", quilt: "/icons/quilt.png", neoforge: "/icons/neoforge.png" };
 function loaderIconsHtml(loaders){
   if(!loaders || !loaders.length) return "";
   return loaders.filter(l=>LOADER_ICON_MAP[l]).map(l=>
@@ -4836,7 +4836,7 @@ return state.pack.length > 0 && packSignature(sp.mods) === packSignature(state.p
 function savedPackCardHtml(sp){
 const count = (sp.mods || []).length;
 const loaded = isSavedPackLoaded(sp);
-const icon = sp.icon || "icons/logo.webp";
+const icon = sp.icon || "/icons/logo.webp";
 const sub = sp.version
 ? tPlural(count,'savedPackModsOne','{n} mod','savedPackModsOther','{n} mods') + " · v" + escapeHtml(sp.version)
 : tPlural(count,'savedPackModsOne','{n} mod','savedPackModsOther','{n} mods');
@@ -4866,7 +4866,7 @@ if(!state.savedPacks.length){ section.style.display = "none"; list.innerHTML = "
 section.style.display = "";
 list.innerHTML = state.savedPacks.map(savedPackCardHtml).join("");
 list.querySelectorAll(".saved-pack-icon").forEach(img=>{
-img.addEventListener("error", ()=>{ img.src = "icons/logo.webp"; }, { once: true });
+img.addEventListener("error", ()=>{ img.src = "/icons/logo.webp"; }, { once: true });
 });
 list.querySelectorAll("[data-open-sp]").forEach(b=>{
 b.addEventListener("click", ()=>openSavedPackInCreate(b.dataset.openSp));
@@ -5433,6 +5433,113 @@ setImportStatus("error", t("importCouldntReadFile","Couldn't read that file. Mak
 endImportOp();
 }
 }
+async function sha1Hex(buf){
+const digest = await crypto.subtle.digest("SHA-1", buf);
+return Array.from(new Uint8Array(digest)).map(b=>b.toString(16).padStart(2,"0")).join("");
+}
+const MOD_FILE_BATCH_CAP = 10;
+async function importOneModJar(file){
+if(!file.name.toLowerCase().endsWith(".jar")) return { status: "badtype", name: file.name };
+try{
+const buf = await file.arrayBuffer();
+const sha1 = await sha1Hex(buf);
+const lookupRes = await fetchWithTimeout(`${API}/version_files`, {
+method: "POST",
+headers: { "Content-Type": "application/json" },
+body: JSON.stringify({ hashes: [sha1], algorithm: "sha1" })
+});
+if(!lookupRes.ok) throw new Error("Lookup failed");
+const map = await lookupRes.json();
+const version = map[sha1];
+if(!version) return { status: "notfound", name: file.name };
+if(state.pack.some(p=>p.id === version.project_id)) return { status: "already", title: null, name: file.name };
+const projRes = await fetchWithTimeout(`${API}/project/${version.project_id}`);
+const proj = projRes.ok ? await projRes.json() : null;
+const displayTitle = proj ? proj.title : version.name;
+if(!await confirmCompatBeforeAdd(version.project_id, displayTitle)) return { status: "cancelled", title: displayTitle, name: file.name };
+const author = await resolveProjectAuthor(version.project_id);
+const versions = await fetchVersions(version.project_id);
+const best = (versions.find(v=>v.id === version.id)) || pickBestVersion(versions) || version;
+state.pack.push({
+id: version.project_id,
+title: displayTitle,
+icon_url: proj ? proj.icon_url : "",
+author,
+categories: proj ? proj.categories : [],
+projectType: (proj && proj.project_type) || "mod",
+clientSide: (proj && proj.client_side) || "required",
+serverSide: (proj && proj.server_side) || "required",
+selectedVersionId: best.id,
+selectedVersionNumber: best.version_number,
+selectedFile: (best.files && (best.files.find(f=>f.primary) || best.files[0])) || (version.files && (version.files.find(f=>f.primary) || version.files[0])),
+versions: versions.length ? versions : [version]
+});
+savePack();
+unresolvableDeps = [];
+const target = currentPackTarget();
+await autoAddDependencies(best, new Set([version.project_id]), (proj && proj.project_type) || "mod", target);
+await ensureLoaderApis(best.game_versions, best.loaders);
+updateCardButtonsEverywhere(version.project_id);
+if(unresolvableDeps.length){
+const names = unresolvableDeps.map(d=>d.title).join(", ");
+showToast(tf('depsUnresolvable',
+"{mod} needs {deps}, but no build of it runs on this pack's target. It was left out rather than adding a version that would break the pack.",
+{ mod: displayTitle, deps: names }), { duration: 10000 });
+}
+return { status: "added", title: displayTitle, name: file.name };
+}catch(e){
+console.error(e);
+return { status: "error", name: file.name };
+}
+}
+async function importModJarFiles(fileList){
+const files = Array.from(fileList || []).filter(Boolean);
+if(!files.length) return;
+const capped = files.slice(0, MOD_FILE_BATCH_CAP);
+const overflow = files.length - capped.length;
+setImportStatus("loading",
+capped.length > 1
+? tf("modFileCheckingMulti","Checking {n} files against Modrinth…", { n: capped.length })
+: t("modFileChecking","Checking against Modrinth…"),
+"modFile");
+beginImportOp();
+const results = [];
+try{
+for(const file of capped){
+results.push(await importOneModJar(file));
+}
+}finally{
+endImportOp();
+}
+if(state.tab === "pack") renderPack();
+savePack();
+const added = results.filter(r=>r.status === "added");
+const already = results.filter(r=>r.status === "already");
+const notFound = results.filter(r=>r.status === "notfound");
+const badType = results.filter(r=>r.status === "badtype");
+const errored = results.filter(r=>r.status === "error");
+const cancelled = results.filter(r=>r.status === "cancelled");
+if(results.length === 1){
+const r = results[0];
+if(r.status === "added") setImportStatus("success", tf("modFileAdded","Added {mod} to Create.", { mod: r.title }), "modFile");
+else if(r.status === "already") setImportStatus("success", t("modFileAlreadyInCreate","That mod is already in Create."), "modFile");
+else if(r.status === "notfound") setImportStatus("error", t("modFileNotOnModrinth","This file doesn't match anything listed on Modrinth, so it can't be added."), "modFile");
+else if(r.status === "badtype") setImportStatus("error", t("modFileChooseJar","Please choose a .jar mod file."), "modFile");
+else if(r.status === "cancelled") setImportStatus("error", t("modFileCancelled","Not added."), "modFile");
+else setImportStatus("error", t("modFileImportFailed","Couldn't check that file against Modrinth. Try again."), "modFile");
+return;
+}
+const parts = [];
+if(added.length) parts.push(tPlural(added.length, "modFileAddedOne","Added {n} mod","modFileAddedOther","Added {n} mods",{n:added.length}));
+if(already.length) parts.push(tf("modFileSkippedAlready","{n} already in Create",{n:already.length}));
+if(notFound.length) parts.push(tf("modFileSkippedNotFound","{n} not on Modrinth",{n:notFound.length}));
+if(badType.length) parts.push(tf("modFileSkippedBadType","{n} not a .jar",{n:badType.length}));
+if(cancelled.length) parts.push(tf("modFileSkippedCancelled","{n} skipped",{n:cancelled.length}));
+if(errored.length) parts.push(tf("modFileSkippedError","{n} failed to check",{n:errored.length}));
+let summary = parts.join(", ") + ".";
+if(overflow > 0) summary += " " + tf("modFileBatchCapNotice","Only the first {cap} files were checked ({overflow} ignored).", { cap: MOD_FILE_BATCH_CAP, overflow });
+setImportStatus(added.length > 0 ? "success" : "error", summary, "modFile");
+}
 function buildShareData(){
 const versionIds = state.pack.filter(m=>m.selectedVersionId).map(m=>m.selectedVersionId);
 const { value } = validateFields(
@@ -5821,7 +5928,7 @@ if(state.packIcon){
 img.src = state.packIcon;
 resetBtn.style.display = "inline-flex";
 } else {
-img.src = "icons/logo.webp";
+img.src = "/icons/logo.webp";
 resetBtn.style.display = "none";
 }
 }
@@ -6108,7 +6215,7 @@ zip.file("modrinth.index.json", JSON.stringify(manifest, null, 2));
 importedOverrides.forEach(o=>{ zip.file(o.path, o.data); });
 try{
 if(!importedOverrides.some(o=>o.path === "overrides/icon.png")){
-const iconRes = await fetch(state.packIcon || "icons/logo.png");
+const iconRes = await fetch(state.packIcon || "/icons/logo.png");
 if(iconRes.ok){
 const iconBlob = await iconRes.blob();
 if(iconBlob && typeof iconBlob.size === "number" && iconBlob.size > 0){
@@ -6374,6 +6481,43 @@ const file = e.target.files[0];
 importMrpackFile(file);
 e.target.value = "";
 });
+document.getElementById("modFileInput").addEventListener("change", (e)=>{
+importModJarFiles(e.target.files);
+e.target.value = "";
+});
+(function setupModFileDragDrop(){
+const zone = document.getElementById("tab-pack");
+const overlay = document.getElementById("modFileDragOverlay");
+let dragDepth = 0;
+function hasFiles(e){
+return e.dataTransfer && Array.from(e.dataTransfer.types || []).includes("Files");
+}
+["dragenter","dragover","dragleave","drop"].forEach(evt=>{
+zone.addEventListener(evt, (e)=>{
+if(!hasFiles(e)) return;
+e.preventDefault();
+e.stopPropagation();
+});
+});
+zone.addEventListener("dragenter", (e)=>{
+if(!hasFiles(e)) return;
+dragDepth++;
+overlay.classList.add("visible");
+});
+zone.addEventListener("dragleave", (e)=>{
+if(!hasFiles(e)) return;
+dragDepth = Math.max(0, dragDepth - 1);
+if(dragDepth === 0) overlay.classList.remove("visible");
+});
+zone.addEventListener("drop", (e)=>{
+dragDepth = 0;
+overlay.classList.remove("visible");
+const files = e.dataTransfer && e.dataTransfer.files;
+if(!files || !files.length) return;
+importModJarFiles(files);
+});
+window.addEventListener("dragend", ()=>{ dragDepth = 0; overlay.classList.remove("visible"); });
+})();
 (function setupMrpackDragDrop(){
 const zone = document.getElementById("mrpackDropZone");
 let dragDepth = 0;
@@ -6522,7 +6666,7 @@ backdrop.className = "modal-backdrop intro-backdrop";
 backdrop.innerHTML = `
     <div class="modal intro-modal">
       <div class="modal-head">
-        <span class="intro-logo"><img src="icons/logo.webp" alt="ModBench logo"></span>
+        <span class="intro-logo"><img src="/icons/logo.webp" alt="ModBench logo"></span>
         <div class="intro-head-text">
           <div class="name">${t('introWelcomeTitle','Welcome to ModBench')}</div>
           <p style="margin:2px 0 0; color:var(--text-dim); font-size:0.86rem;">${t('introWelcomeSubtitle','Here is a quick tour before you start building a pack.')}</p>
