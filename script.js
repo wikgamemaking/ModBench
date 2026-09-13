@@ -1,0 +1,6779 @@
+
+const API = "https://api.modrinth.com/v2";
+
+/* Required dependencies with no build that fits the pack target. */
+let unresolvableDeps = [];
+/* Dependencies an imported pack appears not to include. Reported, not added. */
+let importedPackNotes = [];
+/* What the last modpack import did, for the Create tab summary. */
+let lastImportReport = null;
+let passthroughFiles = [];
+let importedOverrides = [];
+
+async function fetchWithTimeout(url, options = {}, timeoutMs = 15000){
+  const controller = new AbortController();
+  const timer = setTimeout(()=>controller.abort(), timeoutMs);
+  try{
+    return await fetch(url, { ...options, signal: controller.signal });
+  }catch(e){
+    if(e.name === "AbortError") throw new Error("Request timed out.");
+    throw e;
+  }finally{
+    clearTimeout(timer);
+  }
+}
+
+const projectAuthorCache = new Map();
+async function resolveProjectAuthor(projectId){
+  if(!projectId) return "";
+  if(!projectAuthorCache.has(projectId)){
+    projectAuthorCache.set(projectId, (async ()=>{
+      try{
+        const res = await fetchWithTimeout(`${API}/project/${projectId}/members`);
+        if(!res.ok) return "";
+        const members = await res.json();
+        if(!Array.isArray(members) || !members.length) return "";
+        const owner = members.find(m=>m.role === "Owner") || members[0];
+        return (owner && owner.user && owner.user.username) || "";
+      }catch(e){
+        return "";
+      }
+    })());
+  }
+  return projectAuthorCache.get(projectId);
+}
+
+/* --- Toast notifications --- */
+document.addEventListener("click", (e)=>{
+  const toggle = e.target.closest(".modlist-toggle, .modlist-toggle-chip, .modlist-toggle-row");
+  if(!toggle) return;
+  const rest = document.getElementById(toggle.dataset.target);
+  if(rest){ rest.hidden = false; }
+  toggle.remove();
+});
+
+function showToast(message, opts = {}){
+  const { actionLabel, onAction, duration = 6000 } = opts;
+  const stack = document.getElementById("toastStack");
+  if(!stack) return null;
+
+  const toast = document.createElement("div");
+  toast.className = "toast";
+  toast.setAttribute("role", "status");
+
+  const msg = document.createElement("span");
+  msg.className = "toast-msg";
+  msg.innerHTML = escapeHtml(message).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+  toast.appendChild(msg);
+
+  let dismissTimer;
+  const dismiss = ()=>{
+    if(!toast.isConnected) return;
+    clearTimeout(dismissTimer);
+    toast.classList.add("leaving");
+    toast.addEventListener("animationend", ()=>toast.remove(), { once:true });
+    setTimeout(()=>toast.remove(), 250);
+  };
+
+  if(actionLabel && onAction){
+    const actionBtn = document.createElement("button");
+    actionBtn.type = "button";
+    actionBtn.className = "toast-action";
+    actionBtn.textContent = actionLabel;
+    actionBtn.addEventListener("click", ()=>{
+      onAction();
+      dismiss();
+    });
+    toast.appendChild(actionBtn);
+  }
+
+  const closeBtn = document.createElement("button");
+  closeBtn.type = "button";
+  closeBtn.className = "toast-close";
+  closeBtn.setAttribute("aria-label", t('toastDismiss','Dismiss'));
+  closeBtn.innerHTML = '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+  closeBtn.addEventListener("click", dismiss);
+  toast.appendChild(closeBtn);
+
+  stack.appendChild(toast);
+  dismissTimer = setTimeout(dismiss, duration);
+  return { dismiss };
+}
+
+/* --- Action history (undo/redo) --- */
+const actionHistory = { past: [], future: [] };
+const MAX_HISTORY_ENTRIES = 25;
+
+function pushHistoryAction(label, undoFn, redoFn){
+  const entry = { label, undo: undoFn, redo: redoFn };
+  actionHistory.past.push(entry);
+  if(actionHistory.past.length > MAX_HISTORY_ENTRIES) actionHistory.past.shift();
+  actionHistory.future = [];
+  renderHistoryControls();
+  return entry;
+}
+
+function removeHistoryEntry(entry){
+  const idx = actionHistory.past.indexOf(entry);
+  if(idx !== -1) actionHistory.past.splice(idx, 1);
+  renderHistoryControls();
+}
+
+function undoLastAction(){
+  const entry = actionHistory.past.pop();
+  if(!entry) return;
+  entry.undo();
+  actionHistory.future.push(entry);
+  renderHistoryControls();
+}
+
+function redoLastAction(){
+  const entry = actionHistory.future.pop();
+  if(!entry) return;
+  entry.redo();
+  actionHistory.past.push(entry);
+  renderHistoryControls();
+}
+
+function undoHistoryToIndex(idx){
+  while(actionHistory.past.length > idx){
+    undoLastAction();
+  }
+  closeHistoryPopover();
+}
+
+function closeHistoryPopover(){
+  const popover = document.getElementById("historyPopover");
+  const toggleBtn = document.getElementById("historyListToggleBtn");
+  if(popover) popover.hidden = true;
+  if(toggleBtn) toggleBtn.setAttribute("aria-expanded", "false");
+}
+
+function renderHistoryControls(){
+  const undoBtn = document.getElementById("historyUndoBtn");
+  const redoBtn = document.getElementById("historyRedoBtn");
+  const toggleBtn = document.getElementById("historyListToggleBtn");
+  if(undoBtn) undoBtn.disabled = actionHistory.past.length === 0;
+  if(redoBtn) redoBtn.disabled = actionHistory.future.length === 0;
+  if(toggleBtn) toggleBtn.disabled = actionHistory.past.length === 0;
+  if(actionHistory.past.length === 0) closeHistoryPopover();
+
+  const listEl = document.getElementById("historyList");
+  if(!listEl) return;
+  if(!actionHistory.past.length){
+    listEl.innerHTML = `<div class="history-empty">${t('historyEmpty','No recent actions')}</div>`;
+    return;
+  }
+  listEl.innerHTML = actionHistory.past.map((entry, idx)=>{
+    const isLast = idx === actionHistory.past.length - 1;
+    return `<button type="button" class="history-item${isLast ? " is-latest" : ""}" data-history-idx="${idx}">
+      <span class="history-item-dot"></span>
+      <span class="history-item-label">${escapeHtml(entry.label)}</span>
+      <span class="history-item-undo">${isLast ? t('historyUndo','Undo') : t('historyUndoToHere','Undo to here')}</span>
+    </button>`;
+  }).reverse().join("");
+}
+
+/* --- Button loading state (shimmer + spinner + slow-load toast) --- */
+function startLoadingButton(btn, label){
+  if(!btn) return;
+  // Use aria-disabled (not disabled) so the loading animation actually plays
+  // in browsers (e.g. Firefox) that freeze CSS animations on :disabled controls.
+  if(btn.dataset.originalLabel === undefined) btn.dataset.originalLabel = btn.textContent;
+  if(label !== undefined) btn.textContent = label;
+  btn.setAttribute("aria-disabled", "true");
+  btn.classList.add("btn-loading");
+  if(!btn._slowLoadTimer){
+    btn._slowLoadTimer = setTimeout(()=>{
+      showToast(t('toastSlowLoad','**Taking more time than expected.** Modbench is still working on getting your mods added.'));
+      btn._slowLoadTimer = null;
+    }, 15000);
+  }
+}
+
+function stopLoadingButton(btn, finalLabel){
+  if(!btn) return;
+  btn.removeAttribute("aria-disabled");
+  btn.classList.remove("btn-loading");
+  btn.textContent = finalLabel !== undefined ? finalLabel : (btn.dataset.originalLabel ?? btn.textContent);
+  delete btn.dataset.originalLabel;
+  if(btn._slowLoadTimer){
+    clearTimeout(btn._slowLoadTimer);
+    btn._slowLoadTimer = null;
+  }
+}
+
+// Guard against double-activation (keyboard etc.) while btn-loading is active.
+function isLoadingButton(btn){
+  return !!btn && btn.classList.contains("btn-loading");
+}
+
+const SUPABASE_URL = "https://nwshmuzkphmozilcpdti.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im53c2htdXprcGhtb3ppbGNwZHRpIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODczMzY2NTcsImV4cCI6MjEwMjkxMjY1N30.8nizLEGs7gckz3MSZvn9uznI_NqHD9fKJvMej-wyLiE";
+const SHARE_TABLE = "shared_packs";
+function shareBackendConfigured(){
+  return Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+}
+
+/* ================= Accounts (Supabase Auth) ================= */
+const sb = (SUPABASE_URL && SUPABASE_ANON_KEY && window.supabase)
+  ? window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY)
+  : null;
+
+function authConfigured(){ return Boolean(sb); }
+
+function cropImageToSquare(file, size = 256, quality = 0.86){
+  return new Promise((resolve, reject)=>{
+    const reader = new FileReader();
+    reader.onerror = ()=>reject(new Error("read failed"));
+    reader.onload = ()=>{
+      const img = new Image();
+      img.onerror = ()=>reject(new Error("decode failed"));
+      img.onload = ()=>{
+        const side = Math.min(img.naturalWidth, img.naturalHeight);
+        const sx = (img.naturalWidth - side) / 2;
+        const sy = (img.naturalHeight - side) / 2;
+        const canvas = document.createElement("canvas");
+        canvas.width = canvas.height = size;
+        const ctx = canvas.getContext("2d");
+        ctx.imageSmoothingQuality = "high";
+        // Transparent PNGs would go black on a JPEG encode, so lay down the
+        // surface colour first.
+        ctx.fillStyle = "#ffffff";
+        ctx.fillRect(0, 0, size, size);
+        ctx.drawImage(img, sx, sy, side, side, 0, 0, size, size);
+        const dataUrl = canvas.toDataURL("image/jpeg", quality);
+        canvas.toBlob(blob=>{
+          // Safari has historically returned null here for large canvases.
+          // Rebuild the blob from the data URL rather than failing the crop.
+          if(blob) return resolve({ dataUrl, blob, width: size, height: size });
+          try{
+            const bin = atob(dataUrl.split(",")[1]);
+            const bytes = new Uint8Array(bin.length);
+            for(let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+            resolve({ dataUrl, blob: new Blob([bytes], { type: "image/jpeg" }), width: size, height: size });
+          }catch(err){ reject(err); }
+        }, "image/jpeg", quality);
+      };
+      img.src = reader.result;
+    };
+    reader.readAsDataURL(file);
+  });
+}
+
+function scrollToTopSmooth(){
+  const reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  window.scrollTo({ top: 0, behavior: reduced ? "auto" : "smooth" });
+}
+
+function getInitials(email){
+  if(!email) return "?";
+  const namePart = email.split("@")[0];
+  const parts = namePart.split(/[._-]+/).filter(Boolean);
+  if(parts.length >= 2) return (parts[0][0] + parts[1][0]).toUpperCase();
+  return namePart.slice(0, 2).toUpperCase();
+}
+
+async function resolveGravatar(user){
+  if(!user || getAuthProvider(user) !== "email") return;
+  const email = (user.email || "").trim().toLowerCase();
+  if(!email) return;
+  const cacheKey = `modbench_gravatar_${user.id}`;
+  const cached = safeLocalStorageGet(cacheKey);
+  if(cached !== null) return;                       // already resolved, hit or miss
+  if(!(window.crypto && window.crypto.subtle)) return;
+  try{
+    const buf = await window.crypto.subtle.digest("SHA-256", new TextEncoder().encode(email));
+    const hash = Array.from(new Uint8Array(buf)).map(b=>b.toString(16).padStart(2, "0")).join("");
+    const url = `https://www.gravatar.com/avatar/${hash}?s=200&d=404`;
+    const ok = await new Promise(resolve=>{
+      const img = new Image();
+      img.onload = ()=>resolve(true);
+      img.onerror = ()=>resolve(false);
+      img.src = url;
+    });
+    safeLocalStorageSet(cacheKey, ok ? url : "");
+    if(ok) renderAccountUI();
+  }catch(e){
+    console.warn("Gravatar lookup failed", e);
+  }
+}
+
+function getAvatarUrl(user){
+  const meta = user && user.user_metadata;
+  const remote = (meta && (meta.avatar_url || meta.picture)) || null;
+  if(remote) return remote;
+  // Local fallback: used while an upload is in flight, and when Storage isn't
+  // reachable so the picture at least works on this device.
+  if(user && getAuthProvider(user) === "email"){
+    return safeLocalStorageGet(`modbench_avatar_${user.id}`)
+      || safeLocalStorageGet(`modbench_gravatar_${user.id}`)
+      || null;
+  }
+  return null;
+}
+function canChangeAvatar(user){
+  // Google and Discord supply their own picture and re-assert it on every
+  // sign-in, so an override here would silently revert.
+  return Boolean(user) && getAuthProvider(user) === "email";
+}
+function getAuthProvider(user){
+  return (user && user.app_metadata && user.app_metadata.provider) || "email";
+}
+function getDisplayName(user){
+  const meta = user && user.user_metadata;
+  // display_name first: it's the one the user set here, and it must beat
+  // anything a provider supplied.
+  return (meta && (meta.display_name || meta.full_name || meta.name)) || null;
+}
+
+// Email sign-ups have no name field, so derive a readable one from the local
+// part: "jean.dupont" -> "Jean Dupont", "vik_dev" -> "Vik Dev". Trailing digits
+// are dropped, since "Vik42" reads worse than "Vik".
+function nameFromEmail(email){
+  const local = String(email || "").split("@")[0];
+  if(!local) return null;
+  const words = local
+    .replace(/[._-]+/g, " ")
+    .replace(/([a-z])([A-Z])/g, "$1 $2")
+    .replace(/\s*\d+\s*$/, "")
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean);
+  if(!words.length) return null;
+  return words.map(w=>w.charAt(0).toUpperCase() + w.slice(1)).join(" ");
+}
+function getProviderUsername(user){
+  const meta = user && user.user_metadata;
+  if(!meta) return null;
+  return meta.preferred_username || meta.user_name
+    || (meta.custom_claims && meta.custom_claims.global_name) || null;
+}
+
+const SIGNIN_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path><polyline points="10 17 15 12 10 7"></polyline><line x1="15" y1="12" x2="3" y2="12"></line></svg>`;
+const PROFILE_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>`;
+const SYNC_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 2v6h-6"></path><path d="M3 12a9 9 0 0 1 15-6.7L21 8"></path><path d="M3 22v-6h6"></path><path d="M21 12a9 9 0 0 1-15 6.7L3 16"></path></svg>`;
+const AVATAR_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>`;
+const RESTORE_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="7 10 12 15 17 10"></polyline><line x1="12" y1="15" x2="12" y2="3"></line></svg>`;
+const SIGNOUT_ICON_SVG = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path><polyline points="16 17 21 12 16 7"></polyline><line x1="21" y1="12" x2="9" y2="12"></line></svg>`;
+
+function renderAccountUI(){
+  const slot = document.getElementById("accountSlot");
+  if(!slot) return;
+  closeAccountMenu(true);
+  refreshAllCardButtons();
+  // Signing in or out flips whether share codes are available at all.
+  if(typeof updateShareUsageDisplays === "function") updateShareUsageDisplays();
+  const user = state.user;
+  if(!user){
+    slot.innerHTML = `<button type="button" class="signin-btn" id="signInBtn">${SIGNIN_ICON_SVG}${t('signInBtn','Sign in')}</button>`;
+    document.getElementById("signInBtn").addEventListener("click", ()=>showAuthModal("signin"));
+    return;
+  }
+  const email = user.email || "";
+  const avatarUrl = getAvatarUrl(user);
+  const avatarInner = avatarUrl
+    ? `<img src="${escapeHtml(avatarUrl)}" alt="" referrerpolicy="no-referrer">`
+    : escapeHtml(getInitials(email));
+  slot.innerHTML = `<button type="button" class="account-btn${avatarUrl ? ' has-avatar' : ''}" id="accountMenuBtn" aria-haspopup="true" aria-expanded="false" aria-label="${t('accountMenuLabel','Account menu')}" title="${escapeHtml(email)}">${avatarInner}</button>`;
+  const btn = document.getElementById("accountMenuBtn");
+  btn.addEventListener("click", (e)=>{
+    e.stopPropagation();
+    toggleAccountMenu();
+  });
+  if(avatarUrl){
+    const img = btn.querySelector("img");
+    // Provider avatar can 404/hotlink-block after the fact; fall back to
+    // initials rather than showing a broken image.
+    if(img) img.addEventListener("error", ()=>{
+      btn.classList.remove("has-avatar");
+      btn.textContent = getInitials(email);
+    });
+  }
+}
+
+let accountMenuEl = null;
+function closeAccountMenuOnOutsideClick(e){
+  if(accountMenuEl && !accountMenuEl.contains(e.target)) closeAccountMenu();
+}
+function closeAccountMenuOnEscape(e){
+  if(e.key === "Escape") closeAccountMenu();
+}
+function closeAccountMenu(immediate){
+  if(!accountMenuEl) return;
+  const el = accountMenuEl;
+  accountMenuEl = null;
+  document.removeEventListener("click", closeAccountMenuOnOutsideClick);
+  document.removeEventListener("keydown", closeAccountMenuOnEscape);
+  const btn = document.getElementById("accountMenuBtn");
+  if(btn) btn.setAttribute("aria-expanded", "false");
+
+  const reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if(immediate || reduced){ el.remove(); return; }
+
+  // Take it out of the accessibility tree straight away — visually it's
+  // still fading, but it's already gone as far as the user is concerned.
+  el.setAttribute("aria-hidden", "true");
+  el.classList.add("closing");
+  let done = false;
+  const drop = ()=>{ if(done) return; done = true; el.remove(); };
+  el.addEventListener("animationend", drop, { once: true });
+  setTimeout(drop, 260); // safety net if animationend never fires
+}
+function toggleAccountMenu(){
+  if(accountMenuEl){ closeAccountMenu(); return; }
+  if(typeof closeHeaderMenu === "function") closeHeaderMenu(true);
+  const slot = document.getElementById("accountSlot");
+  const btn = document.getElementById("accountMenuBtn");
+  if(!slot || !btn) return;
+  // A menu from a previous close may still be fading out; drop it now so we
+  // never briefly show two stacked menus.
+  slot.querySelectorAll(".account-menu.closing").forEach(el=>el.remove());
+  const user = state.user;
+  const email = (user && user.email) || "";
+  const provider = getAuthProvider(user);
+  const displayName = getDisplayName(user);
+  let nameLine = null;
+  let subLine = email;
+  if(provider === "discord" && displayName){
+    nameLine = displayName;
+    const username = getProviderUsername(user);
+    subLine = username ? `@${username}` : email;
+  } else if(provider === "google" && displayName){
+    nameLine = displayName;
+    subLine = email;
+  } else {
+    // Only ever a fallback. If the account carries a real name — set here or
+    // supplied at sign-up — that wins; the derivation exists so the header
+    // isn't a bare "Signed in as" for accounts that have none.
+    nameLine = displayName || nameFromEmail(email);
+    subLine = email;
+  }
+  accountMenuEl = document.createElement("div");
+  accountMenuEl.className = "account-menu";
+  const avatarUrl = getAvatarUrl(user);
+  const avatarHtml = avatarUrl
+    ? `<img class="account-menu-avatar" src="${escapeHtml(avatarUrl)}" alt="" referrerpolicy="no-referrer">`
+    : `<div class="account-menu-avatar account-menu-avatar-fallback">${escapeHtml(getInitials(email))}</div>`;
+  accountMenuEl.innerHTML = `
+    <div class="account-menu-header">
+      ${avatarHtml}
+      <div class="account-menu-identity">
+        <strong>${escapeHtml(nameLine || t('accountSignedInAs','Signed in as'))}</strong>
+        <span>${escapeHtml(subLine)}</span>
+      </div>
+    </div>
+    <div class="account-status-row">
+      <button type="button" class="account-sync-note ${syncStatus === 'error' ? 'err' : ''}" id="accountSyncNote"><span class="dot"></span><span>${syncStatusLabel()}</span></button>
+      <span class="account-share-count" id="accountShareCount"></span>
+    </div>
+    <div class="account-menu-divider"></div>
+    ${canChangeAvatar(user) ? `<button type="button" class="menu-item" id="changeAvatarBtn">${AVATAR_ICON_SVG}${t('changeAvatarBtn','Change profile picture')}</button>` : ""}
+    <button type="button" class="menu-item" id="restoreSyncBtn">${RESTORE_ICON_SVG}${t('restoreSyncBtn','Restore from account')}</button>
+    <div class="account-menu-divider"></div>
+    <button type="button" class="menu-item danger" id="signOutBtn">${SIGNOUT_ICON_SVG}${t('signOutBtn','Sign out')}</button>
+  `;
+  if(avatarUrl){
+    const avatarImg = accountMenuEl.querySelector("img.account-menu-avatar");
+    if(avatarImg) avatarImg.addEventListener("error", ()=>{
+      avatarImg.outerHTML = `<div class="account-menu-avatar account-menu-avatar-fallback">${escapeHtml(getInitials(email))}</div>`;
+    });
+  }
+  slot.appendChild(accountMenuEl);
+  btn.setAttribute("aria-expanded", "true");
+  document.getElementById("signOutBtn").addEventListener("click", handleSignOut);
+  updateAccountShareCounter();
+  refreshShareUsageFromServer();
+  const avatarBtn = document.getElementById("changeAvatarBtn");
+  if(avatarBtn) avatarBtn.addEventListener("click", (e)=>{ e.stopPropagation(); showAvatarModal(); });
+  const restoreBtn = document.getElementById("restoreSyncBtn");
+  if(restoreBtn) restoreBtn.addEventListener("click", (e)=>{ e.stopPropagation(); restoreFromAccount(); });
+  const syncNote = document.getElementById("accountSyncNote");
+  if(syncNote) syncNote.addEventListener("click", (e)=>{
+    e.stopPropagation();
+    if(syncStatus !== "error") return;
+    showToast(lastSyncError || t('syncErrUnknown',"Sync failed for an unknown reason."), { duration: 11000 });
+  });
+  setTimeout(()=>{
+    document.addEventListener("click", closeAccountMenuOnOutsideClick);
+    document.addEventListener("keydown", closeAccountMenuOnEscape);
+  }, 0);
+}
+
+async function handleSignOut(){
+  closeAccountMenu();
+  if(!sb) return;
+  try{
+    const savedToAccount = await finalizeSyncBeforeSignOut();
+    signedOutIntentionally = true;
+    await sb.auth.signOut();
+    if(savedToAccount){
+      // Confirmed the account has this device's data - safe to clear the
+      // local copy so a signed-out visitor starts from a clean slate.
+      clearLocalAccountData();
+      showToast(t('toastSignedOut','Signed out.'));
+    } else {
+      // Couldn't confirm the save (offline, sync error, etc.) - leave local
+      // data alone rather than risk losing it.
+      showToast(t('toastSignOutKeptLocal',"Signed out. Your last changes couldn't be confirmed as saved, so they're kept on this device."), { duration: 8000 });
+    }
+  }catch(e){
+    console.error("Sign out failed", e);
+    showToast(t('toastSignOutError',"Couldn't sign out, try again."));
+  }
+}
+
+const PW_REVEAL_MS = 650;
+const PW_MASK_CHAR = "\u2022"; // same bullet the browser's own password mask uses
+const PW_ICON_EYE = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path><circle cx="12" cy="12" r="3"></circle></svg>`;
+const PW_ICON_EYE_OFF = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a20.7 20.7 0 0 1 5.06-6.06M9.9 4.24A10.4 10.4 0 0 1 12 4c7 0 11 8 11 8a20.6 20.6 0 0 1-3.22 4.66M14.12 14.12a3 3 0 1 1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>`;
+
+function stripSpaces(input){
+  const value = input.value;
+  if(!/\s/.test(value)) return value;
+  const selStart = input.selectionStart ?? value.length;
+  const spacesBefore = (value.slice(0, selStart).match(/\s/g) || []).length;
+  const cleaned = value.replace(/\s/g, "");
+  input.value = cleaned;
+  const newPos = Math.max(0, selStart - spacesBefore);
+  try{ input.setSelectionRange(newPos, newPos); }catch(e){ /* selection API unsupported; harmless */ }
+  return cleaned;
+}
+
+function attachPasswordReveal(input){
+  if(!input || input.dataset.pwRevealAttached) return;
+  const wrap = input.closest(".auth-field-input-wrap") || input.parentElement;
+  if(!wrap) return;
+  input.dataset.pwRevealAttached = "1";
+  input.classList.add("pw-reveal-input");
+
+  const overlay = document.createElement("div");
+  overlay.className = "pw-reveal-overlay";
+  overlay.setAttribute("aria-hidden", "true");
+  wrap.appendChild(overlay);
+
+  const toggle = document.createElement("button");
+  toggle.type = "button";
+  toggle.className = "pw-reveal-toggle";
+  wrap.appendChild(toggle);
+
+  const caret = document.createElement("div");
+  caret.className = "pw-fake-caret";
+  caret.setAttribute("aria-hidden", "true");
+  wrap.appendChild(caret);
+
+  const state = { prevValue: input.value || "", revealFrom: null, revealTo: null, timer: null, forceShow: false };
+
+  const measureCanvas = document.createElement("canvas");
+  const measureCtx = measureCanvas.getContext("2d");
+  function textWidth(str){
+    measureCtx.font = getComputedStyle(overlay).font;
+    return measureCtx.measureText(str).width;
+  }
+
+  function render(){
+    const value = input.value;
+    let out = "";
+    for(let i = 0; i < value.length; i++){
+      const revealed = state.forceShow || (state.revealFrom !== null && i >= state.revealFrom && i < state.revealTo);
+      out += revealed ? value[i] : PW_MASK_CHAR;
+    }
+    overlay.textContent = out;
+    syncScroll();
+  }
+
+  function syncScroll(){
+    const text = overlay.textContent;
+    const caretIndex = Math.max(0, Math.min(text.length, input.selectionEnd ?? text.length));
+    const caretX = textWidth(text.slice(0, caretIndex));
+    const visible = overlay.clientWidth;
+    const maxScroll = Math.max(0, overlay.scrollWidth - visible);
+    const pad = 2;
+    let target = overlay.scrollLeft;
+    if(caretX - target > visible - pad) target = caretX - visible + pad;
+    if(caretX - target < pad) target = caretX - pad;
+    target = Math.max(0, Math.min(target, maxScroll));
+    overlay.scrollLeft = target;
+    const padLeft = parseFloat(getComputedStyle(overlay).paddingLeft) || 0;
+    caret.style.left = (padLeft + caretX - target) + "px";
+  }
+
+  function maskAll(){
+    clearTimeout(state.timer);
+    state.timer = null;
+    state.revealFrom = null;
+    state.revealTo = null;
+    render();
+  }
+
+  function updateToggleUI(){
+    const label = state.forceShow ? t('authHidePassword','Hide password') : t('authShowPassword','Show password');
+    toggle.innerHTML = state.forceShow ? PW_ICON_EYE_OFF : PW_ICON_EYE;
+    toggle.setAttribute("aria-label", label);
+    toggle.title = label;
+    toggle.setAttribute("aria-pressed", state.forceShow ? "true" : "false");
+  }
+
+  input.addEventListener("keydown", (e)=>{
+    if(e.key === " ") e.preventDefault(); // passwords here just don't take spaces, silently
+  });
+  input.addEventListener("input", ()=>{
+    const value = stripSpaces(input);
+    const prev = state.prevValue;
+    const minLen = Math.min(prev.length, value.length);
+    let common = 0;
+    while(common < minLen && prev[common] === value[common]) common++;
+    state.prevValue = value;
+
+    if(state.forceShow){ render(); return; } // already showing everything, nothing to schedule
+
+    clearTimeout(state.timer);
+    if(value.length > common){
+      // Newly typed (or pasted) characters starting at `common` — reveal
+      // just that stretch, then let it fall back to dots on its own.
+      state.revealFrom = common;
+      state.revealTo = value.length;
+      state.timer = setTimeout(()=>{
+        state.revealFrom = null;
+        state.revealTo = null;
+        render();
+      }, PW_REVEAL_MS);
+    } else {
+      // Pure deletion — nothing new to show.
+      state.revealFrom = null;
+      state.revealTo = null;
+    }
+    render();
+  });
+  input.addEventListener("click", syncScroll);
+  input.addEventListener("keyup", (e)=>{
+    // Only reposition on keys that can move the caret without changing
+    // the value — "input" already handles anything that edits text.
+    if(["ArrowLeft","ArrowRight","Home","End"].includes(e.key)) syncScroll();
+  });
+  input.addEventListener("change", ()=>{ state.prevValue = stripSpaces(input); render(); }); // covers autofill in browsers that skip "input"
+  input.addEventListener("focus", ()=>{ caret.classList.add("active"); syncScroll(); });
+  input.addEventListener("blur", ()=>{ caret.classList.remove("active"); if(!state.forceShow) maskAll(); });
+
+  toggle.addEventListener("mousedown", (e)=>{ e.preventDefault(); }); // keeps focus (and its ring) on the input instead of hopping to the button and back
+  toggle.addEventListener("click", ()=>{
+    state.forceShow = !state.forceShow;
+    clearTimeout(state.timer);
+    state.timer = null;
+    state.revealFrom = null;
+    state.revealTo = null;
+    updateToggleUI();
+    render();
+    input.focus();
+  });
+
+  updateToggleUI();
+  render();
+}
+
+function gradePassword(pw){
+  const hasLower = /[a-z]/.test(pw);
+  const hasUpper = /[A-Z]/.test(pw);
+  const hasNumber = /[0-9]/.test(pw);
+  const hasSymbol = /[^A-Za-z0-9]/.test(pw);
+  const reqs = {
+    length: pw.length >= 8,
+    case: hasUpper,
+    number: hasNumber,
+    symbol: hasSymbol
+  };
+  let points = 0;
+  if(pw.length >= 8) points++;
+  if(pw.length >= 12) points++;
+  if(hasLower) points++;
+  if(hasUpper) points++;
+  if(hasNumber) points++;
+  if(hasSymbol) points++;
+  // points tops out at 6 (2 for length, 4 for variety); bucket into the
+  // 4 levels the meter displays. Empty field -> level 0 (meter at rest).
+  let level = 0;
+  if(pw.length > 0){
+    if(points <= 1) level = 1;
+    else if(points <= 3) level = 2;
+    else if(points === 4) level = 3;
+    else level = 4;
+  }
+  return { level, reqs };
+}
+
+const PW_STRENGTH_LEVELS = [
+  null,
+  { key:'weak',   label: ()=>t('authPwStrengthWeak','Weak') },
+  { key:'fair',   label: ()=>t('authPwStrengthFair','Fair') },
+  { key:'good',   label: ()=>t('authPwStrengthGood','Good') },
+  { key:'strong', label: ()=>t('authPwStrengthStrong','Strong') }
+];
+const PW_REQ_ICON_CHECK = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>`;
+const PW_REQ_ICON_DOT = `<svg viewBox="0 0 24 24" fill="currentColor"><circle cx="12" cy="12" r="4"></circle></svg>`;
+
+function pwStrengthMarkup(idPrefix){
+  return `
+    <div class="pw-strength" id="${idPrefix}Strength" aria-live="polite">
+      <div class="pw-strength-bar">
+        <div class="pw-strength-seg"></div>
+        <div class="pw-strength-seg"></div>
+        <div class="pw-strength-seg"></div>
+        <div class="pw-strength-seg"></div>
+      </div>
+      <div class="pw-strength-label"></div>
+      <ul class="pw-requirements">
+        <li data-req="length"><span class="pw-req-icon">${PW_REQ_ICON_DOT}</span><span>${t('authPwReqLength','8 characters or more')}</span></li>
+        <li data-req="case"><span class="pw-req-icon">${PW_REQ_ICON_DOT}</span><span>${t('authPwReqCase','At least one uppercase letter')}</span></li>
+        <li data-req="number"><span class="pw-req-icon">${PW_REQ_ICON_DOT}</span><span>${t('authPwReqNumber','At least one number')}</span></li>
+        <li data-req="symbol"><span class="pw-req-icon">${PW_REQ_ICON_DOT}</span><span>${t('authPwReqSymbol','At least one symbol')}</span></li>
+      </ul>
+    </div>`;
+}
+
+function attachPasswordStrength(input, container){
+  if(!input || !container || input.dataset.pwStrengthAttached) return;
+  input.dataset.pwStrengthAttached = "1";
+  const segs = container.querySelectorAll(".pw-strength-seg");
+  const labelEl = container.querySelector(".pw-strength-label");
+  const reqEls = container.querySelectorAll(".pw-requirements li");
+
+  function update(){
+    const { level, reqs } = gradePassword(input.value);
+    const meta = level > 0 ? PW_STRENGTH_LEVELS[level] : null;
+    segs.forEach((seg, i)=>{
+      seg.className = "pw-strength-seg" + (meta && i < level ? " filled-" + meta.key : "");
+    });
+    labelEl.textContent = meta ? meta.label() : "";
+    labelEl.className = "pw-strength-label" + (meta ? " " + meta.key : "");
+    reqEls.forEach(li=>{
+      const met = !!reqs[li.dataset.req];
+      li.classList.toggle("met", met);
+      li.querySelector(".pw-req-icon").innerHTML = met ? PW_REQ_ICON_CHECK : PW_REQ_ICON_DOT;
+    });
+  }
+  input.addEventListener("input", update);
+  update();
+}
+
+function friendlyAuthError(err){
+  if(!err) return t('authErrGeneric','Something went wrong. Try again.');
+  const msg = err.message || String(err);
+  if(msg.includes("Invalid login credentials")) return t('authErrInvalidCreds','Incorrect email or password.');
+  if(msg.includes("User already registered")) return t('authErrAlreadyRegistered','An account with that email already exists — try signing in instead.');
+  if(msg.includes("Email not confirmed")) return t('authErrEmailNotConfirmed','Check your inbox and confirm your email before signing in.');
+  if(/password/i.test(msg) && /(least|short|6 char)/i.test(msg)) return t('authErrWeakPassword','Password must be at least 6 characters.');
+  if(/email/i.test(msg) && /invalid/i.test(msg)) return t('authErrInvalidEmail',"That doesn't look like a valid email address.");
+  if(/rate limit/i.test(msg)) return t('authErrRateLimited','Too many attempts — wait a bit and try again.');
+  return msg;
+}
+
+function dismissModalBackdrop(backdrop){
+  if(!backdrop || backdrop.dataset.closing === "1"){ return; }
+  const reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if(reduced){ backdrop.remove(); return; }
+  backdrop.dataset.closing = "1";
+  backdrop.classList.add("closing");
+  let done = false;
+  const drop = ()=>{ if(done) return; done = true; backdrop.remove(); };
+  backdrop.addEventListener("animationend", drop, { once: true });
+  setTimeout(drop, 300);
+}
+
+const AVATAR_BUCKET = "avatars";
+
+async function uploadAvatarToStorage(blob){
+  if(!state.user || !state.session) throw new Error("not signed in");
+  const path = `${state.user.id}/avatar.jpg`;
+  const res = await fetch(`${SUPABASE_URL}/storage/v1/object/${AVATAR_BUCKET}/${path}`, {
+    method: "POST",
+    headers: {
+      "apikey": SUPABASE_ANON_KEY,
+      "Authorization": `Bearer ${state.session.access_token}`,
+      "Content-Type": "image/jpeg",
+      "x-upsert": "true"
+    },
+    body: blob
+  });
+  if(!res.ok){
+    let detail = "";
+    try{ detail = await res.text(); }catch(e){}
+    const err = new Error(`avatar upload failed (${res.status}) ${detail}`);
+    err.missingBucket = res.status === 404 || /Bucket not found/i.test(detail);
+    throw err;
+  }
+  // Cache-buster: the path is stable across uploads, so without it the old
+  // picture stays on screen until the browser cache expires.
+  return `${SUPABASE_URL}/storage/v1/object/public/${AVATAR_BUCKET}/${path}?v=${Date.now()}`;
+}
+
+function showAvatarModal(){
+  if(!canChangeAvatar(state.user)) return;
+  closeAccountMenu(true);
+  document.querySelectorAll(".modal-backdrop").forEach(b=>dismissModalBackdrop(b));
+
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  backdrop.style.alignItems = "center";
+  const current = getAvatarUrl(state.user);
+  backdrop.innerHTML = `
+    <div class="modal auth-modal avatar-modal">
+      <div class="modal-head" style="margin-bottom:14px;">
+        <div class="name" style="font-size:1.1rem;">${t('avatarTitle','Your profile')}</div>
+        <button class="modal-close" id="avatarCloseBtn" aria-label="${t('close','Close')}">✕</button>
+      </div>
+
+      <div class="avatar-preview-wrap">
+        <div class="avatar-preview" id="avatarPreview">
+          ${current ? `<img src="${escapeHtml(current)}" alt="">` : `<span>${escapeHtml(getInitials(state.user.email || ""))}</span>`}
+        </div>
+      </div>
+
+      <div class="auth-field" style="margin-bottom:16px;">
+        <label for="displayNameInput" style="display:block; font-size:0.8rem; font-weight:700; color:var(--text-dim); margin-bottom:6px;">${t('displayNameLabel','Display name')}</label>
+        <input type="text" id="displayNameInput" maxlength="40" autocomplete="nickname"
+          placeholder="${escapeHtml(nameFromEmail(state.user.email || "") || "")}"
+          value="${escapeHtml(getDisplayName(state.user) || "")}"
+          style="width:100%;">
+        <p style="margin:6px 0 0; font-size:0.76rem; color:var(--text-dim);">${t('displayNameHint','Leave empty to use the name derived from your email address.')}</p>
+      </div>
+
+      <div class="avatar-drop" id="avatarDrop" tabindex="0" role="button" aria-label="${t('avatarDropLabel','Choose or drop an image')}">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        <strong>${t('avatarDropTitle','Drop an image here')}</strong>
+        <span>${t('avatarDropHint','or click to browse · PNG, JPG or WebP, up to 5 MB')}</span>
+      </div>
+      <input type="file" id="avatarFileInput" accept="image/png,image/jpeg,image/webp,image/gif" hidden>
+
+      <p class="avatar-note" id="avatarNote" hidden></p>
+
+      <div class="avatar-actions">
+        ${current ? `<button type="button" class="page-btn" id="avatarRemoveBtn">${t('avatarRemove','Remove')}</button>` : ""}
+        <button type="button" class="export-btn" id="avatarSaveBtn" style="margin:0; flex:1;">${t('avatarSave','Save changes')}</button>
+      </div>
+    </div>`;
+
+  document.body.appendChild(backdrop);
+
+  const drop = backdrop.querySelector("#avatarDrop");
+  const input = backdrop.querySelector("#avatarFileInput");
+  const preview = backdrop.querySelector("#avatarPreview");
+  const saveBtn = backdrop.querySelector("#avatarSaveBtn");
+  const note = backdrop.querySelector("#avatarNote");
+  const removeBtn = backdrop.querySelector("#avatarRemoveBtn");
+  let pending = null;
+
+  function setNote(msg, kind){
+    if(!msg){ note.hidden = true; note.textContent = ""; return; }
+    note.hidden = false;
+    note.textContent = msg;
+    note.className = "avatar-note" + (kind ? " " + kind : "");
+  }
+
+  async function accept(file){
+    if(!file) return;
+    if(!file.type.startsWith("image/")){
+      setNote(t('avatarNotImage',"That file isn't an image."), "err");
+      return;
+    }
+    if(file.size > 5 * 1024 * 1024){
+      setNote(t('avatarTooBig',"That image is over 5 MB. Pick a smaller one."), "err");
+      return;
+    }
+    setNote("");
+    try{
+      const result = await cropImageToSquare(file, 256);
+      pending = result;
+      preview.innerHTML = `<img src="${result.dataUrl}" alt="">`;
+      preview.classList.remove("is-pop");
+      void preview.offsetWidth;
+      preview.classList.add("is-pop");
+    }catch(e){
+      console.warn(e);
+      setNote(t('avatarBadImage',"That image couldn't be read. Try another one."), "err");
+    }
+  }
+
+  drop.addEventListener("click", ()=>input.click());
+  drop.addEventListener("keydown", (e)=>{ if(e.key === "Enter" || e.key === " "){ e.preventDefault(); input.click(); } });
+  input.addEventListener("change", ()=>{ accept(input.files[0]); input.value = ""; });
+
+  ["dragenter","dragover"].forEach(ev=>drop.addEventListener(ev, (e)=>{
+    e.preventDefault(); e.stopPropagation();
+    drop.classList.add("is-over");
+  }));
+  ["dragleave","drop"].forEach(ev=>drop.addEventListener(ev, (e)=>{
+    e.preventDefault(); e.stopPropagation();
+    drop.classList.remove("is-over");
+  }));
+  drop.addEventListener("drop", (e)=>{
+    const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    accept(file);
+  });
+  // Without these the browser navigates away to the dropped file if the user
+  // misses the target.
+  backdrop.addEventListener("dragover", (e)=>e.preventDefault());
+  backdrop.addEventListener("drop", (e)=>e.preventDefault());
+
+  const nameInput = backdrop.querySelector("#displayNameInput");
+
+  saveBtn.addEventListener("click", async ()=>{
+    const newName = (nameInput.value || "").trim();
+    const currentName = getDisplayName(state.user) || "";
+    const nameChanged = newName !== currentName;
+    if(!pending && !nameChanged){ close(); return; }
+    saveBtn.disabled = true;
+    saveBtn.textContent = t('avatarSaving','Saving…');
+
+    if(nameChanged){
+      try{
+        // Empty clears it, which puts the email-derived fallback back in play.
+        await sb.auth.updateUser({ data: { display_name: newName || null } });
+        const { data } = await sb.auth.getUser();
+        if(data && data.user) state.user = data.user;
+      }catch(e){
+        console.warn(e);
+        setNote(t('displayNameFailed',"Your name couldn't be saved."), "err");
+        saveBtn.textContent = t('avatarSave','Save changes');
+        saveBtn.disabled = false;
+        return;
+      }
+    }
+    if(!pending){
+      renderAccountUI();
+      close();
+      showToast(t('profileSaved','Profile updated.'));
+      return;
+    }
+    // Store locally first: whatever happens to the upload, the picture is
+    // already correct on this device.
+    safeLocalStorageSet(`modbench_avatar_${state.user.id}`, pending.dataUrl);
+    try{
+      const url = await uploadAvatarToStorage(pending.blob);
+      const { error } = await sb.auth.updateUser({ data: { avatar_url: url } });
+      if(error) throw error;
+      const { data } = await sb.auth.getUser();
+      if(data && data.user) state.user = data.user;
+      safeLocalStorageRemove(`modbench_avatar_${state.user.id}`);
+      renderAccountUI();
+      close();
+      showToast(t('avatarSaved','Profile picture updated.'));
+    }catch(e){
+      console.warn(e);
+      renderAccountUI();
+      setNote(e.missingBucket
+        ? t('avatarNoBucket',"Saved on this device only — the avatars storage bucket doesn't exist yet.")
+        : t('avatarUploadFailed',"Saved on this device only — the upload didn't go through."), "warn");
+      saveBtn.textContent = t('avatarSave','Save changes');
+      saveBtn.disabled = false;
+    }
+  });
+
+  if(removeBtn) removeBtn.addEventListener("click", async ()=>{
+    removeBtn.disabled = true;
+    safeLocalStorageRemove(`modbench_avatar_${state.user.id}`);
+    safeLocalStorageRemove(`modbench_gravatar_${state.user.id}`);
+    try{
+      await sb.auth.updateUser({ data: { avatar_url: null } });
+      const { data } = await sb.auth.getUser();
+      if(data && data.user) state.user = data.user;
+    }catch(e){ console.warn(e); }
+    renderAccountUI();
+    close();
+    showToast(t('avatarRemoved','Profile picture removed.'));
+  });
+
+  function close(){
+    document.removeEventListener("keydown", onEscape);
+    dismissModalBackdrop(backdrop);
+  }
+  function onEscape(e){ if(e.key === "Escape") close(); }
+  backdrop.querySelector("#avatarCloseBtn").addEventListener("click", close);
+  backdrop.addEventListener("click", (e)=>{ if(e.target === backdrop) close(); });
+  document.addEventListener("keydown", onEscape);
+}
+
+function showAuthModal(initialMode = "signin"){
+  if(!authConfigured()){
+    showToast(t('toastAuthNotConfigured',"Accounts aren't set up on this copy of ModBench."));
+    return;
+  }
+  document.querySelectorAll(".modal-backdrop").forEach(b=>b.remove());
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  backdrop.style.alignItems = "center";
+  document.body.appendChild(backdrop);
+
+  let mode = initialMode; // "signin" | "signup" | "reset"
+
+  function renderShell(){
+    backdrop.innerHTML = `
+      <div class="modal auth-modal">
+        <div class="modal-head" id="authModalHead">
+          <div class="name auth-modal-title">
+            <span class="auth-modal-badge">${PROFILE_ICON_SVG}</span>
+            <span id="authModalTitleText"></span>
+          </div>
+          <button class="modal-close" aria-label="${t('close','Close')}">✕</button>
+        </div>
+        <div id="authBody" class="auth-modal-body"></div>
+      </div>`;
+    backdrop.querySelector(".modal-close").addEventListener("click", close);
+  }
+
+  function renderTitle(){
+    const isReset = mode === "reset";
+    const headEl = backdrop.querySelector("#authModalHead");
+    const titleEl = backdrop.querySelector("#authModalTitleText");
+    if(headEl) headEl.style.marginBottom = isReset ? "4px" : "16px";
+    if(titleEl) titleEl.textContent = isReset ? t('authResetTitle','Reset your password') : t('authTitle','Your ModBench account');
+  }
+
+  function renderBody(){
+    const isReset = mode === "reset";
+    const bodyEl = backdrop.querySelector("#authBody");
+    if(!bodyEl) return;
+    bodyEl.innerHTML = `
+        ${isReset ? `<p style="margin:0 0 16px; font-size:0.86rem; color:var(--text-dim);">${t('authResetDesc',"We'll email you a link to reset your password.")}</p>` : `
+        <div class="auth-tabs" role="tablist">
+          <button type="button" data-mode="signin" role="tab" aria-selected="${mode==='signin'}" class="${mode==='signin'?'active':''}">${t('authSignInTab','Sign in')}</button>
+          <button type="button" data-mode="signup" role="tab" aria-selected="${mode==='signup'}" class="${mode==='signup'?'active':''}">${t('authSignUpTab','Create account')}</button>
+        </div>`}
+        <div id="authErrorSlot"></div>
+        <form id="authForm" novalidate>
+          <div class="auth-field">
+            <label for="authEmail">${t('authEmailLabel','Email')}</label>
+            <div class="auth-field-input-wrap">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"></rect><polyline points="22 6 12 13 2 6"></polyline></svg>
+              <input type="email" id="authEmail" autocomplete="email" required>
+            </div>
+          </div>
+          ${isReset ? "" : `
+          <div class="auth-field" style="margin-bottom:${mode==='signin' ? 6 : 14}px;">
+            <label for="authPassword">${t('authPasswordLabel','Password')}</label>
+            <div class="auth-field-input-wrap">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+              <input type="password" id="authPassword" autocomplete="${mode==='signup' ? 'new-password' : 'current-password'}" minlength="6" required>
+            </div>
+            ${mode==='signup' ? pwStrengthMarkup('authPassword') : ""}
+          </div>`}
+          ${mode==='signin' ? `<p class="auth-forgot"><button type="button" class="linklike" id="forgotPasswordBtn">${t('authForgotPassword','Forgot password?')}</button></p>` : ""}
+          <button type="submit" class="export-btn" id="authSubmitBtn" style="margin-top:0;">${isReset ? t('authSendResetBtn','Send reset link') : (mode==='signup' ? t('authCreateAccountBtn','Create account') : t('authSignInBtn','Sign in'))}</button>
+        </form>
+        ${isReset ? `<p class="auth-note"><button type="button" class="linklike" id="backToSignInBtn">${t('authBackToSignIn','Back to sign in')}</button></p>` : `
+        <div class="auth-divider">${t('authOrDivider','or')}</div>
+        <div class="oauth-row">
+          <button type="button" class="oauth-btn" data-provider="google">
+            <svg viewBox="0 0 48 48"><path fill="#FFC107" d="M43.6 20.5H42V20H24v8h11.3c-1.6 4.6-6 8-11.3 8-6.6 0-12-5.4-12-12s5.4-12 12-12c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.5 6 29.5 4 24 4 12.9 4 4 12.9 4 24s8.9 20 20 20 20-8.9 20-20c0-1.3-.1-2.7-.4-3.5z"/><path fill="#FF3D00" d="M6.3 14.7l6.6 4.8C14.6 15.9 18.9 13 24 13c3.1 0 5.9 1.2 8 3.1l5.7-5.7C34.5 6 29.5 4 24 4c-7.4 0-13.8 4.1-17.1 10.1z"/><path fill="#4CAF50" d="M24 44c5.4 0 10.3-1.8 14.1-5.2l-6.5-5.5C29.5 34.9 26.9 36 24 36c-5.2 0-9.6-3.4-11.2-8.1l-6.5 5C9.9 39.6 16.4 44 24 44z"/><path fill="#1976D2" d="M43.6 20.5H42V20H24v8h11.3c-.8 2.3-2.2 4.2-4.1 5.5l6.5 5.5c-.5.4 6.9-5 6.9-15.5 0-1.3-.1-2.7-.4-3.5z"/></svg>
+            ${t('authContinueGoogle','Google')}
+          </button>
+          <button type="button" class="oauth-btn" data-provider="discord">
+            <svg viewBox="0 0 24 24" fill="#5865F2"><path d="M20.317 4.37a19.79 19.79 0 0 0-4.885-1.515.074.074 0 0 0-.079.037c-.21.375-.444.864-.608 1.25a18.27 18.27 0 0 0-5.487 0 12.64 12.64 0 0 0-.617-1.25.077.077 0 0 0-.079-.037A19.74 19.74 0 0 0 3.677 4.37a.07.07 0 0 0-.032.027C.533 9.046-.32 13.58.099 18.058a.082.082 0 0 0 .031.056 19.9 19.9 0 0 0 5.993 3.03.078.078 0 0 0 .084-.028 14.09 14.09 0 0 0 1.226-1.994.076.076 0 0 0-.041-.106 13.107 13.107 0 0 1-1.872-.892.077.077 0 0 1-.008-.128c.126-.094.252-.192.373-.291a.074.074 0 0 1 .077-.01c3.928 1.793 8.18 1.793 12.062 0a.074.074 0 0 1 .078.009c.121.099.247.198.373.292a.077.077 0 0 1-.006.127 12.3 12.3 0 0 1-1.873.892.076.076 0 0 0-.041.107c.36.698.772 1.362 1.225 1.993a.076.076 0 0 0 .084.029 19.84 19.84 0 0 0 6.002-3.03.077.077 0 0 0 .032-.055c.5-5.177-.838-9.674-3.549-13.66a.061.061 0 0 0-.031-.028zM8.02 15.33c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.211 0 2.176 1.096 2.157 2.42 0 1.333-.955 2.418-2.157 2.418zm7.975 0c-1.183 0-2.157-1.085-2.157-2.419 0-1.333.955-2.419 2.157-2.419 1.211 0 2.176 1.096 2.157 2.42 0 1.333-.946 2.418-2.157 2.418z"/></svg>
+            ${t('authContinueDiscord','Discord')}
+          </button>
+        </div>
+        <p class="auth-note">${mode==='signin'
+          ? tf('authNoAccountYet',"Don't have an account? {link}", {link:`<button type="button" class="linklike" id="switchModeBtn">${t('authSignUpTab','Create account')}</button>`})
+          : tf('authHaveAccount','Already have an account? {link}', {link:`<button type="button" class="linklike" id="switchModeBtn">${t('authSignInTab','Sign in')}</button>`})}
+        </p>`}`;
+    wire();
+  }
+
+  function render(){
+    renderShell();
+    renderTitle();
+    renderBody();
+    const bodyEl = backdrop.querySelector("#authBody");
+    if(bodyEl){
+      bodyEl.classList.add("auth-body-first-open");
+      setTimeout(()=> bodyEl.classList.remove("auth-body-first-open"), 650);
+    }
+  }
+
+  function switchMode(newMode){
+    if(mode === newMode) return; // ignore re-clicks on the active tab
+    mode = newMode;
+    const bodyEl = backdrop.querySelector("#authBody");
+    if(!bodyEl){ renderTitle(); renderBody(); return; }
+    bodyEl.classList.remove("auth-body-first-open");
+    const startHeight = bodyEl.offsetHeight;
+    bodyEl.style.height = startHeight + "px";
+    bodyEl.style.overflow = "hidden";
+    void bodyEl.offsetHeight; // force reflow so the fixed height takes before we fade
+    bodyEl.classList.add("fading");
+    setTimeout(()=>{
+      renderTitle();
+      renderBody();
+      bodyEl.style.height = "auto";
+      const targetHeight = bodyEl.offsetHeight;
+      bodyEl.style.height = startHeight + "px";
+      void bodyEl.offsetHeight; // commit the start value before transitioning
+      requestAnimationFrame(()=>{
+        bodyEl.classList.remove("fading");
+        bodyEl.style.height = targetHeight + "px";
+      });
+      let settled = false;
+      const release = ()=>{
+        if(settled) return;
+        settled = true;
+        bodyEl.removeEventListener("transitionend", onTransitionEnd);
+        if(bodyEl.style.height === targetHeight + "px"){
+          bodyEl.style.height = "";
+        }
+      };
+      const onTransitionEnd = (e)=>{ if(e.target === bodyEl && e.propertyName === "height") release(); };
+      bodyEl.addEventListener("transitionend", onTransitionEnd);
+      setTimeout(release, 420); // safety net (matches reduced-motion / no-transition cases)
+    }, 130);
+  }
+
+  function showError(msg){
+    const slot = backdrop.querySelector("#authErrorSlot");
+    if(!slot) return;
+    slot.innerHTML = msg ? `<div class="auth-error"><span>⚠️</span><span>${escapeHtml(msg)}</span></div>` : "";
+  }
+
+  function wire(){
+    const tabs = backdrop.querySelectorAll(".auth-tabs [data-mode]");
+    tabs.forEach(btn=>btn.addEventListener("click", ()=>switchMode(btn.dataset.mode)));
+    const switchBtn = backdrop.querySelector("#switchModeBtn");
+    if(switchBtn) switchBtn.addEventListener("click", ()=>switchMode(mode === "signin" ? "signup" : "signin"));
+    const forgotBtn = backdrop.querySelector("#forgotPasswordBtn");
+    if(forgotBtn) forgotBtn.addEventListener("click", ()=>switchMode("reset"));
+    const backBtn = backdrop.querySelector("#backToSignInBtn");
+    if(backBtn) backBtn.addEventListener("click", ()=>switchMode("signin"));
+    backdrop.querySelectorAll(".oauth-btn").forEach(btn=>{
+      btn.addEventListener("click", ()=>handleOAuth(btn.dataset.provider));
+    });
+    backdrop.querySelector("#authForm").addEventListener("submit", handleSubmit);
+    attachPasswordReveal(backdrop.querySelector("#authPassword"));
+    if(mode === "signup"){
+      const strengthEl = backdrop.querySelector("#authPasswordStrength");
+      if(strengthEl) attachPasswordStrength(backdrop.querySelector("#authPassword"), strengthEl);
+    }
+  }
+
+  async function handleOAuth(provider){
+    showError("");
+    signedOutIntentionally = false;
+    try{
+      const { error } = await sb.auth.signInWithOAuth({
+        provider,
+        options: { redirectTo: location.origin + location.pathname }
+      });
+      if(error) throw error;
+      // Browser navigates away to the provider here; nothing else to do.
+    }catch(e){
+      console.error("OAuth sign-in failed", e);
+      showError(friendlyAuthError(e));
+    }
+  }
+
+  async function handleSubmit(e){
+    e.preventDefault();
+    showError("");
+    const submitBtn = backdrop.querySelector("#authSubmitBtn");
+    const email = backdrop.querySelector("#authEmail").value.trim();
+    const passwordInput = backdrop.querySelector("#authPassword");
+    const password = passwordInput ? passwordInput.value : "";
+
+    if(!email){ showError(t('authErrMissingEmail','Enter your email.')); return; }
+    if(mode !== "reset" && password.length < 6){ showError(t('authErrWeakPassword','Password must be at least 6 characters.')); return; }
+    if(isLoadingButton(submitBtn)) return;
+
+    startLoadingButton(submitBtn);
+    signedOutIntentionally = false;
+    try{
+      if(mode === "signin"){
+        const { error } = await sb.auth.signInWithPassword({ email, password });
+        if(error) throw error;
+        close();
+        showToast(t('toastSignedIn','Signed in.'));
+      } else if(mode === "signup"){
+        const { data, error } = await sb.auth.signUp({ email, password });
+        if(error) throw error;
+        if(data && data.user && !data.session){
+          // Email confirmation is on: no session yet, so tell the user to check their inbox.
+          switchMode("signin");
+          showToast(t('toastConfirmEmailSent','Check your inbox to confirm your email, then sign in.'), { duration: 9000 });
+        } else {
+          close();
+          showToast(t('toastSignedIn','Signed in.'));
+        }
+      } else if(mode === "reset"){
+        const { error } = await sb.auth.resetPasswordForEmail(email, {
+          redirectTo: location.origin + location.pathname
+        });
+        if(error) throw error;
+        showToast(t('toastResetEmailSent','Password reset email sent — check your inbox.'), { duration: 8000 });
+        switchMode("signin");
+      }
+    }catch(err){
+      console.error("Auth error", err);
+      showError(friendlyAuthError(err));
+    }finally{
+      stopLoadingButton(submitBtn);
+    }
+  }
+
+  function close(){
+    document.removeEventListener("keydown", onEscape);
+    dismissModalBackdrop(backdrop);
+  }
+  function onEscape(e){ if(e.key === "Escape") close(); }
+  backdrop.addEventListener("click", (e)=>{ if(e.target === backdrop) close(); });
+  document.addEventListener("keydown", onEscape);
+
+  render();
+  setTimeout(()=>{ const el = backdrop.querySelector("#authEmail"); if(el) el.focus(); }, 50);
+}
+
+function showNewPasswordModal(){
+  document.querySelectorAll(".modal-backdrop").forEach(b=>b.remove());
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  backdrop.style.alignItems = "center";
+  document.body.appendChild(backdrop);
+
+  backdrop.innerHTML = `
+    <div class="modal auth-modal">
+      <div class="modal-head">
+        <div class="name auth-modal-title">
+          <span class="auth-modal-badge"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg></span>
+          <span>${t('authNewPasswordTitle','Choose a new password')}</span>
+        </div>
+      </div>
+      <div id="newPasswordErrorSlot"></div>
+      <form id="newPasswordForm" novalidate>
+        <div class="auth-field">
+          <label for="newPassword">${t('authNewPasswordLabel','New password')}</label>
+          <div class="auth-field-input-wrap">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+            <input type="password" id="newPassword" autocomplete="new-password" minlength="6" required>
+          </div>
+          ${pwStrengthMarkup('newPassword')}
+        </div>
+        <button type="submit" class="export-btn" id="newPasswordSubmitBtn" style="margin-top:0;">${t('authSetPasswordBtn','Set new password')}</button>
+      </form>
+    </div>`;
+
+  function showError(msg){
+    document.getElementById("newPasswordErrorSlot").innerHTML = `<div class="auth-error">⚠️ ${escapeHtml(msg)}</div>`;
+  }
+  function close(){
+    dismissModalBackdrop(backdrop);
+    document.removeEventListener("keydown", onEscape);
+  }
+  function onEscape(e){ if(e.key === "Escape") close(); }
+  backdrop.addEventListener("click", (e)=>{ if(e.target === backdrop) close(); });
+  document.addEventListener("keydown", onEscape);
+
+  document.getElementById("newPasswordForm").addEventListener("submit", async (e)=>{
+    e.preventDefault();
+    const btn = document.getElementById("newPasswordSubmitBtn");
+    if(isLoadingButton(btn)) return;
+    document.getElementById("newPasswordErrorSlot").innerHTML = "";
+    const password = document.getElementById("newPassword").value;
+    if(password.length < 6){
+      showError(t('authPasswordTooShort','Password must be at least 6 characters.'));
+      return;
+    }
+    startLoadingButton(btn);
+    try{
+      const { error } = await sb.auth.updateUser({ password });
+      if(error) throw error;
+      close();
+      showToast(t('toastPasswordUpdated','Password updated.'));
+    }catch(err){
+      console.error("Set new password error", err);
+      showError(friendlyAuthError(err));
+    }finally{
+      stopLoadingButton(btn);
+    }
+  });
+
+  attachPasswordReveal(document.getElementById("newPassword"));
+  attachPasswordStrength(document.getElementById("newPassword"), document.getElementById("newPasswordStrength"));
+  setTimeout(()=>{ const el = document.getElementById("newPassword"); if(el) el.focus(); }, 50);
+}
+
+let signedOutIntentionally = false;
+
+async function initAuth(){
+  if(!authConfigured()){
+    renderAccountUI();
+    return;
+  }
+  const { data } = await sb.auth.getSession();
+  state.session = data.session;
+  state.user = data.session ? data.session.user : null;
+  renderAccountUI();
+  // Restored session, not a sign-in: load silently.
+  if(state.session) handleAuthReady(false).catch(e=>console.warn("Initial account sync failed", e));
+  if(state.user) resolveGravatar(state.user);
+
+  sb.auth.onAuthStateChange((event, session)=>{
+    if(event === "SIGNED_IN" && signedOutIntentionally && session){
+      console.warn("Ignoring a session recovered right after an intentional sign-out.");
+      sb.auth.signOut().catch(e=>console.warn("Couldn't reject the recovered session", e));
+      return;
+    }
+    state.session = session;
+    state.user = session ? session.user : null;
+    renderAccountUI();
+    if(event === "SIGNED_IN"){
+      signedOutIntentionally = false;
+      handleAuthReady(true).catch(e=>console.warn("Account sync failed", e));
+      resolveGravatar(state.user);
+      refreshShareUsageFromServer();
+    } else if(event === "SIGNED_OUT"){
+      authReadyRunFor = null;
+      resetSyncState();
+    } else if(event === "PASSWORD_RECOVERY"){
+      showNewPasswordModal();
+    }
+    // TOKEN_REFRESHED / INITIAL_SESSION / USER_UPDATED intentionally don't
+    // re-run the merge flow — it should only fire on an actual new sign-in.
+  });
+}
+
+const USER_DATA_TABLE = "user_data";
+const SYNC_FIELDS = ["pack", "favorites", "settings", "saved_packs"];
+
+function nowIso(){ return new Date().toISOString(); }
+function localTsKey(field){ return `modbench_${field}_updated_at`; }
+function getLocalTimestamp(field){ return safeLocalStorageGet(localTsKey(field)); }
+function setLocalTimestamp(field, iso){ safeLocalStorageSet(localTsKey(field), iso); }
+function bumpLocalTimestamp(field){ const iso = nowIso(); setLocalTimestamp(field, iso); return iso; }
+
+function buildSettingsSnapshot(){
+  return { packIcon: state.packIcon || "", autoCompatCheck: !!state.autoCompatCheck, lang: state.lang };
+}
+function buildFullSnapshot(){
+  return buildSyncRow();
+}
+function buildSyncRow(overrides){
+  if(!state.user) return null;
+  const now = nowIso();
+  const row = {
+    user_id: state.user.id,
+    pack: Array.isArray(state.pack) ? state.pack : [],
+    pack_updated_at: getLocalTimestamp("pack") || now,
+    favorites: Array.isArray(state.favorites) ? state.favorites : [],
+    favorites_updated_at: getLocalTimestamp("favorites") || now,
+    settings: buildSettingsSnapshot(),
+    settings_updated_at: getLocalTimestamp("settings") || now,
+    saved_packs: Array.isArray(state.savedPacks) ? state.savedPacks : [],
+    saved_packs_updated_at: getLocalTimestamp("saved_packs") || now
+  };
+  Object.assign(row, overrides || {});
+  missingColumns.forEach(c=>{ delete row[c]; });
+  return row;
+}
+function seedLocalTimestampsNow(){
+  SYNC_FIELDS.forEach(bumpLocalTimestamp);
+}
+function seedLocalTimestampsFrom(row){
+  SYNC_FIELDS.forEach(f=>{ if(row[f + "_updated_at"]) setLocalTimestamp(f, row[f + "_updated_at"]); });
+}
+
+let syncStatus = "idle"; // idle | syncing | synced | error
+let lastSyncError = "";
+function syncStatusLabel(){
+  if(syncStatus === "syncing") return t('accountSyncing','Syncing…');
+  if(syncStatus === "error") return t('accountSyncError',"Sync failed, tap for details");
+  return t('accountSyncedNow','Synced');
+}
+function setSyncStatus(s){
+  syncStatus = s;
+  const note = document.getElementById("accountSyncNote");
+  if(!note) return;
+  note.classList.toggle("err", s === "error");
+  const label = note.querySelector("span:last-child");
+  if(label) label.textContent = syncStatusLabel();
+}
+// Turns an HTTP status + Postgres body into something that names the actual
+// fault, so a failure is diagnosable without opening the console.
+function describeSyncError(status, body){
+  const b = String(body || "");
+  if(status === 404 || /relation .* does not exist|PGRST205/i.test(b))
+    return t('syncErrNoTable',"The user_data table doesn't exist in Supabase yet.");
+  if(status === 401 || status === 403 || /row-level security|PGRST301/i.test(b))
+    return t('syncErrRls',"Supabase blocked the write: no row level security policy allows it.");
+  if(/PGRST204|Could not find the .* column/i.test(b))
+    return t('syncErrColumn',"The user_data table is missing a column the app writes to.");
+  if(/42P10|no unique|ON CONFLICT/i.test(b))
+    return t('syncErrNoUnique',"user_data.user_id has no unique constraint, so saving can't work.");
+  return b ? `${status}: ${b.slice(0, 200)}` : `HTTP ${status}`;
+}
+
+let syncPending = {};
+let syncTimer = null;
+function queueSync(field, value){
+  bumpLocalTimestamp(field);
+  if(!state.session) return;
+  syncPending[field] = value;
+  syncPending[field + "_updated_at"] = getLocalTimestamp(field);
+  clearTimeout(syncTimer);
+  syncTimer = setTimeout(flushSync, 800);
+}
+function flushSync(opts){
+  clearTimeout(syncTimer);
+  if(!state.session || !Object.keys(syncPending).length) return;
+  const body = syncPending;
+  syncPending = {};
+  pushUserData(body, opts);
+}
+function flushSyncImmediately(){
+  flushSync({ keepalive: true });
+}
+document.addEventListener("visibilitychange", ()=>{
+  if(document.visibilityState === "hidden") flushSyncImmediately();
+});
+window.addEventListener("pagehide", flushSyncImmediately);
+function resetSyncState(){
+  clearTimeout(syncTimer);
+  syncTimer = null;
+  syncPending = {};
+  lastPullAt = 0;
+  syncStatus = "idle";
+}
+
+async function finalizeSyncBeforeSignOut(){
+  if(!state.session) return false;
+  clearTimeout(syncTimer);
+  syncTimer = null;
+  syncPending = {};
+  const snapshot = buildFullSnapshot();
+  await pushUserData(snapshot);
+  if(syncStatus !== "synced") return false;
+  seedLocalTimestampsFrom(snapshot);
+  return true;
+}
+
+function clearImportedExtras(){
+  passthroughFiles = [];
+  importedOverrides = [];
+}
+
+function clearLocalAccountData(){
+  clearImportedExtras();
+  // Card buttons are repainted at the end of this function.
+  state.pack = [];
+  state.favorites = [];
+  state.savedPacks = [];
+  state.packIcon = "";
+  safeLocalStorageRemove("packsmith_pack");
+  safeLocalStorageRemove("packsmith_favorites");
+  safeLocalStorageRemove("modbench_saved_packs");
+  safeLocalStorageRemove("modbench_pack_icon");
+  SYNC_FIELDS.forEach(f=>safeLocalStorageRemove(localTsKey(f)));
+  updatePackCount();
+  updateFavCount();
+  renderLogoPicker();
+  if(state.tab === "pack") renderPack();
+  if(state.tab === "favorites") renderFavorites();
+  refreshAllCardButtons();
+}
+
+let syncErrorNotified = false;
+// Columns the server rejected as unknown. buildSyncRow() stops sending them,
+// so one failed write doesn't cost a round trip on every subsequent save.
+const missingColumns = new Set();
+async function pushUserData(partial, opts = {}){
+  if(!authConfigured() || !state.session || !state.user) return;
+  setSyncStatus("syncing");
+  try{
+    // Always a full row — see buildSyncRow() for why a partial body here
+    // silently destroys the columns it omits.
+    const body = buildSyncRow(partial);
+    if(!body) return;
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${USER_DATA_TABLE}`, {
+      method: "POST",
+      keepalive: !!opts.keepalive,
+      headers: {
+        "apikey": SUPABASE_ANON_KEY,
+        "Authorization": `Bearer ${state.session.access_token}`,
+        "Content-Type": "application/json",
+        "Prefer": "resolution=merge-duplicates,return=minimal"
+      },
+      body: JSON.stringify(body)
+    });
+    if(!res.ok){
+      let detail = "";
+      try{ detail = await res.text(); }catch(e){ /* body already consumed */ }
+
+      const missing = /Could not find the '([^']+)' column/i.exec(detail);
+      if(missing && !opts._retried){
+        const column = missing[1];
+        console.warn(`user_data has no "${column}" column — retrying without it. Run the migration to sync this field.`);
+        const trimmed = Object.assign({}, partial || {});
+        delete trimmed[column];
+        delete trimmed[column.replace(/_updated_at$/, "")];
+        delete trimmed[column + "_updated_at"];
+        missingColumns.add(column);
+        return pushUserData(trimmed, Object.assign({}, opts, { _retried: true }));
+      }
+
+      lastSyncError = describeSyncError(res.status, detail);
+      throw new Error(`Supabase user_data upsert failed (${res.status}) ${detail}`);
+    }
+    setSyncStatus("synced");
+    lastSyncError = "";
+    syncErrorNotified = false;
+  }catch(e){
+    console.warn("Cloud sync push failed", e);
+    if(!lastSyncError) lastSyncError = e && e.message ? e.message : String(e);
+    setSyncStatus("error");
+    // Tell the user once per failure streak rather than never.
+    if(!syncErrorNotified){
+      syncErrorNotified = true;
+      showToast(t('toastSyncPushFailed',"Couldn't save to your account. Changes are safe on this device."), { duration: 6000 });
+    }
+  }
+}
+
+async function fetchUserDataRow(){
+  if(!authConfigured() || !state.session || !state.user) return null;
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${USER_DATA_TABLE}?user_id=eq.${state.user.id}&select=*`, {
+    headers: {
+      "apikey": SUPABASE_ANON_KEY,
+      "Authorization": `Bearer ${state.session.access_token}`
+    }
+  });
+  if(!res.ok) throw new Error(`Supabase user_data fetch failed (${res.status})`);
+  const rows = await res.json();
+  return rows.length ? rows[0] : null;
+}
+
+// Applies one remote field to local state + storage without re-queuing a
+// sync push (that would just bounce the value straight back to Supabase).
+function applyRemoteField(field, value, updatedAtIso){
+  if(value === null || value === undefined){
+    if(updatedAtIso) setLocalTimestamp(field, updatedAtIso);
+    return;
+  }
+  if(field === "pack"){
+    state.pack = Array.isArray(value) ? value : [];
+    savePack(false);
+    if(state.tab === "pack") renderPack();
+  } else if(field === "favorites"){
+    state.favorites = Array.isArray(value) ? value : [];
+    saveFavorites(false);
+    if(state.tab === "favorites") renderFavorites();
+    refreshAllCardButtons();
+  } else if(field === "saved_packs"){
+    state.savedPacks = Array.isArray(value) ? value : [];
+    saveSavedPacks(false);
+    if(state.tab === "favorites") renderFavorites();
+  } else if(field === "settings" && value && typeof value === "object"){
+    if(typeof value.packIcon === "string"){ state.packIcon = value.packIcon; savePackIcon(false); renderLogoPicker(); }
+    if(typeof value.autoCompatCheck === "boolean"){
+      state.autoCompatCheck = value.autoCompatCheck;
+      safeLocalStorageSet("modbench_auto_compat_check", state.autoCompatCheck ? "on" : "off");
+      const el = document.getElementById("autoCompatToggle");
+      if(el) el.checked = state.autoCompatCheck;
+    }
+    if(typeof value.lang === "string" && LANGUAGES.includes(value.lang) && value.lang !== state.lang) applyLanguage(value.lang, false);
+  }
+  if(updatedAtIso) setLocalTimestamp(field, updatedAtIso);
+}
+
+// Applies remote fields that are strictly newer than what we have locally.
+function reconcileRemoteRow(row){
+  SYNC_FIELDS.forEach(field=>{
+    const remoteTs = row[field + "_updated_at"];
+    if(!remoteTs) return;
+    if(Object.prototype.hasOwnProperty.call(syncPending, field)) return;
+    const localTs = getLocalTimestamp(field);
+    if(!localTs || new Date(remoteTs) > new Date(localTs)){
+      applyRemoteField(field, row[field], remoteTs);
+    }
+  });
+}
+
+function hasNonDefaultLocalData(){
+  return (state.pack && state.pack.length > 0)
+    || (state.favorites && state.favorites.length > 0)
+    || (state.savedPacks && state.savedPacks.length > 0);
+}
+
+let authReadyRunFor = null;
+function promptKeepLocalWork(){
+  return new Promise(resolve=>{
+    document.querySelectorAll(".modal-backdrop").forEach(b=>b.remove());
+    const backdrop = document.createElement("div");
+    backdrop.className = "modal-backdrop";
+    backdrop.style.alignItems = "center";
+    const packN = state.pack.length;
+    const favN = state.favorites.length;
+    const packsN = state.savedPacks.length;
+    const bits = [];
+    if(packN) bits.push(tPlural(packN,'mergePackCountOne','{n} mod in Create','mergePackCountOther','{n} mods in Create'));
+    if(favN) bits.push(tPlural(favN,'mergeFavCountOne','{n} saved mod','mergeFavCountOther','{n} saved mods'));
+    if(packsN) bits.push(tPlural(packsN,'mergePackedCountOne','{n} saved modpack','mergePackedCountOther','{n} saved modpacks'));
+    backdrop.innerHTML = `
+      <div class="modal" style="max-width:420px;">
+        <div class="modal-head" style="margin-bottom:10px;">
+          <div class="name" style="font-size:1.1rem;">${t('keepLocalTitle','Bring your work into this account?')}</div>
+        </div>
+        <p style="margin:0 0 6px; font-size:0.88rem; color:var(--text-dim); text-wrap:pretty;">${t('keepLocalDesc',"You built this before signing in. Your new account is empty, so we can save it there now.")}</p>
+        <p style="margin:0 0 16px; font-size:0.88rem; color:var(--text); font-weight:700;">${bits.join(" · ")}</p>
+        <div style="display:flex; flex-direction:column; gap:8px;">
+          <button type="button" class="export-btn" data-keep="1" style="width:100%; margin:0;">${t('keepLocalYes','Save it to my account')}</button>
+          <button type="button" class="page-btn" data-keep="0" style="width:100%; height:auto; padding:11px;">${t('keepLocalNo','Start fresh, discard it')}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(backdrop);
+    backdrop.querySelectorAll("[data-keep]").forEach(btn=>{
+      btn.addEventListener("click", ()=>{ backdrop.remove(); resolve(btn.dataset.keep === "1"); });
+    });
+  });
+}
+
+async function handleAuthReady(isNewSignIn = false){
+  if(!state.session || !state.user) return;
+  // getSession() and the SIGNED_IN event both fire for the same sign-in.
+  // Run the load once per user id.
+  if(authReadyRunFor === state.user.id) return;
+  authReadyRunFor = state.user.id;
+  try{
+    const row = await fetchUserDataRow();
+
+    if(!row){
+      // Brand-new account: nothing stored yet.
+      if(!hasNonDefaultLocalData()){
+        // Nothing here either — nothing to sync and nothing to ask about.
+        // Silent by design: this is the ordinary first-login path.
+        seedLocalTimestampsFrom(buildFullSnapshot());
+        return;
+      }
+      const keep = await promptKeepLocalWork();
+      if(!keep){
+        clearLocalAccountData();
+        seedLocalTimestampsFrom(buildFullSnapshot());
+        return;
+      }
+      const snapshot = buildFullSnapshot();
+      await pushUserData(snapshot);
+      seedLocalTimestampsFrom(snapshot);
+      showToast(t('toastLocalKept',"Added what you'd built on this device to your new account."), { duration: 6000 });
+      return;
+    }
+
+    const replacedSomething = hasNonDefaultLocalData();
+    SYNC_FIELDS.forEach(f=>{
+      // A null column means "never written", not "deliberately emptied", so
+      // it must not blank the corresponding local list.
+      if(row[f] === null || row[f] === undefined) return;
+      applyRemoteField(f, row[f], row[f + "_updated_at"] || nowIso());
+    });
+    if(replacedSomething && isNewSignIn){
+      showToast(t('toastLoadedAccount',"Loaded your account. What was on this device has been replaced by your saved copy."), { duration: 7000 });
+    }
+  }catch(e){
+    console.warn("Account sync init failed", e);
+    showToast(lastSyncError || t('toastSyncFailed',"Couldn't sync your account data. It'll retry automatically."), { duration: 9000 });
+  }
+}
+
+window.modbenchSyncCheck = async function(){
+  if(!authConfigured()) return console.error("Supabase client not initialised.");
+  if(!state.session) return console.error("Not signed in — sign in first, then re-run.");
+  const url = `${SUPABASE_URL}/rest/v1/${USER_DATA_TABLE}`;
+  const headers = {
+    "apikey": SUPABASE_ANON_KEY,
+    "Authorization": `Bearer ${state.session.access_token}`,
+    "Content-Type": "application/json"
+  };
+  console.log("user id:", state.user.id);
+  const r = await fetch(`${url}?user_id=eq.${state.user.id}&select=*`, { headers });
+  console.log("READ", r.status, await r.text());
+  const w = await fetch(url, {
+    method: "POST",
+    headers: Object.assign({ "Prefer": "resolution=merge-duplicates,return=representation" }, headers),
+    body: JSON.stringify(buildSyncRow())
+  });
+  console.log("WRITE", w.status, await w.text());
+  console.log("local timestamps:", SYNC_FIELDS.map(f=>f+"="+getLocalTimestamp(f)).join("  "));
+  console.log("local favorites:", state.favorites.length, "pack:", state.pack.length);
+};
+
+window.modbenchAccountContents = ()=>showAccountContents();
+async function showAccountContents(){
+  if(!state.session){ showToast(t('toastNotSignedIn','Not signed in.')); return; }
+  showToast(t('toastCheckingAccount','Checking your account…'), { duration: 2500 });
+  try{
+    const row = await fetchUserDataRow();
+    if(!row){
+      showToast(t('toastAccountEmpty',"Your account has no saved row yet — nothing has ever uploaded."), { duration: 10000 });
+      return;
+    }
+    const n = (v)=>Array.isArray(v) ? v.length : 0;
+    const when = row.favorites_updated_at || row.pack_updated_at || row.saved_packs_updated_at;
+    const stamp = when ? new Date(when).toLocaleString() : t('never','never');
+    showToast(tf('toastAccountHolds',
+      'Account holds: {fav} saved, {pack} in pack, {packs} modpacks. Last write: {when}',
+      { fav: n(row.favorites), pack: n(row.pack), packs: n(row.saved_packs), when: stamp }
+    ), { duration: 12000 });
+    console.log("[ModBench] account row:", row);
+  }catch(e){
+    console.error(e);
+    showToast(tf('toastAccountCheckFailed','Could not read your account: {msg}', { msg: e.message || String(e) }), { duration: 10000 });
+  }
+}
+
+async function restoreFromAccount(){
+  if(!state.session){ showToast(t('toastNotSignedIn','Not signed in.')); return; }
+  if(!confirm(t('confirmRestore',"Replace this device's saved mods, pack and modpacks with the copy stored in your account?"))) return;
+  try{
+    const row = await fetchUserDataRow();
+    if(!row){ showToast(t('toastAccountEmpty',"Your account has no saved row yet — nothing has ever uploaded."), { duration: 8000 }); return; }
+    SYNC_FIELDS.forEach(f=>{
+      if(row[f] === null || row[f] === undefined) return;
+      applyRemoteField(f, row[f], row[f + "_updated_at"] || nowIso());
+    });
+    renderAccountUI();
+    showToast(t('toastRestored','Restored from your account.'));
+  }catch(e){
+    console.error(e);
+    showToast(tf('toastAccountCheckFailed','Could not read your account: {msg}', { msg: e.message || String(e) }), { duration: 10000 });
+  }
+}
+
+let lastPullAt = 0;
+async function maybePullOnFocus(){
+  if(!state.session) return;
+  if(Date.now() - lastPullAt < 30000) return;
+  lastPullAt = Date.now();
+  try{
+    const row = await fetchUserDataRow();
+    if(row) reconcileRemoteRow(row);
+  }catch(e){
+    console.warn("Background sync pull failed", e);
+  }
+}
+document.addEventListener("visibilitychange", ()=>{
+  if(document.visibilityState === "visible") maybePullOnFocus();
+});
+setInterval(()=>{
+  if(document.visibilityState === "visible") maybePullOnFocus();
+}, 45000);
+
+const DAILY_SHARE_LIMIT = 10;
+function getShareRemaining(){
+  // Display only. The server decides; this just avoids offering a button that
+  // is going to be refused.
+  return Math.max(0, DAILY_SHARE_LIMIT - shareUsedToday);
+}
+function recordShareUsage(){
+  // The count is incremented by createShortShareCode on a successful insert
+  // and reconciled against the server here.
+  updateShareUsageDisplays();
+  refreshShareUsageFromServer();
+}
+function exhaustShareUsage(){
+  shareUsedToday = DAILY_SHARE_LIMIT;
+  updateShareUsageDisplays();
+}
+function getNextShareResetTime(){
+  // UTC midnight: the server counts in UTC, so a local-midnight countdown
+  // would be wrong for most of the world.
+  const next = new Date();
+  next.setUTCHours(24, 0, 0, 0);
+  return next;
+}
+function formatShareResetTime(){
+  return getNextShareResetTime().toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
+}
+// Share codes are now account-only: they cost a row in a shared table, so
+// they need an identity behind them.
+function canGenerateShareCodes(){
+  return Boolean(state.session);
+}
+
+function updateShareUsageDisplays(){
+  const signInNote = document.getElementById("shareSignInNote");
+  const copyBtn = document.getElementById("copyShareCodeBtn2");
+  const linkBtn = document.getElementById("shareLinkBtn");
+  const allowed = canGenerateShareCodes();
+  if(signInNote) signInNote.style.display = allowed ? "none" : "block";
+  [copyBtn, linkBtn].forEach(btn=>{
+    if(!btn) return;
+    btn.disabled = !allowed;
+    btn.style.opacity = allowed ? "" : "0.45";
+    btn.style.cursor = allowed ? "" : "not-allowed";
+    btn.setAttribute("aria-disabled", allowed ? "false" : "true");
+  });
+  updateAccountShareCounter();
+}
+
+// Refreshes just the counter chip inside an open account menu.
+function updateAccountShareCounter(){
+  const el = document.getElementById("accountShareCount");
+  if(!el) return;
+  el.textContent = tf('accountSharesLeft','{n}/{limit} codes left today',
+    { n: getShareRemaining(), limit: DAILY_SHARE_LIMIT });
+}
+
+function generateShortCode(len = 7){
+  const chars = "23456789ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnopqrstuvwxyz"; // no 0/O/1/l/I
+  let out = "";
+  for(let i=0;i<len;i++) out += chars[Math.floor(Math.random()*chars.length)];
+  return out;
+}
+async function createShortShareCode(payload, attempts = 4){
+  if(!state.session || !state.user){
+    const err = new Error("share codes require an account");
+    err.needsAccount = true;
+    throw err;
+  }
+  for(let i=0;i<attempts;i++){
+    const id = generateShortCode();
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/${SHARE_TABLE}`, {
+      method: "POST",
+      headers: {
+        "apikey": SUPABASE_ANON_KEY,
+        // The user's token, not the anon key: the row must be attributable,
+        // or a per-user quota is unenforceable by construction.
+        "Authorization": `Bearer ${state.session.access_token}`,
+        "Content-Type": "application/json",
+        "Prefer": "return=minimal"
+      },
+      body: JSON.stringify({ id, data: payload, user_id: state.user.id })
+    });
+    if(res.ok){
+      shareUsedToday = Math.min(DAILY_SHARE_LIMIT, shareUsedToday + 1);
+      return id;
+    }
+    if(res.status === 409) continue; // short code collision, try another
+    let message = "";
+    try{ const body = await res.json(); message = (body && body.message) || ""; }catch(e){}
+    if(/rate_limit_exceeded|daily share limit/i.test(message)){
+      const err = new Error("share pack rate limited");
+      err.rateLimited = true;
+      throw err;
+    }
+    throw new Error(`Supabase insert failed (${res.status}) ${message}`);
+  }
+  throw new Error("Couldn't generate a unique short code, try again.");
+}
+
+let shareUsedToday = 0;
+async function refreshShareUsageFromServer(){
+  if(!shareBackendConfigured() || !state.session || !state.user){
+    shareUsedToday = 0;
+    updateShareUsageDisplays();
+    return;
+  }
+  const since = new Date();
+  since.setUTCHours(0, 0, 0, 0);
+  try{
+    const res = await fetch(
+      `${SUPABASE_URL}/rest/v1/${SHARE_TABLE}?user_id=eq.${state.user.id}&created_at=gte.${since.toISOString()}&select=id`,
+      {
+        headers: {
+          "apikey": SUPABASE_ANON_KEY,
+          "Authorization": `Bearer ${state.session.access_token}`,
+          "Prefer": "count=exact",
+          "Range": "0-0"
+        }
+      }
+    );
+    const range = res.headers.get("content-range") || "";
+    const total = parseInt(range.split("/")[1], 10);
+    if(!isNaN(total)) shareUsedToday = total;
+  }catch(e){
+    console.warn("Couldn't read share usage from the server", e);
+  }
+  updateShareUsageDisplays();
+}
+async function fetchShortShareCode(id){
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${SHARE_TABLE}?id=eq.${encodeURIComponent(id)}&select=data`, {
+    headers: {
+      "apikey": SUPABASE_ANON_KEY,
+      "Authorization": `Bearer ${SUPABASE_ANON_KEY}`
+    }
+  });
+  if(!res.ok) throw new Error(`Supabase lookup failed (${res.status})`);
+  const rows = await res.json();
+  return rows.length ? rows[0].data : null;
+}
+async function resolveShareCode(code){
+  if(code.startsWith("mb-")){
+    if(!shareBackendConfigured()){
+      const err = new Error("short codes not configured");
+      err.userMessage = "Short codes aren't set up on this copy of ModBench.";
+      throw err;
+    }
+    const longCode = await fetchShortShareCode(code.slice(3));
+    if(!longCode){
+      const err = new Error("code not found");
+      err.userMessage = "That code wasn't found, it may be mistyped, or no longer exists.";
+      throw err;
+    }
+    return decodeShareCode(longCode);
+  }
+  return decodeShareCode(code);
+}
+
+let state = {
+  tab: "browse",
+  view: "grid",
+  browseType: "mod",
+  query: "",
+  sort: "relevance",
+  mcVersion: "",
+  loaders: [],
+  environments: [],
+  categories: [],
+  results: [],
+  page: 1,
+  totalHits: 0,
+  pack: JSON.parse(safeLocalStorageGet("packsmith_pack", "[]")),
+  packSort: "category",
+  packSearch: "",
+  favorites: JSON.parse(safeLocalStorageGet("packsmith_favorites", "[]")),
+  favSort: "alpha",
+  favView: "grid",
+  modpackQuery: "",
+  modpackSort: "relevance",
+  modpackMcVersion: "",
+  modpackLoaders: [],
+  modpackCategories: [],
+  modpackResults: [],
+  modpackPage: 1,
+  modpackTotalHits: 0,
+  modpackSearched: false,
+  modpackView: "grid",
+  packIcon: safeLocalStorageGet("modbench_pack_icon", ""),
+  savedPacks: JSON.parse(safeLocalStorageGet("modbench_saved_packs", "[]")),
+  autoCompatCheck: safeLocalStorageGet("modbench_auto_compat_check") !== "off",
+  expLoaderTouched: false,
+  expMcTouched: false,
+  lang: safeLocalStorageGet("modbench-lang", "en"),
+  importingCount: 0,
+  user: null,
+  session: null
+};
+
+function t(key, fallback){
+  const dict = window.i18n && window.i18n[state.lang];
+  return (dict && dict[key] !== undefined) ? dict[key] : fallback;
+}
+
+function escapeRegExp(str){
+  return String(str).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+}
+
+// tf: like t(), but substitutes {varName} tokens in the resolved string.
+function tf(key, fallback, vars){
+  let str = t(key, fallback);
+  if(vars){
+    Object.keys(vars).forEach(k=>{ str = str.split("{"+k+"}").join(vars[k]); });
+  }
+  return str;
+}
+
+// tPlural: picks a singular/plural key pair based on n, then runs tf() on the result.
+// vars is optional and always receives {n} automatically.
+function tPlural(n, oneKey, oneFallback, otherKey, otherFallback, vars){
+  const isOne = n === 1;
+  return tf(isOne ? oneKey : otherKey, isOne ? oneFallback : otherFallback, Object.assign({ n }, vars || {}));
+}
+
+function safeLocalStorageGet(key, fallback = null){
+  try{
+    const value = localStorage.getItem(key);
+    return value === null ? fallback : value;
+  }catch(e){
+    console.warn(`Couldn't read "${key}" from local storage:`, e);
+    return fallback;
+  }
+}
+function safeLocalStorageSet(key, value){
+  try{
+    localStorage.setItem(key, value);
+    return true;
+  }catch(e){
+    console.warn(`Couldn't save "${key}" to local storage (it may be full):`, e);
+    return false;
+  }
+}
+function safeLocalStorageRemove(key){
+  try{ localStorage.removeItem(key); }catch(e){ console.warn(`Couldn't remove "${key}" from local storage:`, e); }
+}
+
+function savePackIcon(sync = true){
+  if(state.packIcon) safeLocalStorageSet("modbench_pack_icon", state.packIcon);
+  else safeLocalStorageRemove("modbench_pack_icon");
+  if(sync) queueSync("settings", buildSettingsSnapshot());
+}
+
+function savePack(sync = true){
+  safeLocalStorageSet("packsmith_pack", JSON.stringify(state.pack));
+  updatePackCount();
+  if(sync) queueSync("pack", state.pack);
+}
+function updatePackCount(){
+  const el = document.getElementById("packCount");
+  const newVal = String(state.pack.length);
+  if(el.textContent !== newVal){
+    el.textContent = newVal;
+    el.classList.remove("bump");
+    void el.offsetWidth;
+    el.classList.add("bump");
+  }
+}
+function saveSavedPacks(sync = true){
+  safeLocalStorageSet("modbench_saved_packs", JSON.stringify(state.savedPacks));
+  if(sync) queueSync("saved_packs", state.savedPacks);
+}
+function saveFavorites(sync = true){
+  safeLocalStorageSet("packsmith_favorites", JSON.stringify(state.favorites));
+  updateFavCount();
+  if(sync) queueSync("favorites", state.favorites);
+}
+function updateFavCount(){
+  const el = document.getElementById("favCount");
+  if(el) el.textContent = state.favorites.length;
+}
+function toggleFavorite(hit){
+  const idx = state.favorites.findIndex(f=>f.id === hit.project_id);
+  if(idx >= 0){
+    state.favorites.splice(idx, 1);
+  }else{
+    state.favorites.push({
+      id: hit.project_id,
+      title: hit.title,
+      icon_url: hit.icon_url,
+      author: hit.author,
+      description: hit.description,
+      categories: hit.categories || [],
+      downloads: hit.downloads,
+      follows: hit.follows
+    });
+  }
+  saveFavorites();
+}
+
+const LANGUAGES = ["en", "fr"];
+function detectDefaultLang(){
+  const stored = safeLocalStorageGet("modbench-lang");
+  if(stored) return stored;
+  const browserLang = (navigator.language || (navigator.languages && navigator.languages[0]) || "").toLowerCase();
+  return browserLang.startsWith("fr") ? "fr" : "en";
+}
+state.lang = detectDefaultLang();
+
+const englishSnapshot = { html: new Map(), attrs: new Map() };
+document.querySelectorAll("[data-i18n]").forEach(el=>{
+  englishSnapshot.html.set(el, el.innerHTML);
+});
+document.querySelectorAll("[data-i18n-attr]").forEach(el=>{
+  const pairs = el.dataset.i18nAttr.split(",").map(p=>p.split(":"));
+  const orig = {};
+  pairs.forEach(([attr])=>{ orig[attr] = el.getAttribute(attr); });
+  englishSnapshot.attrs.set(el, orig);
+});
+
+function applyLanguage(lang, sync = true){
+  if(lang !== "en" && (!window.i18n || !window.i18n[lang])) lang = "en";
+  state.lang = lang;
+  const dict = lang === "en" ? null : window.i18n[lang];
+  document.documentElement.setAttribute("lang", lang);
+
+  document.querySelectorAll("[data-i18n]").forEach(el=>{
+    const key = el.dataset.i18n;
+    if(dict && dict[key] !== undefined) el.innerHTML = dict[key];
+    else el.innerHTML = englishSnapshot.html.get(el);
+  });
+
+  document.querySelectorAll("[data-i18n-attr]").forEach(el=>{
+    const orig = englishSnapshot.attrs.get(el);
+    el.dataset.i18nAttr.split(",").forEach(pair=>{
+      const [attr, key] = pair.split(":");
+      if(dict && dict[key] !== undefined) el.setAttribute(attr, dict[key]);
+      else if(orig && orig[attr] !== undefined) el.setAttribute(attr, orig[attr]);
+    });
+  });
+
+  const langLabel = document.getElementById("langToggleLabel");
+  if(langLabel){
+    const flags = { en: "🇬🇧", fr: "🇫🇷" };
+    langLabel.textContent = flags[lang] || lang.toUpperCase();
+  }
+
+  safeLocalStorageSet("modbench-lang", lang);
+  if(sync) queueSync("settings", buildSettingsSnapshot());
+  refreshDynamicContentForLanguage();
+}
+
+// The credit line and the legal links wrap onto separate rows outside Browse,
+// which leaves the divider hanging at the end of a line with nothing after it.
+function updateFooterSeparator(){
+  const sep = document.getElementById("footerCreditSep");
+  if(sep) sep.style.display = (state.tab === "browse") ? "" : "none";
+}
+
+function refreshDynamicContentForLanguage(){
+  renderImportSummary();
+  if(state.tab === "browse" && state.results.length) renderResults();
+  if(state.tab === "pack") renderPack();
+  if(state.tab === "favorites") renderFavorites();
+  if(state.tab === "modpacks" && state.modpackResults.length) renderModpackResults();
+  if(state.tab === "export") renderExport();
+  renderHistoryControls();
+  updateShareUsageDisplays();
+  document.querySelectorAll(".modal-backdrop").forEach(b=>b.remove());
+}
+
+function syncLangToUrl(lang){
+  const params = new URLSearchParams(location.search);
+  if(lang === "en") params.delete("lang"); else params.set("lang", lang);
+  const qs = params.toString();
+  history.replaceState(history.state, "", location.pathname + (qs ? "?"+qs : "") + location.hash);
+}
+
+document.getElementById("langToggle").addEventListener("click", ()=>{
+  const next = LANGUAGES[(LANGUAGES.indexOf(state.lang) + 1) % LANGUAGES.length];
+  applyLanguage(next);
+  syncLangToUrl(next);
+});
+
+(function applyInitialLangFromUrl(){
+  const urlLang = new URLSearchParams(location.search).get("lang");
+  if(urlLang && LANGUAGES.includes(urlLang) && urlLang !== state.lang) applyLanguage(urlLang, false);
+})();
+
+applyLanguage(state.lang, false);
+updateFooterSeparator();
+
+const TAB_IDS = ["browse","favorites","modpacks","pack","export"];
+const TAB_URL_NAMES = { favorites: "saved" }; // internal id -> URL-facing name, where they differ
+const TAB_URL_TO_INTERNAL = Object.fromEntries(
+  TAB_IDS.map(id => [TAB_URL_NAMES[id] || id, id])
+);
+
+function activateTab(tab, opts){
+  opts = opts || {};
+  const push = opts.push !== false;
+  document.querySelectorAll("nav.tabs button").forEach(b=>{
+    const isActive = b.dataset.tab === tab;
+    b.classList.toggle("active", isActive);
+    b.setAttribute("aria-selected", isActive ? "true" : "false");
+  });
+  const leavingPack = state.tab === "pack";
+  state.tab = tab;
+  if(leavingPack && state.tab !== "pack" && lastImportReport) lastImportReport = null;
+  updateFooterSeparator();
+  TAB_IDS.forEach(t=>{
+    const sec = document.getElementById("tab-"+t);
+    if(t === state.tab){
+      sec.style.display = "";
+      sec.classList.remove("tab-panel-enter");
+      void sec.offsetWidth; // restart animation
+      sec.classList.add("tab-panel-enter");
+    } else {
+      sec.style.display = "none";
+    }
+  });
+  if(state.tab === "pack"){
+    renderPack();
+    if(state.importingCount > 0) showPackImportLock(); else hidePackImportLock();
+  }
+  if(state.tab === "export") renderExport();
+  if(state.tab === "favorites") renderFavorites();
+  if(state.tab === "modpacks" && state.modpackResults.length === 0 && !state.modpackSearched) runModpackSearch();
+  const footerLegalLinks = document.getElementById("footerLegalLinks");
+  if(footerLegalLinks) footerLegalLinks.style.display = (state.tab === "browse") ? "" : "none";
+  if(push){
+    const urlName = TAB_URL_NAMES[state.tab] || state.tab;
+    const params = new URLSearchParams(location.search);
+    if(state.tab === "browse") params.delete("tab"); else params.set("tab", urlName);
+    const qs = params.toString();
+    const url = location.pathname + (qs ? "?"+qs : "") + location.hash;
+    history.pushState({tab: state.tab}, "", url);
+  }
+}
+
+document.querySelectorAll("nav.tabs button").forEach(btn=>{
+  btn.addEventListener("click", ()=> activateTab(btn.dataset.tab));
+});
+
+window.addEventListener("popstate", ()=>{
+  const params = new URLSearchParams(location.search);
+  const urlTab = params.get("tab") || "browse";
+  const tab = TAB_URL_TO_INTERNAL[urlTab] || urlTab;
+  if(TAB_IDS.includes(tab)) activateTab(tab, {push:false});
+  const urlLang = params.get("lang") || "en";
+  if(LANGUAGES.includes(urlLang) && urlLang !== state.lang) applyLanguage(urlLang, false);
+});
+
+(function(){
+  const btn = document.getElementById("packToTop");
+  const SHOW_AFTER = 500; // px scrolled before button appears
+  function updateVisibility(){
+    const shouldShow = state.tab === "pack" && window.scrollY > SHOW_AFTER;
+    btn.style.opacity = shouldShow ? "1" : "0";
+    btn.style.visibility = shouldShow ? "visible" : "hidden";
+    btn.style.transform = shouldShow ? "translateY(0)" : "translateY(8px)";
+  }
+  window.addEventListener("scroll", updateVisibility, { passive: true });
+  document.querySelectorAll("nav.tabs button").forEach(b=>{
+    b.addEventListener("click", ()=> setTimeout(updateVisibility, 0));
+  });
+  btn.addEventListener("click", ()=>{
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  });
+  updateVisibility();
+})();
+
+const FALLBACK_MC_VERSIONS = [
+  "1.21.4","1.21.3","1.21.1","1.21","1.20.6","1.20.4","1.20.2","1.20.1","1.20",
+  "1.19.4","1.19.3","1.19.2","1.19","1.18.2","1.18.1","1.16.5","1.12.2"
+];
+
+function populateVersionSelects(list){
+  const mcSel = document.getElementById("mcVersion");
+  const expSel = document.getElementById("expMcVersion");
+  const modpackSel = document.getElementById("modpackMcVersion");
+  list.forEach(v=>{
+    mcSel.insertAdjacentHTML("beforeend", `<option value="${v}">${v}</option>`);
+    expSel.insertAdjacentHTML("beforeend", `<option value="${v}">${v}</option>`);
+    modpackSel.insertAdjacentHTML("beforeend", `<option value="${v}">${v}</option>`);
+  });
+}
+
+let gameVersionRank = null;
+let releaseGameVersionSet = null;
+async function loadGameVersions(){
+  try{
+    const res = await fetch(`${API}/tag/game_version`);
+    if(!res.ok) throw new Error("bad status " + res.status);
+    const data = await res.json();
+    gameVersionRank = new Map(data.map((v,i)=>[v.version, i]));
+    const releases = data.filter(v=>v.version_type === "release").map(v=>v.version);
+    releaseGameVersionSet = new Set(releases);
+    populateVersionSelects(releases.slice(0,60));
+  }catch(e){
+    console.error("Failed to load game versions from Modrinth, using fallback list", e);
+    gameVersionRank = new Map(FALLBACK_MC_VERSIONS.map((v,i)=>[v,i]));
+    releaseGameVersionSet = new Set(FALLBACK_MC_VERSIONS);
+    populateVersionSelects(FALLBACK_MC_VERSIONS);
+  }
+}
+
+function isSnapshotOnlyVersion(v){
+  const gvs = v.game_versions || [];
+  if(!gvs.length) return false;
+  if(!releaseGameVersionSet) return false;
+  return !gvs.some(gv=>releaseGameVersionSet.has(gv));
+}
+
+function versionRecencyRank(gameVersions){
+  if(!gameVersionRank || !gameVersions || !gameVersions.length) return Number.MAX_SAFE_INTEGER;
+  let best = Number.MAX_SAFE_INTEGER;
+  for(const gv of gameVersions){
+    const r = gameVersionRank.get(gv);
+    if(r !== undefined && r < best) best = r;
+  }
+  return best;
+}
+
+function sortByGameVersionRecency(versions){
+  return [...versions].sort((a,b)=>{
+    const ra = versionRecencyRank(a.game_versions);
+    const rb = versionRecencyRank(b.game_versions);
+    if(ra !== rb) return ra - rb;
+    return (b.date_published||"").localeCompare(a.date_published||"");
+  });
+}
+
+let searchTimer = null;
+function scheduleSearch(){
+  clearTimeout(searchTimer);
+  searchTimer = setTimeout(runSearch, 350);
+}
+
+const CLIENT_ENVIRONMENTS = ["client_and_server","client_only","client_only_server_optional","singleplayer_only","client_or_server","client_or_server_prefers_both"];
+const SERVER_ENVIRONMENTS = ["client_and_server","server_only","server_only_client_optional","dedicated_server_only","client_or_server","client_or_server_prefers_both"];
+
+function buildFacets(){
+  const facets = [];
+  if(state.browseType === "mod" && state.loaders.length) facets.push(state.loaders.map(l=>`categories:${l}`));
+  if(state.browseType === "mod" && state.environments.includes("client")) facets.push(CLIENT_ENVIRONMENTS.map(e=>`environment:${e}`));
+  if(state.browseType === "mod" && state.environments.includes("server")) facets.push(SERVER_ENVIRONMENTS.map(e=>`environment:${e}`));
+  if(state.categories.length){
+    const set = CATEGORY_SETS[state.browseType] || CATEGORY_SETS.mod;
+    const headerOf = {};
+    set.forEach(c=>{ headerOf[c.value] = c.header || "default"; });
+    const byHeader = {};
+    state.categories.forEach(c=>{
+      const h = headerOf[c] || "default";
+      if(!byHeader[h]) byHeader[h] = [];
+      byHeader[h].push(c);
+    });
+    Object.values(byHeader).forEach(vals=>facets.push(vals.map(c=>`categories:${c}`)));
+  }
+  if(state.mcVersion) facets.push([`versions:${state.mcVersion}`]);
+  facets.push([`project_type:${state.browseType}`]);
+  return facets;
+}
+
+const ICON = {
+  technology: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.6V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.6 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.6 1z"/>',
+  magic: '<path d="M12 3l1.9 4.9L19 9l-5.1 1.9L12 16l-1.9-5.1L5 9l5.1-1.1L12 3z"/><path d="M19 17l.9 2.1L22 20l-2.1.9L19 23l-.9-2.1L16 20l2.1-.9L19 17z"/>',
+  adventure: '<circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/>',
+  decoration: '<path d="M9.06 11.9l8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08"/><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 0 0-3-3.02z"/>',
+  optimization: '<polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>',
+  utility: '<path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/>',
+  library: '<path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/>',
+  star: '<polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/>',
+  eye: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3"/>',
+  halfcircle: '<circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 1 0 20z" fill="currentColor" stroke="none"/>',
+  cube: '<path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/>',
+  alertTriangle: '<path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/>',
+  barChart: '<line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/><line x1="6" y1="20" x2="6" y2="16"/>',
+  image: '<rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/>',
+  square: '<rect x="4" y="4" width="16" height="16" rx="2"/>',
+  tag: '<path d="M20.59 13.41 13.42 20.58a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><line x1="7" y1="7" x2="7.01" y2="7"/>',
+  cursedMod: '<rect x="7" y="7.5" width="10" height="14" rx="5"/><polyline points="2 12.5 4 14.5 7 14.5"/><polyline points="22 12.5 20 14.5 17 14.5"/><polyline points="3 21.5 5 18.5 7 17.5"/><polyline points="21 21.5 19 18.5 17 17.5"/><polyline points="3 8.5 5 10.5 7 11.5"/><polyline points="21 8.5 19 10.5 17 11.5"/><line x1="12" y1="7.5" x2="12" y2="21.5"/><path d="M15.38,8.82A3,3,0,0,0,16,7h0a3,3,0,0,0-3-3H11A3,3,0,0,0,8,7H8a3,3,0,0,0,.61,1.82"/><line x1="9" y1="4.5" x2="8" y2="2.5"/><line x1="15" y1="4.5" x2="16" y2="2.5"/>',
+  economy: '<line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/>',
+  equipment: '<path d="M17.573 20.038L3.849 7.913 2.753 2.755 7.838 4.06 19.47 18.206l-1.898 1.832z"/><path d="M7.45 14.455l-3.043 3.661 1.887 1.843 3.717-3.25"/><path d="M16.75 10.82l3.333-2.913 1.123-5.152-5.091 1.28-2.483 2.985"/><path d="M21.131 16.602l-5.187 5.01 2.596-2.508 2.667 2.761"/><path d="M2.828 16.602l5.188 5.01-2.597-2.508-2.667 2.761"/>',
+  food: '<path d="M2.27 21.7s9.87-3.5 12.73-6.36a4.5 4.5 0 0 0-6.36-6.37C5.77 11.84 2.27 21.7 2.27 21.7zM8.64 14l-2.05-2.04M15.34 15l-2.46-2.46"/><path d="M22 9s-1.33-2-3.5-2C16.86 7 15 9 15 9s1.33 2 3.5 2S22 9 22 9z"/><path d="M15 2s-2 1.33-2 3.5S15 9 15 9s2-1.84 2-3.5C17 3.33 15 2 15 2z"/>',
+  gameMechanics: '<line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/>',
+  management: '<rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/>',
+  minigame: '<circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/>',
+  mobs: '<rect x="3" y="3" width="18" height="18"/><path d="M6 6h4v4H6zm8 0h4v4h-4zm-4 4h4v2h2v6h-2v-2h-4v2H8v-6h2v-2Z" fill="currentColor" stroke="none"/>',
+  social: '<path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/>',
+  storage: '<polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/>',
+  transportation: '<rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/>',
+  worldgen: '<path d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>'
+};
+const CATEGORY_SETS = {
+  mod: [
+    {value:"adventure", label:"Adventure", icon:ICON.adventure},
+    {value:"cursed", label:"Cursed", icon:ICON.cursedMod},
+    {value:"decoration", label:"Decoration", icon:ICON.decoration},
+    {value:"economy", label:"Economy", icon:ICON.economy},
+    {value:"equipment", label:"Equipment", icon:ICON.equipment},
+    {value:"food", label:"Food", icon:ICON.food},
+    {value:"game-mechanics", label:"Game Mechanics", icon:ICON.gameMechanics},
+    {value:"library", label:"Library", icon:ICON.library},
+    {value:"magic", label:"Magic", icon:ICON.magic},
+    {value:"management", label:"Management", icon:ICON.management},
+    {value:"minigame", label:"Minigame", icon:ICON.minigame},
+    {value:"mobs", label:"Mobs", icon:ICON.mobs},
+    {value:"optimization", label:"Optimization", icon:ICON.optimization},
+    {value:"social", label:"Social", icon:ICON.social},
+    {value:"storage", label:"Storage", icon:ICON.storage},
+    {value:"technology", label:"Technology", icon:ICON.technology},
+    {value:"transportation", label:"Transportation", icon:ICON.transportation},
+    {value:"utility", label:"Utility", icon:ICON.utility},
+    {value:"worldgen", label:"World Generation", icon:ICON.worldgen}
+  ],
+  shader: [
+    {value:"fantasy", label:"Fantasy", icon:ICON.star, header:"Style"},
+    {value:"realistic", label:"Realistic", icon:ICON.eye, header:"Style"},
+    {value:"semi-realistic", label:"Semi-realistic", icon:ICON.halfcircle, header:"Style"},
+    {value:"vanilla-like", label:"Vanilla-like", icon:ICON.cube, header:"Style"},
+    {value:"cursed", label:"Cursed", icon:ICON.alertTriangle, header:"Style"},
+    {value:"high", label:"High", icon:'<line x1="6" y1="20" x2="6" y2="16"/><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="4"/>', header:"Performance"},
+    {value:"medium", label:"Medium", icon:'<line x1="6" y1="20" x2="6" y2="16"/><line x1="12" y1="20" x2="12" y2="10"/><line x1="18" y1="20" x2="18" y2="14"/>', header:"Performance"},
+    {value:"low", label:"Low", icon:'<line x1="6" y1="20" x2="6" y2="16"/><line x1="12" y1="20" x2="12" y2="17"/><line x1="18" y1="20" x2="18" y2="18"/>', header:"Performance"}
+  ],
+  resourcepack: [
+    {value:"realistic", label:"Realistic", icon:ICON.eye},
+    {value:"simplistic", label:"Simplistic", icon:ICON.square},
+    {value:"themed", label:"Themed", icon:ICON.tag},
+    {value:"vanilla-like", label:"Vanilla-like", icon:ICON.cube},
+    {value:"cursed", label:"Cursed", icon:ICON.alertTriangle},
+    {value:"decoration", label:"Decoration", icon:ICON.decoration},
+    {value:"utility", label:"Utility", icon:ICON.utility}
+  ]
+};
+
+function wireCategoryCheckboxes(){
+  document.querySelectorAll(".catCheck").forEach(cb=>{
+    cb.addEventListener("change", ()=>{
+      if(cb.checked && cb.dataset.header === "Performance"){
+        document.querySelectorAll(`.catCheck[data-header="Performance"]`).forEach(other=>{
+          if(other !== cb) other.checked = false;
+        });
+      }
+      state.categories = [...document.querySelectorAll(".catCheck:checked")].map(c=>c.value);
+      state.page = 1;
+      runSearch();
+    });
+  });
+}
+
+function renderBrowseCategoryOptions(){
+  const body = document.querySelector("#catBodyBrowse .cat-body-inner");
+  const set = CATEGORY_SETS[state.browseType] || CATEGORY_SETS.mod;
+  const headers = [...new Set(set.map(c=>c.header || "default"))];
+  const showHeaders = headers.length > 1;
+  let lastHeader = null;
+  body.innerHTML = set.map(c=>{
+    const h = c.header || "default";
+    const headerHtml = (showHeaders && h !== lastHeader) ? `<div class="cat-subheader">${escapeHtml(h)}</div>` : "";
+    lastHeader = h;
+    return `${headerHtml}<label><input type="checkbox" value="${c.value}" class="catCheck" data-header="${escapeHtml(h)}"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${c.icon}</svg> ${escapeHtml(c.label)}</label>`;
+  }).join("");
+  wireCategoryCheckboxes();
+}
+
+const BROWSE_TYPE_PLACEHOLDER = {
+  mod: "Search mods on Modrinth…",
+  shader: "Search shaders on Modrinth…",
+  resourcepack: "Search resource packs on Modrinth…"
+};
+
+document.querySelectorAll("#browseTypeToggle .type-btn").forEach(btn=>{
+  btn.addEventListener("click", ()=>{
+    if(btn.dataset.type === state.browseType) return;
+    document.querySelectorAll("#browseTypeToggle .type-btn").forEach(b=>{
+      b.classList.remove("active"); b.setAttribute("aria-selected","false");
+    });
+    btn.classList.add("active"); btn.setAttribute("aria-selected","true");
+    state.browseType = btn.dataset.type;
+    state.categories = [];
+    document.getElementById("loaderFilterGroup").style.display = (state.browseType === "mod") ? "" : "none";
+    document.getElementById("envFilterGroup").style.display = (state.browseType === "mod") ? "" : "none";
+    document.getElementById("envSepBrowse").style.display = (state.browseType === "mod") ? "" : "none";
+    if(state.browseType !== "mod"){
+      state.environments = [];
+      document.querySelectorAll(".envCheck:checked").forEach(cb=>{ cb.checked = false; });
+    }
+    const searchInput = document.getElementById("searchInput");
+    searchInput.placeholder = BROWSE_TYPE_PLACEHOLDER[state.browseType] || BROWSE_TYPE_PLACEHOLDER.mod;
+    renderBrowseCategoryOptions();
+    state.page = 1;
+    runSearch();
+  });
+});
+
+function buildModpackFacets(){
+  const facets = [];
+  if(state.modpackLoaders.length) facets.push(state.modpackLoaders.map(l=>`categories:${l}`));
+  if(state.modpackCategories.length) facets.push(state.modpackCategories.map(c=>`categories:${c}`));
+  if(state.modpackMcVersion) facets.push([`versions:${state.modpackMcVersion}`]);
+  facets.push(["project_type:modpack"]);
+  return facets;
+}
+
+const ASCENDING_SORT_MAP = { downloads_asc: "downloads", oldest: "newest" };
+
+async function fetchSortedPage(query, facets, sort, page, pageSize){
+  const isAscending = ASCENDING_SORT_MAP.hasOwnProperty(sort);
+  const apiIndex = isAscending ? ASCENDING_SORT_MAP[sort] : sort;
+
+  if(!isAscending){
+    const params = new URLSearchParams({ query, limit:String(pageSize), offset:String((page-1)*pageSize), index:apiIndex, facets:JSON.stringify(facets) });
+    const res = await fetch(`${API}/search?${params.toString()}`);
+    if(!res.ok) throw new Error("Search failed: " + res.status);
+    const data = await res.json();
+    return { hits: data.hits || [], totalHits: data.total_hits || 0 };
+  }
+
+  const countParams = new URLSearchParams({ query, limit:"1", offset:"0", index:apiIndex, facets:JSON.stringify(facets) });
+  const countRes = await fetch(`${API}/search?${countParams.toString()}`);
+  if(!countRes.ok) throw new Error("Search failed: " + countRes.status);
+  const totalHits = (await countRes.json()).total_hits || 0;
+
+  const remainingBefore = totalHits - (page - 1) * pageSize;
+  if(remainingBefore <= 0) return { hits: [], totalHits };
+
+  const limit = Math.min(pageSize, remainingBefore);
+  const offset = Math.max(0, totalHits - page * pageSize);
+  const params = new URLSearchParams({ query, limit:String(limit), offset:String(offset), index:apiIndex, facets:JSON.stringify(facets) });
+  const res = await fetch(`${API}/search?${params.toString()}`);
+  if(!res.ok) throw new Error("Search failed: " + res.status);
+  const data = await res.json();
+  return { hits: (data.hits || []).slice().reverse(), totalHits };
+}
+
+const PAGE_SIZE = 30;
+
+const PERFORMANCE_TIER_OVERRIDES = {
+  "complementary-reimagined": ["medium", "high"],
+  "complementary-unbound": ["medium", "high"]
+};
+
+function passesPerformanceOverride(hit){
+  if(state.browseType !== "shader") return true;
+  const override = PERFORMANCE_TIER_OVERRIDES[hit.slug];
+  if(!override) return true;
+  const selectedTiers = state.categories.filter(c=>["low","medium","high"].includes(c));
+  if(selectedTiers.length === 0) return true;
+  return selectedTiers.some(t=>override.includes(t));
+}
+
+async function runSearch(){
+  const resultsEl = document.getElementById("results");
+  const statusEl = document.getElementById("statusMsg");
+  const pageEl = document.getElementById("pagination");
+  statusEl.style.display = "block";
+  statusEl.textContent = t('browseSearching','Searching…');
+  resultsEl.innerHTML = "";
+  pageEl.innerHTML = "";
+
+  try{
+    const { hits, totalHits } = await fetchSortedPage(state.query, buildFacets(), state.sort, state.page, PAGE_SIZE);
+    const filteredHits = hits.filter(passesPerformanceOverride);
+    state.results = filteredHits;
+    state.totalHits = Math.max(0, totalHits - (hits.length - filteredHits.length));
+    if(state.results.length === 0){
+      statusEl.textContent = t('browseNothingFound','Nothing found. Try different filters.');
+      return;
+    }
+    statusEl.style.display = "none";
+    renderResults();
+    renderPagination();
+  }catch(e){
+    console.error(e);
+    statusEl.textContent = t('browseApiError',"Couldn't reach Modrinth's API from this page.");
+  }
+}
+
+function renderPagination(){
+  const el = document.getElementById("pagination");
+  const totalPages = Math.max(1, Math.ceil(state.totalHits / PAGE_SIZE));
+  if(totalPages <= 1){ el.innerHTML = ""; return; }
+  const cur = state.page;
+
+  const pagesToShow = [];
+  for(let p = 1; p <= totalPages; p++){
+    if(p === 1 || p === totalPages || Math.abs(p - cur) <= 1) pagesToShow.push(p);
+  }
+
+  let html = `<button class="page-btn" data-page="${cur-1}" ${cur===1?"disabled":""} aria-label="Previous page">‹</button>`;
+  let last = 0;
+  pagesToShow.forEach(p=>{
+    if(last && p - last > 1) html += `<span class="page-ellipsis">…</span>`;
+    html += `<button class="page-btn ${p===cur?'active':''}" data-page="${p}">${p}</button>`;
+    last = p;
+  });
+  html += `<button class="page-btn" data-page="${cur+1}" ${cur===totalPages?"disabled":""} aria-label="Next page">›</button>`;
+  el.innerHTML = html;
+
+  el.querySelectorAll(".page-btn:not(:disabled)").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      state.page = parseInt(btn.dataset.page, 10);
+      runSearch();
+      // Back to the very top rather than to the results container: the
+      // filters and search field are part of "where you are" on a new page.
+      scrollToTopSmooth();
+    });
+  });
+}
+
+const HEART_ICON_OUTLINE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
+const HEART_ICON_FILLED = '<svg viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" stroke-width="1"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/></svg>';
+const DOWNLOAD_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:13px;height:13px;vertical-align:-2px;"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg>';
+
+let conflictMapCache = null;
+let conflictMapCacheKey = null;
+const COMPAT_GROUPS = [
+  {
+    id: "renderer",
+    reasonKey: "compatReasonRenderer",
+    labelKey: "compatLabelRenderer",
+    severity: "conflict",
+    label: "rendering engine",
+    reason: "Only one rendering engine can be active. Loading two prevents the game from starting.",
+    members: [
+      ["sodium"], ["embeddium"], ["rubidium"], ["magnesium"],
+      ["optifine", "optifabric"]
+    ]
+  },
+  {
+    id: "shaders",
+    reasonKey: "compatReasonShaders",
+    labelKey: "compatLabelShaders",
+    severity: "conflict",
+    label: "shader loader",
+    reason: "Two shader loaders hook the same rendering stage and will crash or blank the screen.",
+    members: [["iris", "iris shaders"], ["oculus"], ["optifine"]]
+  },
+  {
+    id: "accessories",
+    reasonKey: "compatReasonAccessories",
+    labelKey: "compatLabelAccessories",
+    severity: "conflict",
+    label: "accessory slot API",
+    reason: "Both provide equipment slots. Items registered to one won't appear in the other, and slots often overlap visually.",
+    members: [["curios", "curios api"], ["trinkets"], ["accessories"]]
+  },
+  {
+    id: "worldgen-overhaul",
+    reasonKey: "compatReasonWorldgen",
+    labelKey: "compatLabelWorldgen",
+    severity: "warning",
+    label: "overworld terrain overhaul",
+    reason: "Each rewrites overworld terrain wholesale. Together you get chunk-border seams and unpredictable biome placement.",
+    members: [
+      ["terralith"],
+      ["william wythers' overhauled overworld", "william wythers overhauled overworld", "wwoo"],
+      ["tectonic"]
+    ]
+  },
+  {
+    id: "biome-adders",
+    reasonKey: "compatReasonBiomes",
+    labelKey: "compatLabelBiomes",
+    severity: "warning",
+    label: "biome pack",
+    mitigatedBy: ["terrablender"],
+    reason: "Several biome mods at once split the world into very small patches of each. They coexist, but the result rarely looks like any of them intended.",
+    members: [
+      ["biomes o' plenty", "biomes o plenty", "biomesoplenty"],
+      ["oh the biomes you'll go", "oh the biomes youll go", "byg"],
+      ["oh the biomes we've gone", "oh the biomes weve gone", "bwg"],
+      ["regions unexplored"],
+      ["nature's spirit", "natures spirit"],
+      ["terralith"]
+    ]
+  },
+  {
+    id: "recipe-viewer",
+    reasonKey: "compatReasonRecipeViewer",
+    labelKey: "compatLabelRecipeViewer",
+    severity: "redundant",
+    label: "recipe viewer",
+    reason: "They do the same job. Running two means duplicate sidebars and doubled memory for the same index.",
+    members: [
+      ["just enough items", "jei"],
+      ["roughly enough items", "rei"],
+      ["emi"]
+    ]
+  },
+  {
+    id: "tooltip-probe",
+    reasonKey: "compatReasonProbe",
+    labelKey: "compatLabelProbe",
+    severity: "redundant",
+    label: "block info overlay",
+    reason: "All descend from WAILA and draw the same overlay. Two of them stack on screen.",
+    members: [["jade"], ["wthit"], ["the one probe", "theoneprobe"], ["hwyla"], ["waila"]]
+  },
+  {
+    id: "minimap",
+    reasonKey: "compatReasonMinimap",
+    labelKey: "compatLabelMinimap",
+    severity: "redundant",
+    label: "minimap",
+    reason: "Two minimaps fight for the same screen corner and both track every entity, which costs frames for no benefit.",
+    members: [
+      ["xaero's minimap", "xaeros minimap"],
+      ["journeymap"],
+      ["voxelmap"],
+      ["antique atlas"]
+    ]
+  },
+  {
+    id: "waystones",
+    reasonKey: "compatReasonWaystones",
+    labelKey: "compatLabelWaystones",
+    severity: "redundant",
+    label: "waystone system",
+    reason: "Separate teleport networks that don't recognise each other's waypoints.",
+    members: [["waystones"], ["fabric waystones"], ["explorer's compass"]]
+  }
+];
+
+function normalizeModName(title){
+  return String(title || "")
+    .toLowerCase()
+    .replace(/\[[^\]]*\]|\([^)]*\)/g, " ")   // drop "[Fabric]", "(Forge)" tags
+    .replace(/\b(fabric|forge|neoforge|quilt|mod|unofficial|reforged|port)\b/g, " ")
+    .replace(/[^a-z0-9' ]+/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
+
+// Which member slot of a group a mod occupies, or -1.
+function compatMemberIndex(group, title){
+  const n = normalizeModName(title);
+  if(!n) return -1;
+  return group.members.findIndex(aliases=>
+    aliases.some(a=>{
+      const an = normalizeModName(a);
+      return n === an || n.startsWith(an + " ") || n.endsWith(" " + an);
+    })
+  );
+}
+
+function packHasMod(aliasList){
+  return state.pack.some(m=>{
+    const n = normalizeModName(m.title);
+    return aliasList.some(a=>{
+      const an = normalizeModName(a);
+      return n === an || n.startsWith(an + " ") || n.endsWith(" " + an);
+    });
+  });
+}
+
+function getCuratedCompatIssues(title, excludeId){
+  const issues = [];
+  COMPAT_GROUPS.forEach(group=>{
+    const idx = compatMemberIndex(group, title);
+    if(idx < 0) return;
+    const mitigated = Boolean(group.mitigatedBy && group.mitigatedBy.some(m=>packHasMod([m])));
+    state.pack.forEach(other=>{
+      if(other.id === excludeId) return;
+      const otherIdx = compatMemberIndex(group, other.title);
+      // Same slot means it's the same mod under another name, not a clash.
+      if(otherIdx < 0 || otherIdx === idx) return;
+      issues.push({
+        title: other.title,
+        severity: mitigated ? "redundant" : group.severity,
+        label: t(group.labelKey, group.label),
+        reason: mitigated
+          ? t('compatReasonMitigated',"These coexist because TerraBlender is installed, but expect smaller biomes of each.")
+          : t(group.reasonKey, group.reason),
+        mitigated
+      });
+    });
+  });
+  return issues;
+}
+
+const COMPAT_SEVERITY_RANK = { conflict: 3, warning: 2, redundant: 1 };
+function worstSeverity(issues){
+  return issues.reduce((worst, i)=>
+    COMPAT_SEVERITY_RANK[i.severity] > COMPAT_SEVERITY_RANK[worst] ? i.severity : worst, "redundant");
+}
+
+function getConflictMap(){
+  const key = state.pack.map(m=>`${m.id}:${m.selectedVersionId}`).join(",");
+  if(conflictMapCache && conflictMapCacheKey === key) return conflictMapCache;
+  const map = new Map();
+  state.pack.forEach(mod=>{
+    if(!mod.selectedVersionId || !Array.isArray(mod.versions)) return;
+    const v = mod.versions.find(x=>x.id === mod.selectedVersionId);
+    if(!v || !Array.isArray(v.dependencies)) return;
+    v.dependencies.forEach(dep=>{
+      if(dep.dependency_type !== "incompatible" || !dep.project_id) return;
+      if(!map.has(dep.project_id)) map.set(dep.project_id, []);
+      map.get(dep.project_id).push({ id: mod.id, title: mod.title });
+    });
+  });
+  conflictMapCache = map;
+  conflictMapCacheKey = key;
+  return map;
+}
+function getConflictingPackMods(projectId){
+  return getConflictMap().get(projectId) || [];
+}
+
+function cardHtml(hit){
+  const inPack = state.pack.some(p=>p.id === hit.project_id);
+  const isFav = state.favorites.some(f=>f.id === hit.project_id);
+  const icon = hit.icon_url || "";
+  const safeId = escapeHtml(hit.project_id);
+  const conflicts = inPack ? [] : getConflictingPackMods(hit.project_id);
+  const conflictNames = conflicts.map(c=>c.title).join(", ");
+  return `
+    <div class="card${conflicts.length ? " card-conflict" : ""}" data-id="${safeId}" tabindex="0" role="button" aria-label="View ${escapeHtml(hit.title)}">
+      <div class="card-top">
+        ${icon ? `<img class="card-icon" src="${escapeHtml(icon)}" alt="" loading="lazy">` : `<div class="card-icon"></div>`}
+        <div>
+          <div class="card-title">${escapeHtml(hit.title)}${hit.pinned ? ` <span class="tag" style="text-transform:uppercase; font-size:0.62rem; vertical-align:1px;">Pinned</span>` : ""}</div>
+          <div class="card-author">${t('cardBy','by')} ${escapeHtml(hit.author || "unknown")}</div>
+        </div>
+      </div>
+      ${conflicts.length ? `<div class="card-conflict-note" title="${escapeHtml(tf('conflictNoteTitle','Marked incompatible with {mods} in your pack', {mods: conflictNames}))}">⚠ ${escapeHtml(tPlural(conflicts.length, 'conflictNoteOne','Conflicts with {mods}', 'conflictNoteOther','Conflicts with {mods}', {mods: conflictNames}))}</div>` : ""}
+      <div class="card-desc">${escapeHtml(hit.description || "")}</div>
+      <div class="card-tags">${(hit.categories||[]).slice(0,3).map(c=>`<span class="tag">${escapeHtml(c)}</span>`).join("")}</div>
+      <div class="card-stats">
+        <span>${DOWNLOAD_ICON} ${formatNum(hit.downloads)}</span>
+        <span>${HEART_ICON_FILLED.replace('<svg ', '<svg style="width:13px;height:13px;vertical-align:-2px;" ')} ${formatNum(hit.follows)}</span>
+        <button class="card-fav ${isFav?'faved':''}" data-fav="${safeId}" title="${isFav?t('favRemove','Remove from saved'):t('favAdd','Save')}" aria-label="${isFav?t('favRemove','Remove from saved'):t('favAdd','Save')}">${isFav ? HEART_ICON_FILLED : HEART_ICON_OUTLINE}</button>
+        <button class="card-add ${inPack?'added':''}" data-add="${safeId}">${inPack ? t('cardAdded','Added ✓') : t('cardAdd','+ Add')}</button>
+      </div>
+    </div>`;
+}
+
+function updateCardButtons(container, projectId){
+  const card = container.querySelector(`.card[data-id="${projectId}"]`);
+  if(!card) return;
+  const inPack = state.pack.some(p=>p.id === projectId);
+  const isFav = state.favorites.some(f=>f.id === projectId);
+  const addBtn = card.querySelector("[data-add], [data-addpack]");
+  if(addBtn && addBtn.hasAttribute("data-add") && !addBtn.disabled){
+    addBtn.classList.toggle("added", inPack);
+    addBtn.textContent = inPack ? t('cardAdded','Added ✓') : t('cardAdd','+ Add');
+  }
+  if(addBtn && addBtn.hasAttribute("data-addpack")){
+    const alreadyAdded = state.pack.some(p=>p.fromModpack === projectId);
+    addBtn.classList.toggle("added", alreadyAdded);
+    addBtn.disabled = alreadyAdded;
+    addBtn.textContent = alreadyAdded ? t('cardInCreate','In Create ✓') : t('cardAddMods','+ Add mods');
+  }
+  const favBtn = card.querySelector("[data-fav]");
+  if(favBtn){
+    favBtn.classList.toggle("faved", isFav);
+    favBtn.innerHTML = isFav ? HEART_ICON_FILLED : HEART_ICON_OUTLINE;
+    favBtn.title = isFav ? t("favRemove","Remove from saved") : t("favAdd","Save");
+    favBtn.setAttribute("aria-label", favBtn.title);
+  }
+}
+// Repaints every visible card's Add/Added and heart state. Used after a
+// wholesale data swap, where there's no single project id to target.
+function refreshAllCardButtons(){
+  document.querySelectorAll("#results, #favResults, #modpackResults").forEach(container=>{
+    container.querySelectorAll(".card").forEach(card=>{
+      if(card.dataset.id) updateCardButtons(container, card.dataset.id);
+    });
+  });
+}
+
+function updateCardButtonsEverywhere(projectId){
+  document.querySelectorAll("#results, #favResults, #modpackResults").forEach(c=>updateCardButtons(c, projectId));
+}
+
+// Tracks whichever card the mouse is currently over, so the "a" hotkey can
+// add that mod without requiring the card to be focused/opened first.
+let hoveredAddCard = null;
+
+function wireCardEvents(container, hitLookup, onAdd){
+  hoveredAddCard = null;
+  container.querySelectorAll(".card").forEach(card=>{
+    card.addEventListener("click", (e)=>{
+      if(e.target.closest(".card-add") || e.target.closest(".card-fav")) return;
+      openModal(card.dataset.id, hitLookup);
+    });
+    card.addEventListener("mouseenter", ()=>{ hoveredAddCard = card; });
+    card.addEventListener("mouseleave", ()=>{ if(hoveredAddCard === card) hoveredAddCard = null; });
+    card.addEventListener("keydown", (e)=>{
+      if(e.key === "Enter") openModal(card.dataset.id, hitLookup);
+    });
+  });
+  container.querySelectorAll("[data-add]").forEach(btn=>{
+    btn.addEventListener("click", async (e)=>{
+      e.stopPropagation();
+      await onAdd(btn.dataset.add);
+      updateCardButtonsEverywhere(btn.dataset.add);
+    });
+  });
+  container.querySelectorAll("[data-fav]").forEach(btn=>{
+    btn.addEventListener("click", (e)=>{
+      e.stopPropagation();
+      const hit = hitLookup(btn.dataset.fav);
+      const wasFav = hit && state.favorites.some(f=>f.id===hit.project_id);
+      if(hit) toggleFavorite(hit);
+      updateCardButtonsEverywhere(btn.dataset.fav);
+      if(state.tab === "favorites"){
+        const card = wasFav ? btn.closest(".card") : null;
+        const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+        if(card && !reduceMotion){
+          card.classList.add("card-unfav-out");
+          let done = false;
+          const finish = ()=>{ if(done) return; done = true; renderFavorites(); };
+          card.addEventListener("transitionend", finish, {once:true});
+          setTimeout(finish, 320);
+        }else{
+          renderFavorites();
+        }
+      }
+    });
+  });
+}
+
+function renderResults(){
+  const resultsEl = document.getElementById("results");
+  if(!resultsEl) return;
+  resultsEl.className = state.view;
+  resultsEl.innerHTML = state.results.map(cardHtml).join("");
+  wireCardEvents(resultsEl, id=>state.results.find(h=>h.project_id===id), quickAdd);
+}
+
+function formatNum(n){
+  if(!n) return "0";
+  if(n >= 1e6) return (n/1e6).toFixed(1)+"M";
+  if(n >= 1e3) return (n/1e3).toFixed(1)+"k";
+  return String(n);
+}
+const LOADER_ICON_MAP = { fabric: "icons/fabric.png", forge: "icons/forge.png", quilt: "icons/quilt.png", neoforge: "icons/neoforge.png" };
+function loaderIconsHtml(loaders){
+  if(!loaders || !loaders.length) return "";
+  return loaders.filter(l=>LOADER_ICON_MAP[l]).map(l=>
+    `<img class="loader-icon" src="${LOADER_ICON_MAP[l]}" alt="${escapeHtml(l)}" title="${escapeHtml(l)}" loading="lazy">`
+  ).join("");
+}
+
+function stripRawHtml(md){
+  if(!md) return "";
+  let s = md;
+  s = s.replace(/<(iframe|script|style|video|object|embed)[\s\S]*?<\/\1\s*>/gi, "");
+  s = s.replace(/<(iframe|script|style|video|object|embed)[^>]*\/?>/gi, "");
+  s = s.replace(/<br\s*\/?>/gi, "\n");
+  s = s.replace(/<\/p>/gi, "\n\n").replace(/<p[^>]*>/gi, "");
+  s = s.replace(/<\/(div|section|h[1-6])>/gi, "\n\n").replace(/<(div|section)[^>]*>/gi, "");
+  s = s.replace(/<[^>]+>/g, "");
+  s = s.replace(/\n{3,}/g, "\n\n");
+  return s.trim();
+}
+
+function truncateMarkdown(md, limit){
+  if(md.length <= limit) return { text: md, truncated: false };
+  let cut = md.slice(0, limit);
+  const lastSpace = cut.lastIndexOf(" ");
+  if(lastSpace > limit * 0.6) cut = cut.slice(0, lastSpace);
+  return { text: cut + "...", truncated: true };
+}
+
+function renderMarkdownLite(md){
+  if(!md) return "";
+  let s = escapeHtml(md);
+  s = s.replace(/&lt;!--[\s\S]*?--&gt;/g, "");
+  s = s.replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g, (m, alt, url)=>`<img src="${url}" alt="${alt}" loading="lazy">`);
+  s = s.replace(/\[([^\]]+)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g, (m, text, url)=>`<a href="${url}" target="_blank" rel="noopener noreferrer">${text}</a>`);
+  s = s.replace(/^###\s+(.*)$/gm, "<h3>$1</h3>");
+  s = s.replace(/^##\s+(.*)$/gm, "<h2>$1</h2>");
+  s = s.replace(/^#\s+(.*)$/gm, "<h1>$1</h1>");
+  s = s.replace(/\*\*([^*]+)\*\*/g, "<strong>$1</strong>");
+  s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
+  s = s.replace(/(^|[^*])\*([^*\n]+)\*/g, "$1<em>$2</em>");
+  s = s.replace(/(?:^[-*]\s+.*(?:\n|$))+/gm, block=>{
+    const items = block.trim().split(/\n/).map(l=>l.replace(/^[-*]\s+/, "").trim());
+    return `<ul>${items.map(i=>`<li>${i}</li>`).join("")}</ul>\n`;
+  });
+  s = s.replace(/^\|.*\|[ \t]*\n\|[ \t:|-]+\|[ \t]*\n(?:\|.*\|[ \t]*\n?)*/gm, block=>{
+    const lines = block.trim().split(/\n/);
+    const splitRow = line=>line.trim().replace(/^\|/, "").replace(/\|$/, "").split("|").map(c=>c.trim());
+    const headerCells = splitRow(lines[0]);
+    const bodyRows = lines.slice(2).map(splitRow);
+    const thead = `<thead><tr>${headerCells.map(c=>`<th>${c}</th>`).join("")}</tr></thead>`;
+    const tbody = `<tbody>${bodyRows.map(r=>`<tr>${r.map(c=>`<td>${c}</td>`).join("")}</tr>`).join("")}</tbody>`;
+    return `<table>${thead}${tbody}</table>\n`;
+  });
+  s = s.split(/\n{2,}/).map(block=>{
+    block = block.trim();
+    if(!block) return "";
+    if(/^<(h1|h2|h3|ul|img|table)/.test(block)) return block;
+    return `<p>${block.replace(/\n/g, "<br>")}</p>`;
+  }).join("\n");
+  return s;
+}
+
+function escapeHtml(str){
+  return String(str).replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
+}
+
+function formatCategoryName(cat){
+  return String(cat)
+    .replace(/[-_]/g, " ")
+    .replace(/\w\S*/g, w => w.charAt(0).toUpperCase() + w.slice(1));
+}
+
+function findHitAnywhere(projectId){
+  return state.results.find(h=>h.project_id === projectId)
+    || state.modpackResults.find(h=>h.project_id === projectId)
+    || state.favorites.find(h=>h.id === projectId);
+}
+
+async function confirmCompatBeforeAdd(projectId, title){
+  const declared = getConflictingPackMods(projectId).map(c=>({
+    title: c.title, severity: "conflict", label: "",
+    reason: t('compatReasonDeclared',"The authors have flagged these two as incompatible.")
+  }));
+  const curated = getCuratedCompatIssues(title, projectId);
+  const issues = declared.concat(curated);
+  if(!issues.length) return true;
+
+  const severity = worstSeverity(issues);
+  const names = issues.map(i=>escapeHtml(i.title)).join(", ");
+  const heading = severity === "conflict"
+    ? tf('compatBlockMsg','<strong>{mods}</strong> is already in your pack and these don\u2019t work together.', { mods: names })
+    : severity === "warning"
+      ? tf('compatWarnMsg','This overlaps with <strong>{mods}</strong> in your pack.', { mods: names })
+      : tf('compatRedundantMsg','You already have <strong>{mods}</strong>, which does the same job.', { mods: names });
+  // One reason line per distinct explanation — repeating the same sentence
+  // once per matched mod is noise.
+  const reasons = Array.from(new Set(issues.map(i=>i.reason)));
+  const body = heading + `<div style="margin-top:10px; font-size:0.85rem; color:var(--text-dim); text-align:left;">`
+    + reasons.map(r=>`<div style="margin-bottom:6px;">${escapeHtml(r)}</div>`).join("")
+    + `</div>`;
+
+  return showConfirm(body, {
+    confirmLabel: t('conflictAddAnyway','Add anyway'),
+    danger: severity === "conflict"
+  });
+}
+
+async function quickAdd(projectId){
+  if(state.pack.some(p=>p.id === projectId)) return;
+  const hit = findHitAnywhere(projectId);
+  if(!hit) return;
+  if(!await confirmCompatBeforeAdd(projectId, hit.title)) return;
+  const hitId = hit.project_id || hit.id;
+  try{
+    const versions = await fetchVersions(hitId);
+    const best = pickBestVersion(versions);
+    state.pack.push({
+      id: hitId,
+      title: hit.title,
+      icon_url: hit.icon_url,
+      author: hit.author,
+      categories: hit.categories || [],
+      projectType: hit.project_type || state.browseType || "mod",
+      clientSide: hit.client_side || "required",
+      serverSide: hit.server_side || "required",
+      selectedVersionId: best ? best.id : null,
+      selectedVersionNumber: best ? best.version_number : null,
+      selectedFile: best ? (best.files.find(f=>f.primary) || best.files[0]) : null,
+      versions
+    });
+    savePack();
+    if(state.tab === "pack") renderPack();
+    unresolvableDeps = [];
+    const target = currentPackTarget();
+    await autoAddDependencies(best, new Set([hitId]), hit.project_type || state.browseType || "mod", target);
+    await ensureLoaderApis(best ? best.game_versions : null, best ? best.loaders : null);
+    if(unresolvableDeps.length){
+      const names = unresolvableDeps.map(d=>d.title).join(", ");
+      showToast(tf('depsUnresolvable',
+        "{mod} needs {deps}, but no build of it runs on this pack's target. It was left out rather than adding a version that would break the pack.",
+        { mod: hit.title, deps: names }), { duration: 10000 });
+    }
+    savePack();
+    if(state.tab === "pack") renderPack();
+  }catch(e){
+    console.error(e);
+    showToast(t('alertCouldntAddMod',"Couldn't add that mod. Modrinth may be unreachable."));
+  }
+}
+
+async function fetchVersionsRaw(projectId){
+  const res = await fetchWithTimeout(`${API}/project/${projectId}/version`);
+  if(!res.ok) throw new Error("version fetch failed");
+  return res.json();
+}
+function filterSnapshotOnlyVersions(data){
+  const filtered = data.filter(v=>!isSnapshotOnlyVersion(v));
+  return filtered.length ? filtered : data;
+}
+async function fetchVersions(projectId){
+  return filterSnapshotOnlyVersions(await fetchVersionsRaw(projectId));
+}
+
+const FABRIC_API_ID = "P7dR8mSH";
+
+function refreshAllViews(){
+  savePack();
+  renderPack();
+  renderResults();
+  renderModpackResults();
+  renderFavorites();
+}
+
+function showConfirm(messageHtml, {confirmLabel = null, danger = true} = {}){
+  if(confirmLabel === null) confirmLabel = t('confirm','Confirm');
+  return new Promise(resolve=>{
+    const backdrop = document.createElement("div");
+    backdrop.className = "modal-backdrop";
+    backdrop.style.alignItems = "center";
+    backdrop.innerHTML = `
+      <div class="modal confirm-modal" style="max-width:440px;">
+        <div class="confirm-modal-body">${messageHtml}</div>
+        <div style="display:flex; gap:10px; justify-content:flex-end;">
+          <button class="page-btn" data-choice="cancel" style="height:auto; padding:9px 16px; font-size:1rem;">${t('cancel','Cancel')}</button>
+          <button class="export-btn" data-choice="confirm" style="width:auto; margin-top:0; padding:9px 16px; ${danger ? 'background:var(--danger);' : ''}">${escapeHtml(confirmLabel)}</button>
+        </div>
+      </div>`;
+    function onEscape(e){ if(e.key === "Escape") finish(false); }
+    function finish(result){
+      document.removeEventListener("keydown", onEscape);
+      // Resolve immediately and let the exit animation play out on its own:
+      // making the caller wait on an animation is how modals end up feeling
+      // sluggish.
+      resolve(result);
+      dismissModalBackdrop(backdrop);
+    }
+    document.addEventListener("keydown", onEscape);
+    backdrop.addEventListener("click", (e)=>{ if(e.target === backdrop) finish(false); });
+    backdrop.querySelector('[data-choice="cancel"]').addEventListener("click", ()=>finish(false));
+    backdrop.querySelector('[data-choice="confirm"]').addEventListener("click", ()=>finish(true));
+    document.body.appendChild(backdrop);
+  });
+}
+
+
+async function autoAddDependencies(version, visited, hostProjectType, packTarget, trusted = false){
+  if(!version || !Array.isArray(version.dependencies)) return;
+  // Always aim at the pack target. Callers used to omit this, which sent
+  // resolution through the Browse filters instead.
+  const target = packTarget || currentPackTarget();
+  for(const dep of version.dependencies){
+    if(dep.dependency_type !== "required") continue;
+    let depProjectId = dep.project_id;
+    if(!depProjectId && dep.version_id){
+      try{
+        const vRes = await fetchWithTimeout(`${API}/version/${dep.version_id}`);
+        if(vRes.ok){ depProjectId = (await vRes.json()).project_id; }
+      }catch(e){ }
+    }
+    if(!depProjectId || visited.has(depProjectId)) continue;
+    visited.add(depProjectId);
+    if(state.pack.some(p=>p.id === depProjectId)) continue;
+    if(hasEquivalentInPack(depProjectId)) continue;
+    if(trusted){
+      // Note it, do not add it. The author shipped what the pack needs.
+      try{
+        const proj = await getProjectInfoCached(depProjectId);
+        importedPackNotes.push(proj ? proj.title : depProjectId);
+      }catch(e){ importedPackNotes.push(depProjectId); }
+      continue;
+    }
+    try{
+      const proj = await fetchWithTimeout(`${API}/project/${depProjectId}`).then(r=>r.ok?r.json():null);
+      if(!proj) continue;
+      const versions = await fetchVersions(depProjectId);
+      const best = pickCompatibleVersion(versions, target.loader, target.mcVersion);
+      if(!best){
+        // No build of this dependency runs on the pack's target. Adding the
+        // newest one anyway is exactly what produced broken exports, so it is
+        // recorded and skipped instead.
+        unresolvableDeps.push({
+          id: depProjectId,
+          title: proj.title,
+          requiredBy: version.name || version.version_number || "",
+          loader: target.loader,
+          mcVersion: target.mcVersion
+        });
+        continue;
+      }
+      state.pack.push({
+        id: depProjectId,
+        title: proj.title,
+        icon_url: proj.icon_url,
+        author: await resolveProjectAuthor(depProjectId),
+        categories: proj.categories || [],
+        projectType: proj.project_type || "mod",
+        clientSide: proj.client_side || "required",
+        serverSide: proj.server_side || "required",
+        isDependency: true,
+        // Trusted only when this dependency was pulled in as part of a modpack import — see
+        // runCompatibilityCheck for what that exempts it from.
+        trustedFromModpack: trusted,
+        selectedVersionId: best.id,
+        selectedVersionNumber: best.version_number,
+        selectedFile: best.files.find(f=>f.primary) || best.files[0],
+        versions
+      });
+      await autoAddDependencies(best, visited, proj.project_type, target, trusted);
+      updateCardButtonsEverywhere(depProjectId);
+    }catch(e){ console.error("Failed to add dependency", depProjectId, e); }
+  }
+}
+
+const MOD_EQUIVALENTS = {
+  "aWDwN8NN": ["sk9rgfiA"], // Xenon <-> Embeddium
+  "sk9rgfiA": ["aWDwN8NN"]
+};
+function hasEquivalentInPack(projectId){
+  const equivalents = MOD_EQUIVALENTS[projectId];
+  if(!equivalents) return false;
+  return state.pack.some(p=>equivalents.includes(p.id));
+}
+
+const QUILT_API_ID = "qvIfYCYJ";
+
+async function addLoaderApiMod(apiId, hintGameVersions, requiredLoader, trusted = false){
+  if(state.pack.some(p=>p.id === apiId)) return;
+  try{
+    const proj = await fetchWithTimeout(`${API}/project/${apiId}`).then(r=>r.ok?r.json():null);
+    if(!proj) return;
+    const versions = await fetchVersions(apiId);
+    if(!versions.length) return;
+    const target = currentPackTarget();
+    const best = pickCompatibleVersion(versions, requiredLoader, target.mcVersion)
+      || pickCompatibleVersion(versions, requiredLoader, (hintGameVersions || [])[0]);
+    // If no build of the loader API fits the target, adding one at random is
+    // worse than adding none: it guarantees a version mismatch at launch.
+    if(!best) return;
+    state.pack.push({
+      id: apiId,
+      title: proj.title,
+      icon_url: proj.icon_url,
+      author: await resolveProjectAuthor(apiId),
+      categories: proj.categories || [],
+      projectType: "mod",
+      clientSide: proj.client_side || "required",
+      serverSide: proj.server_side || "required",
+      isDependency: true,
+      trustedFromModpack: trusted,
+      selectedVersionId: best.id,
+      selectedVersionNumber: best.version_number,
+      selectedFile: best.files.find(f=>f.primary) || best.files[0],
+      versions
+    });
+    updateCardButtonsEverywhere(apiId);
+  }catch(e){ console.error(`Failed to add loader API mod ${apiId}`, e); }
+}
+
+function packLeansFabric(){
+  if(state.pack.some(p=>p.id === FABRIC_API_ID)) return true;
+  let fabricCount = 0, quiltOnlyCount = 0;
+  state.pack.forEach(m=>{
+    const v = (m.versions && m.selectedVersionId) ? m.versions.find(x=>x.id === m.selectedVersionId) : null;
+    const ls = v ? (v.loaders || []) : (m.fromModpackLoaders || []);
+    if(!ls.length) return;
+    if(ls.includes("fabric")) fabricCount++;
+    else if(ls.includes("quilt")) quiltOnlyCount++;
+  });
+  if(!fabricCount && !quiltOnlyCount) return false; // no signal either way, don't assume Fabric
+  return fabricCount >= quiltOnlyCount;
+}
+
+async function ensureLoaderApis(hintGameVersions, loadersInvolved, trusted = false){
+  // A modpack import already contains every file the author shipped. Adding
+  // Fabric API or Quilt API on top is how the mod count crept up on packs
+  // that were complete to begin with, and it can install a build that does
+  // not match the one the pack was tested against.
+  if(trusted) return;
+  let loaders = (loadersInvolved && loadersInvolved.length) ? loadersInvolved : state.loaders;
+  if(state.loaders.length && loadersInvolved && loadersInvolved.length){
+    const narrowed = loadersInvolved.filter(l=>state.loaders.includes(l));
+    if(narrowed.length) loaders = narrowed;
+  }
+  if(!loaders || !loaders.length) return;
+  const tasks = [];
+  if(loaders.includes("fabric")) tasks.push(addLoaderApiMod(FABRIC_API_ID, hintGameVersions, "fabric", trusted));
+  if(loaders.includes("quilt")){
+    const modIsQuiltExclusive = !loaders.includes("fabric");
+    if(modIsQuiltExclusive || !packLeansFabric()){
+      tasks.push(addLoaderApiMod(QUILT_API_ID, hintGameVersions, "quilt", trusted));
+    }
+  }
+  await Promise.all(tasks);
+}
+
+function versionsMatchingTarget(versions, targetLoader, targetMc, bridges){
+  if(!Array.isArray(versions) || !versions.length) return [];
+  const runnable = targetLoader
+    ? (LOADER_RUNS_ON[targetLoader] || [targetLoader]).concat(
+        (bridges || []).filter(b=>b.on.includes(targetLoader)).flatMap(b=>b.runs)
+      )
+    : null;
+  return sortByGameVersionRecency(versions).filter(v=>{
+    const loaders = v.loaders || [];
+    // Resource packs and shaders declare "minecraft"/"iris"/"optifine"
+    // rather than a mod loader; they are loader agnostic by nature.
+    const agnostic = !loaders.length
+      || loaders.every(l=>["minecraft","iris","optifine","canvas","vanilla","datapack"].includes(l));
+    const loaderOk = !runnable || agnostic || loaders.some(l=>runnable.includes(l));
+    const mcOk = !targetMc || (v.game_versions || []).includes(targetMc);
+    const hasFile = Array.isArray(v.files) && v.files.length > 0;
+    return loaderOk && mcOk && hasFile;
+  });
+}
+
+function pickCompatibleVersion(versions, targetLoader, targetMc, bridges){
+  return versionsMatchingTarget(versions, targetLoader, targetMc, bridges)[0] || null;
+}
+
+// The pack's export target, read straight from the Export tab when the user
+// has set it. Dependency resolution must aim at THIS, never at the Browse
+// sidebar filters, which are a browsing convenience and unrelated.
+function currentPackTarget(){
+  const expLoaderEl = document.getElementById("expLoader");
+  const expMcEl = document.getElementById("expMcVersion");
+  const explicitLoader = (expLoaderEl && expLoaderEl.value) ? expLoaderEl.value : null;
+  const explicitMc = (expMcEl && expMcEl.value) ? expMcEl.value : null;
+  if(explicitLoader || explicitMc) return { loader: explicitLoader, mcVersion: explicitMc };
+
+  const selected = state.pack
+    .filter(m=>m.selectedVersionId && Array.isArray(m.versions))
+    .map(m=>({ mod: m, version: m.versions.find(v=>v.id === m.selectedVersionId) }))
+    .filter(x=>x.version);
+  if(!selected.length) return { loader: null, mcVersion: null };
+  try{ return getCompatTargets(selected); }
+  catch(e){ return { loader: null, mcVersion: null }; }
+}
+
+function pickBestVersion(versions, hintGameVersions, hintLoaders){
+  if(!versions.length) return null;
+  let candidates = versions;
+  if(state.mcVersion){
+    const mcMatched = candidates.filter(v=>v.game_versions.includes(state.mcVersion));
+    if(mcMatched.length) candidates = mcMatched;
+  } else if(hintGameVersions && hintGameVersions.length){
+    const hinted = candidates.filter(v=>v.game_versions.some(gv=>hintGameVersions.includes(gv)));
+    if(hinted.length) candidates = hinted;
+  }
+  if(state.loaders.length){
+    const loaderMatched = candidates.filter(v=>v.loaders.some(l=>state.loaders.includes(l)));
+    if(loaderMatched.length) candidates = loaderMatched;
+  } else if(hintLoaders && hintLoaders.length){
+    const hintedL = candidates.filter(v=>v.loaders.some(l=>hintLoaders.includes(l)));
+    if(hintedL.length) candidates = hintedL;
+  }
+  return (candidates.length ? candidates : versions)[0];
+}
+
+// Like pickBestVersion, but ranks against the pack's actual export target
+// (from getCompatTargets) instead of the unrelated Browse-tab filters.
+function pickBestVersionForPackTarget(versions, targetLoader, targetMc, hintGameVersions, hintLoaders){
+  if(!versions.length) return null;
+  let candidates = versions;
+
+  if(targetMc){
+    const mcMatched = candidates.filter(v=>v.game_versions.includes(targetMc));
+    if(mcMatched.length) candidates = mcMatched;
+  } else if(hintGameVersions && hintGameVersions.length){
+    const hinted = candidates.filter(v=>v.game_versions.some(gv=>hintGameVersions.includes(gv)));
+    if(hinted.length) candidates = hinted;
+  }
+
+  if(targetLoader){
+    const runnableLoaders = LOADER_RUNS_ON[targetLoader] || [targetLoader];
+    const loaderMatched = candidates.filter(v=>v.loaders.some(l=>runnableLoaders.includes(l)));
+    if(loaderMatched.length) candidates = loaderMatched;
+  } else if(hintLoaders && hintLoaders.length){
+    const hintedL = candidates.filter(v=>v.loaders.some(l=>hintLoaders.includes(l)));
+    if(hintedL.length) candidates = hintedL;
+  }
+
+  return (candidates.length ? candidates : versions)[0];
+}
+
+async function openModal(projectId, hitLookup){
+  const hit = hitLookup ? hitLookup(projectId) : findHitAnywhere(projectId);
+  let backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  backdrop.innerHTML = `<div class="modal"><div class="status-msg">Loading details…</div></div>`;
+  document.body.appendChild(backdrop);
+  backdrop.addEventListener("click", (e)=>{ if(e.target === backdrop) backdrop.remove(); });
+
+  try{
+    await gameVersionRankReady;
+    const [projRes, versionsRaw] = await Promise.all([
+      fetch(`${API}/project/${projectId}`).then(r=>r.json()),
+      fetchVersionsRaw(projectId)
+    ]);
+    const gallery = (projRes.gallery || []).slice(0,6);
+    const projectType = projRes.project_type || "mod";
+    const isModpack = projectType === "modpack";
+    // Only apply the snapshot-only filter to mods — see filterSnapshotOnlyVersions for why
+    // modpack releases need to skip it.
+    const versions = isModpack ? versionsRaw : filterSnapshotOnlyVersions(versionsRaw);
+    const inPack = isModpack
+      ? state.pack.some(p=>p.fromModpack === projectId)
+      : state.pack.find(p=>p.id === projectId);
+    const modrinthUrl = `https://modrinth.com/${projectType}/${projRes.slug || projectId}`;
+    const cleanBody = stripRawHtml(projRes.body && projRes.body.trim() ? projRes.body : (projRes.description || ""));
+    const DESC_LIMIT = 900;
+    const { text: shortMd, truncated } = truncateMarkdown(cleanBody, DESC_LIMIT);
+    const shortHtml = renderMarkdownLite(shortMd);
+    const fullHtml = truncated ? renderMarkdownLite(cleanBody) : shortHtml;
+
+    const modalIsFav = state.favorites.some(f=>f.id === projectId);
+    backdrop.querySelector(".modal").innerHTML = `
+      <div class="modal-head">
+        ${hit.icon_url ? `<img src="${escapeHtml(hit.icon_url)}" alt="">` : `<div style="width:72px;height:72px;border-radius:12px;background:var(--surface-2)"></div>`}
+        <div style="flex:1; min-width:0;">
+          <div class="name">${escapeHtml(projRes.title)}</div>
+          <div class="card-author">${t('cardBy','by')} ${escapeHtml(hit.author||"")}</div>
+        </div>
+        <div style="display:flex; align-items:center; gap:10px; flex-shrink:0;">
+          <button class="card-fav ${modalIsFav?'faved':''}" id="modalFavBtn" title="${modalIsFav?t('favRemove','Remove from saved'):t('favAdd','Save')}" aria-label="${modalIsFav?t('favRemove','Remove from saved'):t('favAdd','Save')}">${modalIsFav ? HEART_ICON_FILLED : HEART_ICON_OUTLINE}</button>
+          <button class="modal-close" aria-label="${t('close','Close')}">✕</button>
+        </div>
+      </div>
+      ${gallery.length ? `<div class="modal-gallery">${gallery.map((g,i)=>`<img src="${g.url}" alt="${escapeHtml(g.title||'')}" loading="lazy" data-index="${i}">`).join("")}</div>` : ""}
+      <div class="modal-desc-full" id="modalDescBody">${shortHtml}</div>
+      ${truncated ? `<button class="modal-link-btn" id="modalDescToggle" style="margin:0 0 16px;">${t('showFullDesc','Show full description')}</button>` : ""}
+      <h3 style="font-size:0.85rem; text-transform:uppercase; letter-spacing:.04em; color:var(--text-dim);">Versions (${versions.length})</h3>
+      <div class="modal-versions">
+        ${versionRowsHtml(sortByGameVersionRecency(versions).map(v=>`
+          <div class="version-row" data-vid="${v.id}">
+            <span class="version-loaders">${loaderIconsHtml(v.loaders)}</span>
+            <span class="vname">${escapeHtml(v.version_number)}</span>
+            <span class="vmeta">${v.game_versions.slice(0,3).join(", ")} · ${v.loaders.join(", ")}</span>
+          </div>`))}
+      </div>
+      <div class="modal-actions">
+        <button class="export-btn" id="modalAddBtn" style="flex:1;">
+          ${isModpack ? (inPack ? t('updateModpackImport','Update modpack import') : t('importModpackContents','Import modpack contents')) : (inPack ? t('updateSelection','Update selection') : t('addToPack','+ Add to pack'))}
+        </button>
+        <a class="modal-link-btn" href="${modrinthUrl}" target="_blank" rel="noopener noreferrer">
+          ${t('openInModrinth','Open in Modrinth')}
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>
+        </a>
+      </div>
+    `;
+
+    const favBtn = backdrop.querySelector("#modalFavBtn");
+    favBtn.addEventListener("click", ()=>{
+      const favHit = {
+        project_id: projectId,
+        title: projRes.title,
+        icon_url: projRes.icon_url,
+        author: hit.author || "",
+        description: projRes.description,
+        categories: projRes.categories || [],
+        downloads: projRes.downloads,
+        follows: projRes.follows
+      };
+      toggleFavorite(favHit);
+      const nowFav = state.favorites.some(f=>f.id === projectId);
+      favBtn.classList.toggle("faved", nowFav);
+      favBtn.innerHTML = nowFav ? HEART_ICON_FILLED : HEART_ICON_OUTLINE;
+      favBtn.title = nowFav ? t("favRemove","Remove from saved") : t("favAdd","Save");
+      favBtn.setAttribute("aria-label", favBtn.title);
+      updateFavCount();
+      if(state.tab === "favorites") renderFavorites();
+      updateCardButtonsEverywhere(projectId);
+    });
+
+    if(truncated){
+      const toggleBtn = backdrop.querySelector("#modalDescToggle");
+      let expanded = false;
+      toggleBtn.addEventListener("click", ()=>{
+        expanded = !expanded;
+        backdrop.querySelector("#modalDescBody").innerHTML = expanded ? fullHtml : shortHtml;
+        toggleBtn.textContent = expanded ? t("showLess","Show less") : t("showFullDesc","Show full description");
+      });
+    }
+
+    if(gallery.length){
+      backdrop.querySelectorAll(".modal-gallery img").forEach(img=>{
+        img.addEventListener("click", ()=>openLightbox(gallery, Number(img.dataset.index)));
+      });
+    }
+
+    let chosenVersion = inPack ? versions.find(v=>v.id===inPack.selectedVersionId) : pickBestVersion(versions);
+    const rows = backdrop.querySelectorAll(".version-row");
+    function highlight(){
+      rows.forEach(r=>r.style.background = (chosenVersion && r.dataset.vid===chosenVersion.id) ? "var(--accent-soft)" : "");
+    }
+    highlight();
+    rows.forEach(row=>{
+      row.addEventListener("click", ()=>{
+        chosenVersion = versions.find(v=>v.id === row.dataset.vid);
+        highlight();
+      });
+    });
+
+    backdrop.querySelector(".modal-close").addEventListener("click", ()=>backdrop.remove());
+    backdrop.querySelector("#modalAddBtn").addEventListener("click", async ()=>{
+      if(!chosenVersion){ showToast(t('alertPickVersionFirst',"Pick a version first.")); return; }
+      if(isModpack){
+        const addBtn = backdrop.querySelector("#modalAddBtn");
+        const ok = await importModpackVersion(projectId, chosenVersion, addBtn, { fallbackName: projRes.title, fallbackIcon: hit.icon_url || projRes.icon_url });
+        if(ok) backdrop.remove();
+        return;
+      }
+      const existingIdx = state.pack.findIndex(p=>p.id === projectId);
+      if(existingIdx === -1){
+        if(!await confirmCompatBeforeAdd(projectId, projRes.title)) return;
+      }
+      const entry = {
+        id: projectId,
+        title: projRes.title,
+        icon_url: hit.icon_url,
+        author: hit.author,
+        categories: hit.categories || projRes.categories || [],
+        projectType: projectType,
+        clientSide: projRes.client_side || hit.client_side || "required",
+        serverSide: projRes.server_side || hit.server_side || "required",
+        selectedVersionId: chosenVersion.id,
+        selectedVersionNumber: chosenVersion.version_number,
+        selectedFile: chosenVersion.files.find(f=>f.primary) || chosenVersion.files[0],
+        versions
+      };
+      if(existingIdx >= 0) state.pack[existingIdx] = entry; else state.pack.push(entry);
+      savePack();
+      updateCardButtonsEverywhere(projectId);
+      if(state.tab === "pack") renderPack();
+      backdrop.remove();
+      await autoAddDependencies(chosenVersion, new Set([projectId]), projectType);
+      await ensureLoaderApis(chosenVersion.game_versions, chosenVersion.loaders);
+      savePack();
+      if(state.tab === "pack") renderPack();
+    });
+  }catch(e){
+    console.error(e);
+    backdrop.querySelector(".modal").innerHTML = `<div class="status-msg">${t('couldntLoadMod',"Couldn't load this mod.")} <button class="modal-close">${t('close','Close')}</button></div>`;
+    backdrop.querySelector(".modal-close").addEventListener("click", ()=>backdrop.remove());
+  }
+}
+
+function openLightbox(images, startIndex){
+  let idx = startIndex;
+  const lb = document.createElement("div");
+  lb.className = "lightbox-backdrop";
+
+  function render(){
+    const img = images[idx];
+    lb.innerHTML = `
+      ${images.length > 1 ? `<button class="lightbox-nav prev" aria-label="Previous image"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"></polyline></svg></button>` : ""}
+      <div class="lightbox-img-wrap">
+        <button class="lightbox-close" aria-label="${t('close','Close')}">✕</button>
+        <img src="${img.url}" alt="${escapeHtml(img.title||'')}">
+        <div class="lightbox-counter">Image ${idx+1} / ${images.length}</div>
+      </div>
+      ${images.length > 1 ? `<button class="lightbox-nav next" aria-label="Next image"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"></polyline></svg></button>` : ""}
+    `;
+    lb.querySelector(".lightbox-close").addEventListener("click", closeLightbox);
+    if(images.length > 1){
+      lb.querySelector(".lightbox-nav.prev").addEventListener("click", (e)=>{ e.stopPropagation(); idx = (idx - 1 + images.length) % images.length; render(); });
+      lb.querySelector(".lightbox-nav.next").addEventListener("click", (e)=>{ e.stopPropagation(); idx = (idx + 1) % images.length; render(); });
+    }
+  }
+
+  function closeLightbox(){
+    lb.remove();
+    document.removeEventListener("keydown", onKey);
+  }
+  function onKey(e){
+    if(e.key === "Escape") closeLightbox();
+    else if(e.key === "ArrowLeft" && images.length > 1){ idx = (idx - 1 + images.length) % images.length; render(); }
+    else if(e.key === "ArrowRight" && images.length > 1){ idx = (idx + 1) % images.length; render(); }
+  }
+
+  lb.addEventListener("click", (e)=>{ if(e.target === lb) closeLightbox(); });
+  document.addEventListener("keydown", onKey);
+  render();
+  document.body.appendChild(lb);
+}
+
+function syncModpackSnapshot(mod, version){
+  if(!mod.fromModpack) return;
+  mod.fromModpackLoaders = version.loaders || [];
+  mod.fromModpackGameVersions = version.game_versions || [];
+}
+
+// Tracks whichever pack row the mouse is currently over, so the "r" hotkey
+// can remove that mod without requiring it to be focused/opened first.
+let hoveredPackRow = null;
+
+// Rewrites the <option> list of one pack row in place.
+function refreshVersionSelect(mod){
+  const sel = document.querySelector(`[data-vselect="${CSS.escape(mod.id)}"]`);
+  if(!sel) return;
+  const wasOpen = document.activeElement === sel;
+  sel.innerHTML = sortByGameVersionRecency(mod.versions).map(v=>
+    `<option value="${v.id}" ${v.id === mod.selectedVersionId ? "selected" : ""}>${escapeHtml(v.version_number)} (${escapeHtml((v.loaders||[]).join(", "))})</option>`
+  ).join("");
+  sel.value = mod.selectedVersionId || sel.value;
+  if(wasOpen) sel.focus();
+}
+
+const hydratingVersions = new Set();
+async function hydratePackModVersions(modId){
+  const mod = state.pack.find(m=>m.id === modId);
+  if(!mod || mod.versionsHydrated || hydratingVersions.has(modId)) return;
+  if(Array.isArray(mod.versions) && mod.versions.length > 1){
+    mod.versionsHydrated = true;
+    return;
+  }
+  hydratingVersions.add(modId);
+  const sel = document.querySelector(`[data-vselect="${CSS.escape(modId)}"]`);
+  if(sel) sel.classList.add("is-loading");
+  try{
+    const versions = await fetchVersions(modId);
+    if(Array.isArray(versions) && versions.length){
+      const pinned = (mod.versions || []).find(v=>v.id === mod.selectedVersionId);
+      mod.versions = versions.some(v=>v.id === mod.selectedVersionId) || !pinned
+        ? versions
+        : [pinned].concat(versions);
+      mod.versionsHydrated = true;
+      savePack();
+      // Repaint only this row's <option> list. renderPack() rebuilds every
+      // row in the pack, which on a 150-mod import is a visible stutter and
+      // also drops focus and scroll position the moment the user reaches for
+      // the dropdown — exactly the wrong instant to move things.
+      refreshVersionSelect(mod);
+    }
+  }catch(e){
+    console.warn("Couldn't load the version list for", modId, e);
+    showToast(t('toastVersionListFailed',"Couldn't load this mod's other versions."));
+  }finally{
+    hydratingVersions.delete(modId);
+    const s2 = document.querySelector(`[data-vselect="${CSS.escape(modId)}"]`);
+    if(s2) s2.classList.remove("is-loading");
+  }
+}
+
+function packRowHtml(mod){
+  const displayVersions = sortByGameVersionRecency(mod.versions);
+  return `
+    <div class="pack-row" data-id="${escapeHtml(mod.id)}" tabindex="0" role="button" aria-label="View ${escapeHtml(mod.title)}">
+      ${mod.icon_url ? `<img src="${escapeHtml(mod.icon_url)}" alt="">` : `<img alt="">`}
+      <div class="info">
+        <div class="name">${escapeHtml(mod.title)}${mod.isDependency ? ` <span class="tag" style="margin-left:4px;">${t('autoAddedTag','auto-added')}</span>` : ''}<span class="pack-row-issue-badge" hidden title=""></span></div>
+        <div class="sub">${t('cardBy','by')} ${escapeHtml(mod.author||"")} · ${escapeHtml(mod.selectedVersionNumber||t('createNoVersion','no version'))}</div>
+      </div>
+      <select data-vselect="${mod.id}">
+        ${displayVersions.map(v=>`<option value="${v.id}" ${v.id===mod.selectedVersionId?"selected":""}>${escapeHtml(v.version_number)} (${v.loaders.join(", ")})</option>`).join("")}
+      </select>
+      <button class="remove" data-remove="${mod.id}">${t('remove','Remove')}</button>
+    </div>`;
+}
+
+function renderImportSummary(){
+  const el = document.getElementById("importSummary");
+  if(!el) return;
+  // Nothing left to describe once the pack is empty.
+  if(lastImportReport && !state.pack.length) lastImportReport = null;
+  if(lastImportReport && lastImportReport.seen && state.tab !== "pack") lastImportReport = null;
+  if(!lastImportReport){ el.hidden = true; el.innerHTML = ""; return; }
+  const r = lastImportReport;
+  const targetBits = [];
+  if(r.target && r.target.mcVersion) targetBits.push(r.target.mcVersion);
+  if(r.target && r.target.loader) targetBits.push(formatLoaderName(r.target.loader));
+
+  // Only the two numbers people actually came here to check: how many mods
+  // landed, and what the pack will export as. File-level bookkeeping
+  // (passthrough files, overrides, unresolved deps) is still logged to the
+  // console for debugging, just not surfaced in the banner.
+  const lines = [];
+  lines.push(`<strong>${escapeHtml(tf('importSummaryMain',
+    'Added {added} mods from this modpack.',
+    { added: r.added }))}</strong>`);
+  if(targetBits.length){
+    lines.push(`<span>${escapeHtml(tf('importSummaryTarget',
+      'Export target set to {target} from the pack\u2019s own manifest.',
+      { target: targetBits.join(" · ") }))}</span>`);
+  }
+  if(r.passthrough > 0 || r.overrides > 0 || (r.notes && r.notes.length)){
+    console.info("[ModBench] Import details:", {
+      passthroughFiles: r.passthrough,
+      overrideFiles: r.overrides,
+      unresolvedDependencyNotes: r.notes
+    });
+  }
+
+  el.hidden = false;
+  el.innerHTML = `
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+    <div class="import-summary-body">${lines.join("<br>")}</div>
+    <button type="button" class="import-summary-close" id="importSummaryClose" aria-label="${escapeHtml(t('close','Close'))}">✕</button>`;
+  const close = el.querySelector("#importSummaryClose");
+  if(close) close.addEventListener("click", ()=>{ lastImportReport = null; renderImportSummary(); });
+  // One viewing is enough. Leaving Create and coming back should not replay a
+  // message about something that already happened.
+  lastImportReport.seen = true;
+}
+
+function renderPack(){
+  renderImportSummary();
+  // Adding or removing a mod can flip a saved card between "Open in Create"
+  // and "Already in Create"; refresh them whenever the pack is redrawn.
+  renderSavedPacks();
+  const listEl = document.getElementById("packList");
+  const emptyEl = document.getElementById("packEmpty");
+  const toolbarEl = document.getElementById("createToolbar");
+  const bannerEl = document.getElementById("packIssueBanner");
+  const searchBarEl = document.getElementById("packSearchBar");
+  hoveredPackRow = null;
+  if(state.pack.length === 0){
+    listEl.innerHTML = ""; emptyEl.style.display = "block";
+    toolbarEl.style.display = "none";
+    bannerEl.style.display = "none";
+    searchBarEl.style.display = "none";
+    return;
+  }
+  emptyEl.style.display = "none";
+  toolbarEl.style.display = "flex";
+  searchBarEl.style.display = "flex";
+
+  const q = (state.packSearch || "").trim().toLowerCase();
+  const visiblePack = q ? state.pack.filter(m=>m.title.toLowerCase().includes(q)) : state.pack;
+
+  if(!visiblePack.length){
+    listEl.innerHTML = `<div class="status-msg">No mods in your pack match "${escapeHtml(state.packSearch.trim())}".</div>`;
+    updatePackIssueHighlights();
+    return;
+  }
+
+  const TYPE_LABELS = { mod: "Mods", shader: "Shaders", resourcepack: "Resource Packs" };
+  const TYPE_ORDER = ["mod", "shader", "resourcepack"];
+  const byType = {};
+  visiblePack.forEach(mod=>{
+    const t = mod.projectType || "mod";
+    if(!byType[t]) byType[t] = [];
+    byType[t].push(mod);
+  });
+  const orderedTypes = TYPE_ORDER.filter(t=>byType[t] && byType[t].length);
+
+  listEl.innerHTML = orderedTypes.map(type=>{
+    const modsOfType = byType[type];
+    let innerHtml;
+    if(state.packSort === "alpha"){
+      const sorted = [...modsOfType].sort((a,b)=>a.title.localeCompare(b.title));
+      innerHtml = `<div class="pack-list">${sorted.map(packRowHtml).join("")}</div>`;
+    }else{
+      const groups = {};
+      modsOfType.forEach(mod=>{
+        const cat = (mod.categories && mod.categories[0]) ? mod.categories[0] : "uncategorized";
+        if(!groups[cat]) groups[cat] = [];
+        groups[cat].push(mod);
+      });
+      const orderedCats = Object.keys(groups).sort((a,b)=>a.localeCompare(b));
+      innerHtml = orderedCats.map(cat=>`
+        <div class="pack-category-group">
+          <h4 class="pack-category-label">${escapeHtml(formatCategoryName(cat))}</h4>
+          <div class="pack-list">${groups[cat].map(packRowHtml).join("")}</div>
+        </div>
+      `).join("");
+    }
+    return `
+      <div class="pack-type-group">
+        <h3 class="pack-type-label">${TYPE_LABELS[type] || formatCategoryName(type)} (${modsOfType.length})</h3>
+        ${innerHtml}
+      </div>
+    `;
+  }).join("");
+
+  listEl.querySelectorAll(".pack-row").forEach(row=>{
+    row.addEventListener("click", (e)=>{
+      if(e.target.closest("select") || e.target.closest(".remove")) return;
+      openModal(row.dataset.id, id=>state.pack.find(m=>m.id===id));
+    });
+    row.addEventListener("keydown", (e)=>{
+      if(e.key === "Enter" && !e.target.closest("select")) openModal(row.dataset.id, id=>state.pack.find(m=>m.id===id));
+    });
+    row.addEventListener("mouseenter", ()=>{ hoveredPackRow = row; });
+    row.addEventListener("mouseleave", ()=>{ if(hoveredPackRow === row) hoveredPackRow = null; });
+  });
+  listEl.querySelectorAll("[data-remove]").forEach(btn=>{
+    btn.addEventListener("click", (e)=>{
+      e.stopPropagation();
+      const removedId = btn.dataset.remove;
+      const removedIdx = state.pack.findIndex(m=>m.id === removedId);
+      if(removedIdx === -1) return;
+      const [removedMod] = state.pack.splice(removedIdx, 1);
+      savePack(); renderPack();
+      updateCardButtonsEverywhere(removedId);
+
+      const restoreMod = ()=>{
+        if(state.pack.some(m=>m.id === removedId)) return;
+        const insertAt = Math.min(removedIdx, state.pack.length);
+        state.pack.splice(insertAt, 0, removedMod);
+        savePack(); renderPack();
+        updateCardButtonsEverywhere(removedId);
+      };
+      const removeModAgain = ()=>{
+        const idx = state.pack.findIndex(m=>m.id === removedId);
+        if(idx === -1) return;
+        state.pack.splice(idx, 1);
+        savePack(); renderPack();
+        updateCardButtonsEverywhere(removedId);
+      };
+      const historyEntry = pushHistoryAction(tf('historyRemovedLabel','Removed "{title}"', { title: removedMod.title }), restoreMod, removeModAgain);
+
+      showToast(tf('toastRemovedFromCreate','Removed "{title}" from Create.', { title: removedMod.title }), {
+        actionLabel: t('historyUndo','Undo'),
+        onAction: ()=>{
+          restoreMod();
+          removeHistoryEntry(historyEntry);
+        }
+      });
+    });
+  });
+  listEl.querySelectorAll("[data-vselect]").forEach(sel=>{
+    sel.addEventListener("click", (e)=> e.stopPropagation());
+    // pointerdown fires before the native dropdown opens, so the list is
+    // already being fetched by the time it appears; focus covers keyboard use.
+    sel.addEventListener("pointerdown", ()=>hydratePackModVersions(sel.dataset.vselect));
+    sel.addEventListener("focus", ()=>hydratePackModVersions(sel.dataset.vselect));
+    sel.addEventListener("change", async ()=>{
+      const mod = state.pack.find(m=>m.id === sel.dataset.vselect);
+      const v = mod.versions.find(v=>v.id === sel.value);
+      mod.selectedVersionId = v.id;
+      mod.selectedVersionNumber = v.version_number;
+      mod.selectedFile = v.files.find(f=>f.primary) || v.files[0];
+      // A manual version pick means the user is overriding the pack author's original choice
+      // for this mod specifically — resume real compatibility checking on it from here on.
+      mod.trustedFromModpack = false;
+      syncModpackSnapshot(mod, v);
+      savePack(); renderPack();
+      await autoAddDependencies(v, new Set([mod.id]), mod.projectType);
+      await ensureLoaderApis(v.game_versions, v.loaders);
+      savePack(); renderPack();
+    });
+  });
+
+  updatePackIssueHighlights();
+}
+
+let packIssueScanId = 0;
+
+async function updatePackIssueHighlights(){
+  const runId = ++packIssueScanId;
+  const bannerEl = document.getElementById("packIssueBanner");
+  if(!state.autoCompatCheck){
+    if(bannerEl) bannerEl.style.display = "none";
+    document.querySelectorAll("#packList .pack-row").forEach(row=>{
+      row.classList.remove("has-issue");
+      const badge = row.querySelector(".pack-row-issue-badge");
+      if(badge) badge.hidden = true;
+    });
+    return;
+  }
+  if(!state.pack.length){
+    if(bannerEl) bannerEl.style.display = "none";
+    return;
+  }
+  let result;
+  try{
+    result = await runCompatibilityCheck();
+  }catch(e){
+    console.error("Background compatibility scan failed", e);
+    return;
+  }
+  if(runId !== packIssueScanId) return; // a newer scan superseded this one
+  const { issues } = result;
+
+  const badModIds = new Set();
+  const notesByMod = new Map();
+  issues.forEach(issue=>{
+    issue.mods.forEach(mod=>{
+      badModIds.add(mod.id);
+      const notes = notesByMod.get(mod.id) || [];
+      notes.push(issue.title);
+      notesByMod.set(mod.id, notes);
+    });
+  });
+
+  document.querySelectorAll("#packList .pack-row").forEach(row=>{
+    const bad = badModIds.has(row.dataset.id);
+    row.classList.toggle("has-issue", bad);
+    const badge = row.querySelector(".pack-row-issue-badge");
+    if(badge){
+      badge.hidden = !bad;
+      if(bad){
+        badge.innerHTML = COMPAT_ICON_WARN;
+        badge.title = notesByMod.get(row.dataset.id).join(" · ");
+      }
+    }
+  });
+
+  if(bannerEl){
+    if(issues.length){
+      bannerEl.style.display = "flex";
+      bannerEl.innerHTML = `
+        <span class="icon">${COMPAT_ICON_WARN}</span>
+        <div>
+          <div class="headline">${tPlural(issues.length, 'compatIssuesFoundOne','{n} compatibility issue found', 'compatIssuesFoundOther','{n} compatibility issues found')}</div>
+          <div class="subline">${t('compatBannerSubline','Affected mods are highlighted in red below - tap here for details')}</div>
+        </div>
+        <button type="button" class="page-btn ignore-btn" id="ignoreCompatBannerBtn">${t('compatIgnoreAnyway','Ignore anyway')}</button>`;
+      const ignoreBtn = bannerEl.querySelector("#ignoreCompatBannerBtn");
+      if(ignoreBtn){
+        ignoreBtn.addEventListener("click", (e)=>{
+          e.stopPropagation();
+          ignoreCompatWarnings();
+        });
+      }
+    }else{
+      bannerEl.style.display = "none";
+    }
+  }
+}
+
+function ignoreCompatWarnings(){
+  const bannerEl = document.getElementById("packIssueBanner");
+  if(bannerEl) bannerEl.style.display = "none";
+  document.querySelectorAll("#packList .pack-row.has-issue").forEach(row=>{
+    row.classList.remove("has-issue");
+    const badge = row.querySelector(".pack-row-issue-badge");
+    if(badge){
+      badge.hidden = true;
+      badge.innerHTML = "";
+      badge.title = "";
+    }
+  });
+}
+
+const COMPAT_ICON_WARN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>';
+const COMPAT_ICON_CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+const COMPAT_ICON_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+const COMPAT_ICON_LOADER = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>';
+const COMPAT_ICON_BLOCK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>';
+const UPDATE_ICON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12a9 9 0 1 1-2.64-6.36"/><polyline points="21 3 21 9 15 9"/></svg>';
+
+function modChipHtml(mod){
+  const inPack = state.pack.some(m=>m.id === mod.id);
+  return `<span class="compat-mod-chip${inPack ? " clickable" : ""}" ${inPack ? `data-jump-id="${escapeHtml(mod.id)}" role="button" tabindex="0" title="${tf('compatJumpTo','Jump to {name} in your pack', {name: escapeHtml(mod.title)})}"` : ""}>${mod.icon_url ? `<img src="${escapeHtml(mod.icon_url)}" alt="">` : ""}${escapeHtml(mod.title)}</span>`;
+}
+
+function modChipsHtml(mods, limit = 12){
+  const chips = mods.map(modChipHtml);
+  if(chips.length <= limit) return chips.join("");
+  const id = `modchips-${Math.random().toString(36).slice(2, 9)}`;
+  return `${chips.slice(0, limit).join("")}<span class="modlist-rest" id="${id}" hidden>${chips.slice(limit).join("")}</span><button type="button" class="compat-mod-chip modlist-toggle-chip" data-target="${id}">${tf('compatMoreBtn','+{n} more', {n: chips.length - limit})}</button>`;
+}
+
+function versionRowsHtml(rows, limit = 15){
+  if(rows.length <= limit) return rows.join("");
+  const id = `versionrows-${Math.random().toString(36).slice(2, 9)}`;
+  return `${rows.slice(0, limit).join("")}<div class="modlist-rest" id="${id}" hidden>${rows.slice(limit).join("")}</div><button type="button" class="modal-link-btn modlist-toggle-row" data-target="${id}" style="width:100%; margin:2px 0;">Show ${rows.length - limit} more version${rows.length - limit === 1 ? "" : "s"}</button>`;
+}
+
+const depVersionProjectCache = new Map();
+async function resolveDepProjectId(dep){
+  if(dep.project_id) return dep.project_id;
+  if(!dep.version_id) return null;
+  if(depVersionProjectCache.has(dep.version_id)) return depVersionProjectCache.get(dep.version_id);
+  try{
+    const vRes = await fetch(`${API}/version/${dep.version_id}`);
+    const projectId = vRes.ok ? (await vRes.json()).project_id : null;
+    depVersionProjectCache.set(dep.version_id, projectId);
+    return projectId;
+  }catch(e){
+    return null;
+  }
+}
+
+const depProjectInfoCache = new Map();
+async function getProjectInfoCached(projectId){
+  if(depProjectInfoCache.has(projectId)) return depProjectInfoCache.get(projectId);
+  try{
+    const res = await fetch(`${API}/project/${projectId}`);
+    const data = res.ok ? await res.json() : null;
+    depProjectInfoCache.set(projectId, data);
+    return data;
+  }catch(e){
+    return null;
+  }
+}
+
+function findMajoritySupport(entries, getValues){
+  const allValues = new Set();
+  entries.forEach(x=>getValues(x).forEach(v=>allValues.add(v)));
+  let best = null;
+  allValues.forEach(v=>{
+    const supporters = entries.filter(x=>getValues(x).includes(v));
+    if(!best || supporters.length > best.supporters.length){
+      best = { value: v, supporters };
+    }
+  });
+  return best;
+}
+
+function effectiveLoaders(x){
+  if(x.mod.fromModpack && x.mod.fromModpackLoaders && x.mod.fromModpackLoaders.length) return x.mod.fromModpackLoaders;
+  return x.version.loaders || [];
+}
+function effectiveGameVersions(x){
+  if(x.mod.fromModpack && x.mod.fromModpackGameVersions && x.mod.fromModpackGameVersions.length) return x.mod.fromModpackGameVersions;
+  return x.version.game_versions || [];
+}
+
+function isLoaderAgnostic(x){
+  if(x.mod.projectType && x.mod.projectType !== "mod") return true;
+  const loaders = effectiveLoaders(x);
+  return loaders.length === 0 || (loaders.length === 1 && loaders[0] === "minecraft");
+}
+
+const LOADER_RUNS_ON = { fabric: ["fabric"], quilt: ["quilt", "fabric"], forge: ["forge"], neoforge: ["neoforge"] };
+const LOADER_DISPLAY_NAMES = { fabric: "Fabric", quilt: "Quilt", forge: "Forge", neoforge: "NeoForge" };
+function formatLoaderName(loader){ return LOADER_DISPLAY_NAMES[loader] || formatCategoryName(loader || ""); }
+
+const LOADER_BRIDGES = {
+  "u58R1TMW": { runs: ["fabric", "quilt"], on: ["forge", "neoforge"] }, // Sinytra Connector
+  "Aqlf1Shp": { runs: ["fabric", "quilt"], on: ["forge", "neoforge"] }, // Forgified Fabric API
+  "voWgQoWV": { runs: ["fabric", "quilt"], on: ["forge", "neoforge"] }  // Launchpad
+};
+
+function getActiveLoaderBridges(selected){
+  return selected
+    .map(x=>LOADER_BRIDGES[x.mod.id])
+    .filter(Boolean);
+}
+
+function modRunsOnLoader(x, loader, bridges){
+  if(isLoaderAgnostic(x)) return true;
+  let runnable = LOADER_RUNS_ON[loader] || [loader];
+  if(bridges && bridges.length){
+    bridges.forEach(b=>{ if(b.on.includes(loader)) runnable = runnable.concat(b.runs); });
+  }
+  return effectiveLoaders(x).some(l=>runnable.includes(l));
+}
+
+function pickBestLoaderForPack(selected){
+  const candidateLoaders = ["fabric", "quilt", "forge", "neoforge"];
+  const bridges = getActiveLoaderBridges(selected);
+  const specific = selected.filter(x=>!isLoaderAgnostic(x));
+  const votePool = specific.length ? specific : selected;
+  let best = null;
+  candidateLoaders.forEach(loader=>{
+    const votes = votePool.filter(x=>modRunsOnLoader(x, loader, bridges));
+    if(votes.length && (!best || votes.length > best.votes)){
+      best = { loader, votes, runners: selected.filter(x=>modRunsOnLoader(x, loader, bridges)) };
+    }
+  });
+  return best;
+}
+
+function boldEsc(text){
+  return `<strong>${escapeHtml(text)}</strong>`;
+}
+
+function modListHtml(mods, limit = 6){
+  const names = mods.map(m=>boldEsc(m.title));
+  if(names.length <= limit) return names.join(", ");
+  const id = `modlist-${Math.random().toString(36).slice(2, 9)}`;
+  return `${names.slice(0, limit).join(", ")}, <span class="modlist-rest" id="${id}" hidden>${names.slice(limit).join(", ")}, </span><button type="button" class="modal-link-btn modlist-toggle" data-target="${id}">${tf('compatMoreBtn','+{n} more', {n: names.length - limit})}</button>`;
+}
+
+function dominantImportedLoader(selected){
+  const bridges = getActiveLoaderBridges(selected);
+  const counts = new Map();
+  selected.forEach(x=>{
+    const m = x.mod;
+    if(!m.fromModpack || !m.fromModpackLoaders || m.fromModpackLoaders.length !== 1) return;
+    const reported = m.fromModpackLoaders[0];
+    const key = `${m.fromModpack}|${reported}`;
+    counts.set(key, (counts.get(key) || 0) + 1);
+    bridges.forEach(b=>{
+      if(b.runs.includes(reported)){
+        b.on.forEach(onLoader=>{
+          const bridgeKey = `${m.fromModpack}|${onLoader}`;
+          counts.set(bridgeKey, (counts.get(bridgeKey) || 0) + 1);
+        });
+      }
+    });
+  });
+  if(!counts.size) return null;
+  let bestKey = null, bestCount = 0;
+  counts.forEach((count, key)=>{ if(count > bestCount){ bestCount = count; bestKey = key; } });
+  if(bestCount < selected.length * 0.5) return null; // not a clear majority, don't override
+  return bestKey.split("|")[1];
+}
+
+async function runCompatibilityCheck(){
+  const mods = state.pack.filter(m=>m.selectedVersionId && Array.isArray(m.versions));
+  const selected = mods.map(m=>({
+    mod: m,
+    version: m.versions.find(v=>v.id === m.selectedVersionId)
+  })).filter(x=>x.version);
+
+  const issues = [];
+  const seenPairs = new Set();
+  const missingDeps = new Map(); // depProjectId -> mods that require it
+
+  for(const {mod, version} of selected){
+    for(const dep of (version.dependencies||[])){
+      if(dep.dependency_type === "incompatible"){
+        const depProjectId = await resolveDepProjectId(dep);
+        if(!depProjectId) continue;
+        const other = selected.find(x=>x.mod.id === depProjectId);
+        if(other){
+          if(dep.version_id && !dep.project_id && other.version.id !== dep.version_id) continue;
+          const pairKey = [mod.id, other.mod.id].sort().join("|");
+          if(seenPairs.has(pairKey)) continue;
+          seenPairs.add(pairKey);
+          issues.push({
+            type: "incompatible",
+            icon: COMPAT_ICON_X,
+            title: t('compatTitleIncompatible','Marked incompatible with each other'),
+            detail: t('compatDetailIncompatible',`The mod authors have explicitly flagged these two as incompatible when used together. Remove one, or check if either has an alternative version that drops the conflict.`),
+            mods: [mod, other.mod]
+          });
+        }
+        continue;
+      }
+      if(dep.dependency_type === "required"){
+        // Still on the exact version the modpack shipped: the author tested
+        // this combination, so a "missing" dependency here is our metadata
+        // being wrong, not the pack being broken.
+        if(mod.trustedFromModpack) continue;
+        const depProjectId = await resolveDepProjectId(dep);
+        if(!depProjectId) continue;
+        if(state.pack.some(p=>p.id === depProjectId)) continue;
+        if(hasEquivalentInPack(depProjectId)) continue;
+        if(!missingDeps.has(depProjectId)) missingDeps.set(depProjectId, []);
+        missingDeps.get(depProjectId).push(mod);
+      }
+    }
+  }
+
+  for(const [depProjectId, requiredBy] of missingDeps){
+    const info = await getProjectInfoCached(depProjectId);
+    const depTitle = info ? info.title : t('compatUnknownMod','an unknown mod');
+    issues.push({
+      type: "missing-dependency",
+      icon: COMPAT_ICON_X,
+      title: tf('compatTitleMissingDep','Missing required dependency: {name}', { name: depTitle }),
+      detail: tf('compatDetailMissingDep',"{mods} {verb} this to work, but it isn't in your pack. Add it, or AutoSolve can add it for you.", {
+        mods: requiredBy.map(m=>boldEsc(m.title)).join(", "),
+        verb: t(requiredBy.length===1?'compatVerbRequires':'compatVerbRequire', requiredBy.length===1?'requires':'require')
+      }),
+      mods: [...requiredBy, ...(info ? [{id: depProjectId, title: info.title, icon_url: info.icon_url}] : [])],
+      missingDepProjectId: depProjectId
+    });
+  }
+
+  if(selected.length > 1){
+    const expLoaderEl = document.getElementById("expLoader");
+    const explicitLoader = (expLoaderEl && expLoaderEl.value && state.expLoaderTouched) ? expLoaderEl.value : dominantImportedLoader(selected);
+    const loaderBridges = getActiveLoaderBridges(selected);
+    const loaderPick = explicitLoader ? { loader: explicitLoader, runners: selected.filter(x=>modRunsOnLoader(x, explicitLoader, loaderBridges)) } : pickBestLoaderForPack(selected);
+
+    if(loaderPick){
+      const missing = selected.filter(x=>!modRunsOnLoader(x, loaderPick.loader, loaderBridges))
+        .filter(x=>!x.mod.trustedFromModpack);
+      if(missing.length){
+        const loaderLabel = formatLoaderName(loaderPick.loader);
+        const loaderStrong = boldEsc(loaderLabel);
+        issues.push({
+          type: "loader",
+          icon: COMPAT_ICON_LOADER,
+          title: t('compatTitleNoLoader','No shared mod loader'),
+          detail: `${explicitLoader ? tf('compatLoaderTargets','Your pack targets {loader}', {loader: loaderStrong}) : tf('compatLoaderMostRun','Most of your selected mods can run on {loader}', {loader: loaderStrong})}${loaderPick.loader === "quilt" ? " "+t('compatQuiltNote','(Quilt also runs Fabric-only mods)') : ""}${tf('compatLoaderRest',", but these don't have a compatible version. Open each one below and pick a version for {loader} instead.", {loader: loaderStrong})}`,
+          mods: missing.map(x=>x.mod),
+          perModNote: missing.map(x=>`${escapeHtml(x.mod.title)}: ${boldEsc(effectiveLoaders(x).join(", ") || t('compatUnknown','unknown'))}`)
+        });
+      }
+    }else{
+      const untrusted = selected.filter(x=>!x.mod.trustedFromModpack);
+      if(untrusted.length){
+        issues.push({
+          type: "loader",
+          icon: COMPAT_ICON_LOADER,
+          title: t('compatTitleNoLoader','No shared mod loader'),
+          detail: t('compatLoaderNoneReported',`None of your selected mod versions report a loader, so compatibility can't be confirmed. Open each mod below and check it has a proper loader-specific version selected.`),
+          mods: untrusted.map(x=>x.mod),
+          perModNote: untrusted.map(x=>`${escapeHtml(x.mod.title)}: ${boldEsc((x.version.loaders||[]).join(", ") || t('compatUnknown','unknown'))}`)
+        });
+      }
+    }
+
+    const expMcEl = document.getElementById("expMcVersion");
+    const explicitMc = (expMcEl && expMcEl.value && state.expMcTouched) ? expMcEl.value : null;
+    const gvBest = explicitMc
+      ? { value: explicitMc, supporters: selected.filter(x=>effectiveGameVersions(x).includes(explicitMc)) }
+      : findMajoritySupport(selected, effectiveGameVersions);
+    if(gvBest && gvBest.supporters.length < selected.length){
+      const missing = selected.filter(x=>!gvBest.supporters.includes(x)).filter(x=>!x.mod.trustedFromModpack);
+      if(missing.length){
+        const mcStrong = boldEsc(explicitMc ? `Minecraft ${gvBest.value}` : gvBest.value);
+        issues.push({
+          type: "version",
+          icon: COMPAT_ICON_BLOCK,
+          title: t('compatTitleNoVersion','No shared Minecraft version'),
+          detail: `${explicitMc ? tf('compatVersionTargets','Your pack targets {version}', {version: mcStrong}) : tf('compatVersionMostSupport','Most of your selected mods support {version}', {version: mcStrong})}${t('compatVersionRest',", but these don't have a version for it. Pick versions of each mod below that target that release instead.")}`,
+          mods: missing.map(x=>x.mod),
+          perModNote: missing.map(x=>`${escapeHtml(x.mod.title)}: ${boldEsc(effectiveGameVersions(x).slice(-3).join(", ") || t('compatUnknown','unknown'))}`)
+        });
+      }
+    }else if(!gvBest){
+      const untrusted = selected.filter(x=>!x.mod.trustedFromModpack);
+      if(untrusted.length){
+        issues.push({
+          type: "version",
+          icon: COMPAT_ICON_BLOCK,
+          title: t('compatTitleNoVersion','No shared Minecraft version'),
+          detail: t('compatVersionNoneReported',`None of your selected mod versions report a Minecraft version, so compatibility can't be confirmed. Open each mod below and check its selected version.`),
+          mods: untrusted.map(x=>x.mod),
+          perModNote: untrusted.map(x=>`${escapeHtml(x.mod.title)}: ${boldEsc((x.version.game_versions||[]).slice(-3).join(", ") || t('compatUnknown','unknown'))}`)
+        });
+      }
+    }
+  }
+
+  const skipped = state.pack.length - selected.length;
+  return { issues, skipped, checked: selected.length };
+}
+
+function getCompatTargets(selected){
+  const expLoaderEl = document.getElementById("expLoader");
+  const explicitLoader = (expLoaderEl && expLoaderEl.value && state.expLoaderTouched) ? expLoaderEl.value : null;
+  const loaderPick = explicitLoader ? { loader: explicitLoader } : pickBestLoaderForPack(selected);
+
+  const expMcEl = document.getElementById("expMcVersion");
+  const explicitMc = (expMcEl && expMcEl.value && state.expMcTouched) ? expMcEl.value : null;
+  const gvBest = explicitMc ? { value: explicitMc } : findMajoritySupport(selected, effectiveGameVersions);
+
+  return { loader: loaderPick ? loaderPick.loader : null, mcVersion: gvBest ? gvBest.value : null };
+}
+
+async function autoAddMissingDependency(depProjectId, targetLoader, targetMc){
+  if(state.pack.some(p=>p.id === depProjectId)) return true; // added by an earlier iteration this run
+  try{
+    const proj = await getProjectInfoCached(depProjectId);
+    if(!proj) return false;
+    const versions = await fetchVersions(depProjectId);
+    if(!versions.length) return false;
+
+    const best = pickCompatibleVersion(versions, targetLoader, targetMc);
+    // Was: `matching[0] || pickBestVersion(versions)`. That fallback is the
+    // bug - if nothing matches, the honest answer is that this dependency
+    // cannot be satisfied, and the caller reports it as unresolved.
+    if(!best) return false;
+
+    state.pack.push({
+      id: depProjectId,
+      title: proj.title,
+      icon_url: proj.icon_url,
+      author: await resolveProjectAuthor(depProjectId),
+      categories: proj.categories || [],
+      projectType: proj.project_type || "mod",
+      clientSide: proj.client_side || "required",
+      serverSide: proj.server_side || "required",
+      isDependency: true,
+      selectedVersionId: best.id,
+      selectedVersionNumber: best.version_number,
+      selectedFile: best.files.find(f=>f.primary) || best.files[0],
+      versions
+    });
+    await autoAddDependencies(best, new Set([depProjectId]), proj.project_type || "mod", { loader: targetLoader, mcVersion: targetMc });
+    await ensureLoaderApis(best.game_versions, best.loaders);
+    return true;
+  }catch(e){
+    console.error("AutoSolve: failed to add missing dependency", depProjectId, e);
+    return false;
+  }
+}
+
+async function autoFixCompatibility(missingDepIds){
+  const selected = state.pack
+    .filter(m=>m.selectedVersionId && Array.isArray(m.versions))
+    .map(m=>({ mod: m, version: m.versions.find(v=>v.id === m.selectedVersionId) }))
+    .filter(x=>x.version);
+
+  const { loader: targetLoader, mcVersion: targetMc } = selected.length
+    ? getCompatTargets(selected)
+    : { loader: null, mcVersion: null };
+
+  let fixedCount = 0;
+  const unresolved = [];
+  const swappedVersions = []; // {mod, version} for newly-swapped mods, so we can pull in their dependencies below
+  const noTarget = selected.length >= 2 && !targetLoader && !targetMc;
+  const loaderBridges = getActiveLoaderBridges(selected);
+
+  if(selected.length >= 2 && !noTarget){
+    for(const x of selected){
+      const { mod } = x;
+      // Mods still on their original modpack-imported version are trusted and left alone here
+      // too — AutoSolve shouldn't "fix" something that was never broken.
+      if(mod.trustedFromModpack) continue;
+      const okLoader = !targetLoader || isLoaderAgnostic(x) || modRunsOnLoader(x, targetLoader, loaderBridges);
+      const okVersion = !targetMc || effectiveGameVersions(x).includes(targetMc);
+      if(okLoader && okVersion) continue; // already fine, leave it alone
+
+      const runnableLoaders = targetLoader ? (LOADER_RUNS_ON[targetLoader] || [targetLoader]).concat(
+        loaderBridges.filter(b=>b.on.includes(targetLoader)).flatMap(b=>b.runs)
+      ) : null;
+      const candidates = sortByGameVersionRecency(mod.versions).filter(v=>{
+        const loaderOk = !runnableLoaders || (v.loaders||[]).some(l=>runnableLoaders.includes(l));
+        const mcOk = !targetMc || (v.game_versions||[]).includes(targetMc);
+        return loaderOk && mcOk;
+      });
+
+      const best = candidates[0];
+      if(best && best.files && best.files.length){
+        mod.selectedVersionId = best.id;
+        mod.selectedVersionNumber = best.version_number;
+        mod.selectedFile = best.files.find(f=>f.primary) || best.files[0];
+        syncModpackSnapshot(mod, best);
+        fixedCount++;
+        swappedVersions.push({ mod, version: best });
+      }else{
+        unresolved.push(mod);
+      }
+    }
+  }
+
+  for(const { mod, version } of swappedVersions){
+    await autoAddDependencies(version, new Set([mod.id]), mod.projectType);
+    await ensureLoaderApis(version.game_versions, version.loaders);
+  }
+
+  let depsAdded = 0;
+  const depsUnresolved = [];
+  for(const depProjectId of (missingDepIds || [])){
+    const ok = await autoAddMissingDependency(depProjectId, targetLoader, targetMc);
+    if(ok) depsAdded++; else depsUnresolved.push(depProjectId);
+  }
+
+  if(fixedCount || depsAdded){ savePack(); renderPack(); }
+  return { fixedCount, unresolved, depsAdded, depsUnresolved, noTarget };
+}
+
+function showCompatCheckError(){
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  backdrop.style.alignItems = "center";
+  backdrop.innerHTML = `
+    <div class="modal" style="max-width:420px;">
+      <div class="modal-head" style="margin-bottom:14px;">
+        <div class="name" style="font-size:1.1rem;">${t('compatModalTitle','Compatibility check')}</div>
+        <button class="modal-close" aria-label="${t('close','Close')}">✕</button>
+      </div>
+      <div class="compat-summary bad">
+        <span class="icon">${COMPAT_ICON_WARN}</span>
+        <div>
+          <div class="headline">${t('compatCouldntRun',"Couldn't run the compatibility check")}</div>
+          <div class="subline">${t('compatModrinthUnreachable','Modrinth may be unreachable right now. Check your connection and try again.')}</div>
+        </div>
+      </div>
+      <button class="page-btn" data-choice="close" style="margin-top:18px; width:100%; padding:9px 16px;">${t('close','Close')}</button>
+    </div>`;
+  backdrop.addEventListener("click", (e)=>{ if(e.target === backdrop) backdrop.remove(); });
+  backdrop.querySelector(".modal-close").addEventListener("click", ()=>backdrop.remove());
+  backdrop.querySelector('[data-choice="close"]').addEventListener("click", ()=>backdrop.remove());
+  document.body.appendChild(backdrop);
+}
+
+async function showCompatibilityResults(fixNote){
+  let checkResult;
+  try{
+    checkResult = await runCompatibilityCheck();
+  }catch(e){
+    console.error("Compatibility check failed", e);
+    showCompatCheckError();
+    return;
+  }
+  const { issues, skipped, checked } = checkResult;
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  backdrop.style.alignItems = "center";
+
+  const fixableIssues = issues.some(i=>i.type === "loader" || i.type === "version" || i.type === "missing-dependency");
+  const missingDepIds = issues.filter(i=>i.type === "missing-dependency").map(i=>i.missingDepProjectId);
+
+  const summaryHtml = issues.length
+    ? `<div class="compat-summary bad">
+         <span class="icon">${COMPAT_ICON_WARN}</span>
+         <div>
+           <div class="headline">${tPlural(issues.length, 'compatIssuesFoundOne','{n} compatibility issue found', 'compatIssuesFoundOther','{n} compatibility issues found')}</div>
+           <div class="subline">${tPlural(checked, 'compatCheckedOne','Checked {n} mod with a selected version', 'compatCheckedOther','Checked {n} mods with a selected version')}</div>
+         </div>
+       </div>`
+    : `<div class="compat-summary ok">
+         <span class="icon">${COMPAT_ICON_CHECK}</span>
+         <div>
+           <div class="headline">${t('compatNoConflicts','No conflicts found')}</div>
+           <div class="subline">${tPlural(checked, 'compatOkSublineOne','{n} mod checked share a Minecraft version and mod loader, with no flagged incompatibilities', 'compatOkSublineOther','{n} mods checked share a Minecraft version and mod loader, with no flagged incompatibilities')}</div>
+         </div>
+       </div>`;
+
+  const issuesHtml = issues.map(issue=>`
+    <div class="compat-issue">
+      <div class="issue-title">${issue.icon} ${escapeHtml(issue.title)}</div>
+      <div class="issue-detail">${issue.detail}</div>
+      <div class="issue-mods">${modChipsHtml(issue.mods)}</div>
+      ${issue.perModNote ? `<div class="issue-detail" style="margin-top:8px; font-size:0.8rem;">${issue.perModNote.join("<br>")}</div>` : ""}
+    </div>
+  `).join("");
+
+  const fixNoteHtml = fixNote
+    ? `<div class="compat-summary ${fixNote.ok ? "ok" : "bad"}" style="margin-bottom:14px;">
+         <span class="icon">${fixNote.ok ? COMPAT_ICON_CHECK : COMPAT_ICON_WARN}</span>
+         <div>
+           <div class="headline">${escapeHtml(fixNote.headline)}</div>
+           <div class="subline">${fixNote.sublineHtml}</div>
+         </div>
+       </div>`
+    : "";
+
+  backdrop.innerHTML = `
+    <div class="modal" style="max-width:480px;">
+      <div class="modal-head" style="margin-bottom:14px;">
+        <div class="name" style="font-size:1.1rem;">${t('compatModalTitle','Compatibility check')}</div>
+        <button class="modal-close" aria-label="${t('close','Close')}">✕</button>
+      </div>
+      ${fixNoteHtml}
+      ${summaryHtml}
+      ${fixableIssues ? `<button class="export-btn" id="autoFixCompatBtn" style="margin-top:12px; width:100%;">${t('autoSolveFix','Let AutoSolve fix incompatibilities')}</button>` : ""}
+      ${issues.length ? `<button class="page-btn" id="ignoreCompatModalBtn" style="margin-top:${fixableIssues ? "8px" : "12px"}; width:100%; padding:9px 16px;">${t('compatIgnoreAnyway','Ignore anyway')}</button>` : ""}
+      <div style="margin-top:16px;">${issuesHtml}</div>
+      ${skipped > 0 ? `<div class="compat-skipped">${tPlural(skipped, 'compatSkippedOne','{n} mod skipped: no version selected yet.', 'compatSkippedOther','{n} mods skipped: no version selected yet.')}</div>` : ""}
+      <button class="page-btn" data-choice="close" style="margin-top:18px; width:100%; padding:9px 16px;">${t('close','Close')}</button>
+    </div>`;
+  backdrop.addEventListener("click", (e)=>{ if(e.target === backdrop) backdrop.remove(); });
+  backdrop.querySelector(".modal-close").addEventListener("click", ()=>backdrop.remove());
+  backdrop.querySelector('[data-choice="close"]').addEventListener("click", ()=>backdrop.remove());
+  const ignoreModalBtn = backdrop.querySelector("#ignoreCompatModalBtn");
+  if(ignoreModalBtn){
+    ignoreModalBtn.addEventListener("click", ()=>{
+      ignoreCompatWarnings();
+      backdrop.remove();
+    });
+  }
+  const fixBtn = backdrop.querySelector("#autoFixCompatBtn");
+  if(fixBtn){
+    fixBtn.addEventListener("click", async ()=>{
+      fixBtn.disabled = true;
+      fixBtn.textContent = t('compatFixing','Fixing…');
+      let note;
+      try{
+        const { fixedCount, unresolved, depsAdded, depsUnresolved, noTarget } = await autoFixCompatibility(missingDepIds);
+        const versionIssueCount = fixedCount + unresolved.length;
+        const depParts = [];
+        if(depsAdded) depParts.push(tPlural(depsAdded, 'compatAddedDepsFragmentOne','added {n} missing dependency', 'compatAddedDepsFragmentOther','added {n} missing dependencies'));
+        const depFailNote = depsUnresolved.length
+          ? " " + tPlural(depsUnresolved.length, 'compatFetchFailOne',"Couldn't fetch one dependency from Modrinth - try again in a moment.", 'compatFetchFailOther',"Couldn't fetch {n} dependencies from Modrinth - try again in a moment.")
+          : "";
+
+        if(noTarget && versionIssueCount){
+          note = {
+            ok: depsAdded > 0 && !depsUnresolved.length,
+            headline: depsAdded ? tPlural(depsAdded, 'compatAddedDepsFixHeadlineOne','Added {n} dependency, but could not fix versions', 'compatAddedDepsFixHeadlineOther','Added {n} dependencies, but could not fix versions') : t('compatAutoSolveFailed',"AutoSolve couldn't fix incompatibilities"),
+            sublineHtml: t('compatNoTargetSubline',"None of the selected mods' versions report a loader or Minecraft version to target, so there's nothing to match toward. Open each mod below and pick a version that lists a loader and Minecraft version.") + depFailNote
+          };
+        }else if(fixedCount && !unresolved.length && !depsUnresolved.length){
+          note = {
+            ok: true,
+            headline: depsAdded ? tf('compatFixedModsAndDeps','Fixed {count} and {deps}', { count: tPlural(fixedCount,'compatFixedModsFragmentOne','{n} mod','compatFixedModsFragmentOther','{n} mods'), deps: depParts[0] }) : tPlural(fixedCount, 'compatFixedModsOne','Fixed {n} mod', 'compatFixedModsOther','Fixed {n} mods'),
+            sublineHtml: t('compatFixedSubline',"Switched to versions matching your pack's loader/Minecraft version.")
+          };
+        }else if(!versionIssueCount && depsAdded && !depsUnresolved.length){
+          note = {
+            ok: true,
+            headline: tPlural(depsAdded, 'compatAddedDepsHeadlineOne','Added {n} missing dependency', 'compatAddedDepsHeadlineOther','Added {n} missing dependencies'),
+            sublineHtml: t('compatAddedDepsSubline','Fetched from Modrinth and added to your pack.')
+          };
+        }else if((fixedCount || depsAdded) && (unresolved.length || depsUnresolved.length)){
+          const bits = [];
+          if(fixedCount || unresolved.length) bits.push(tPlural(versionIssueCount, 'compatMismatchBitOne','{fixed} of {n} version mismatch', 'compatMismatchBitOther','{fixed} of {n} version mismatches', {fixed: fixedCount}));
+          if(depsAdded || depsUnresolved.length){
+            const totalDeps = depsAdded + depsUnresolved.length;
+            bits.push(tPlural(totalDeps, 'compatMissingDepBitOne','{added} of {n} missing dependency', 'compatMissingDepBitOther','{added} of {n} missing dependencies', {added: depsAdded}));
+          }
+          note = {
+            ok: false,
+            headline: tf('compatPartiallyFixed','Partially fixed: {bits}', { bits: bits.join(", ") }),
+            sublineHtml: `${unresolved.length ? tf('compatCouldntFixMods',"ModBench couldn't fix {mods}, none of their available versions match your pack's target loader/Minecraft version. ", {mods: modListHtml(unresolved)}) : ""}${depFailNote} ${t('compatSeeDetails','Take a look at the details below.')}`
+          };
+        }else if(unresolved.length){
+          note = {
+            ok: false,
+            headline: t('compatAutoSolveFailed',"AutoSolve couldn't fix incompatibilities"),
+            sublineHtml: tf('compatUnresolvedSubline','None of the available versions of {mods} match your pack\'s target loader/Minecraft version. Update {itThem} manually below, or adjust your target on the Export tab.', { mods: modListHtml(unresolved), itThem: t(unresolved.length===1?'compatItObj':'compatThemObj', unresolved.length===1?'it':'them') })
+          };
+        }else if(depsUnresolved.length){
+          note = {
+            ok: false,
+            headline: tPlural(depsUnresolved.length, 'compatCouldntAddDepOne',"AutoSolve couldn't add the missing dependency", 'compatCouldntAddDepOther',"AutoSolve couldn't add the missing dependencies"),
+            sublineHtml: tf('compatDepsUnresolvedSubline',"Modrinth didn't return a usable version for {itThem}. Try again, or add {itThemObj} manually from Browse.", { itThem: t(depsUnresolved.length===1?'compatItPrep':'compatThemPrep', depsUnresolved.length===1?'it':'them'), itThemObj: t(depsUnresolved.length===1?'compatAddItSuffix':'compatAddThemSuffix', depsUnresolved.length===1?'it':'them') })
+          };
+        }else{
+          note = {
+            ok: false,
+            headline: t('compatAutoSolveFailed',"AutoSolve couldn't fix incompatibilities"),
+            sublineHtml: t('compatNoAutoFixSubline','No version change would resolve the remaining issue automatically. Take a look at the details below and adjust versions manually.')
+          };
+        }
+      }catch(e){
+        console.error("AutoSolve failed", e);
+        note = {
+          ok: false,
+          headline: t('compatAutoSolveError','AutoSolve hit a problem'),
+          sublineHtml: t('compatAutoSolveErrorSubline','Something went wrong talking to Modrinth. Check your connection and try again, or fix things manually below.')
+        };
+      }
+      backdrop.remove();
+      try{
+        await showCompatibilityResults(note);
+      }catch(e){
+        console.error("Failed to refresh compatibility results after AutoSolve", e);
+        showCompatCheckError();
+      }
+    });
+  }
+  backdrop.querySelectorAll(".compat-mod-chip[data-jump-id]").forEach(chip=>{
+    chip.addEventListener("click", ()=>{
+      const id = chip.dataset.jumpId;
+      backdrop.remove();
+      jumpToPackMod(id);
+    });
+    chip.addEventListener("keydown", (e)=>{
+      if(e.key === "Enter" || e.key === " "){
+        e.preventDefault();
+        chip.click();
+      }
+    });
+  });
+  document.body.appendChild(backdrop);
+}
+
+async function runUpdateCheck(){
+  const candidates = state.pack.filter(m=>m.selectedVersionId);
+
+  // Use the same target loader/MC version as the compatibility checker
+  // (getCompatTargets), so updates don't undo a compatibility fix.
+  const compatSelected = candidates
+    .filter(m=>Array.isArray(m.versions))
+    .map(m=>({ mod: m, version: m.versions.find(v=>v.id === m.selectedVersionId) }))
+    .filter(x=>x.version);
+  const { loader: targetLoader, mcVersion: targetMc } = getCompatTargets(compatSelected);
+
+  const results = await Promise.all(candidates.map(async mod=>{
+    try{
+      const fresh = await fetchVersions(mod.id);
+      if(!fresh.length) return { mod, status: "error" };
+      const current = fresh.find(v=>v.id === mod.selectedVersionId)
+        || (Array.isArray(mod.versions) ? mod.versions.find(v=>v.id === mod.selectedVersionId) : null);
+      const hintGameVersions = current ? current.game_versions : (mod.fromModpackGameVersions || null);
+      const hintLoaders = current ? current.loaders : (mod.fromModpackLoaders || null);
+      const best = pickBestVersionForPackTarget(fresh, targetLoader, targetMc, hintGameVersions, hintLoaders);
+      if(!best) return { mod, status: "error" };
+      const currentDate = current ? new Date(current.date_published).getTime() : 0;
+      const bestDate = new Date(best.date_published).getTime();
+      const outdated = best.id !== mod.selectedVersionId && bestDate > currentDate;
+      return { mod, status: outdated ? "outdated" : "current", current, best, fresh };
+    }catch(e){
+      console.error("Update check failed for", mod.id, e);
+      return { mod, status: "error" };
+    }
+  }));
+  return results;
+}
+
+async function applyModUpdate(result, packTarget){
+  const { mod, best, fresh } = result;
+  mod.versions = fresh;
+  mod.selectedVersionId = best.id;
+  mod.selectedVersionNumber = best.version_number;
+  mod.selectedFile = best.files.find(f=>f.primary) || best.files[0];
+  syncModpackSnapshot(mod, best);
+  savePack();
+  if(state.tab === "pack") renderPack();
+  await autoAddDependencies(best, new Set([mod.id]), mod.projectType, packTarget);
+  await ensureLoaderApis(best.game_versions, best.loaders);
+  savePack();
+  if(state.tab === "pack") renderPack();
+}
+
+function showUpdateCheckError(){
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  backdrop.style.alignItems = "center";
+  backdrop.innerHTML = `
+    <div class="modal" style="max-width:420px;">
+      <div class="modal-head" style="margin-bottom:14px;">
+        <div class="name" style="font-size:1.1rem;">${t('updateModalTitle','Check for updates')}</div>
+        <button class="modal-close" aria-label="${t('close','Close')}">✕</button>
+      </div>
+      <div class="compat-summary bad">
+        <span class="icon">${COMPAT_ICON_WARN}</span>
+        <div>
+          <div class="headline">${t('updateCouldntRun',"Couldn't check for updates")}</div>
+          <div class="subline">${t('compatModrinthUnreachable','Modrinth may be unreachable right now. Check your connection and try again.')}</div>
+        </div>
+      </div>
+      <button class="page-btn" data-choice="close" style="margin-top:18px; width:100%; padding:9px 16px;">${t('close','Close')}</button>
+    </div>`;
+  backdrop.addEventListener("click", (e)=>{ if(e.target === backdrop) backdrop.remove(); });
+  backdrop.querySelector(".modal-close").addEventListener("click", ()=>backdrop.remove());
+  backdrop.querySelector('[data-choice="close"]').addEventListener("click", ()=>backdrop.remove());
+  document.body.appendChild(backdrop);
+}
+
+async function showUpdateResults(){
+  let results;
+  try{
+    results = await runUpdateCheck();
+  }catch(e){
+    console.error("Update check failed", e);
+    showUpdateCheckError();
+    return;
+  }
+  const outdated = results.filter(r=>r.status === "outdated");
+  const errored = results.filter(r=>r.status === "error");
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  backdrop.style.alignItems = "center";
+
+  const summaryHtml = outdated.length
+    ? `<div class="compat-summary bad">
+         <span class="icon">${COMPAT_ICON_WARN}</span>
+         <div>
+           <div class="headline">${tPlural(outdated.length, 'updatesFoundOne','{n} update available', 'updatesFoundOther','{n} updates available')}</div>
+           <div class="subline">${tPlural(results.length, 'updatesCheckedOne','Checked {n} mod with a selected version', 'updatesCheckedOther','Checked {n} mods with a selected version')}</div>
+         </div>
+       </div>`
+    : `<div class="compat-summary ok">
+         <span class="icon">${COMPAT_ICON_CHECK}</span>
+         <div>
+           <div class="headline">${t('updatesNoneFound','Everything is up to date')}</div>
+           <div class="subline">${tPlural(results.length, 'updatesCheckedOne','Checked {n} mod with a selected version', 'updatesCheckedOther','Checked {n} mods with a selected version')}</div>
+         </div>
+       </div>`;
+
+  const rowsHtml = outdated.map(r=>`
+    <div class="compat-issue" data-update-row="${escapeHtml(r.mod.id)}">
+      <div class="issue-title">
+        ${r.mod.icon_url ? `<img src="${escapeHtml(r.mod.icon_url)}" alt="" style="width:18px;height:18px;border-radius:5px;object-fit:cover;vertical-align:-4px;margin-right:4px;">` : ""}${escapeHtml(r.mod.title)}
+      </div>
+      <div class="issue-detail">${tf('updateVersionChange','{from} → <strong>{to}</strong>', {from: escapeHtml(r.mod.selectedVersionNumber || "?"), to: escapeHtml(r.best.version_number)})}</div>
+      <button class="page-btn update-mod-btn" data-update="${escapeHtml(r.mod.id)}" style="margin-top:8px;">${UPDATE_ICON} ${t('updateThisMod','Update')}</button>
+    </div>
+  `).join("");
+
+  backdrop.innerHTML = `
+    <div class="modal" style="max-width:560px;">
+      <div class="modal-head" style="margin-bottom:14px;">
+        <div class="name" style="font-size:1.1rem;">${t('updateModalTitle','Check for updates')}</div>
+        <button class="modal-close" aria-label="${t('close','Close')}">✕</button>
+      </div>
+      ${summaryHtml}
+      ${outdated.length ? `<button class="export-btn" id="updateAllBtn" style="margin-top:12px; width:100%;">${tPlural(outdated.length, 'updateAllOne','Update {n} mod', 'updateAllOther','Update {n} mods')}</button>
+      <div id="updateAllProgress" class="export-note" style="display:none; text-align:center; margin-top:6px;"></div>` : ""}
+      <div style="margin-top:16px;">${rowsHtml}</div>
+      ${errored.length ? `<div class="compat-skipped">${tPlural(errored.length, 'updatesSkippedOne',"{n} mod skipped: couldn't check for updates.", 'updatesSkippedOther',"{n} mods skipped: couldn't check for updates.")}</div>` : ""}
+      <button class="page-btn" data-choice="close" style="margin-top:18px; width:100%; padding:9px 16px;">${t('close','Close')}</button>
+    </div>`;
+  backdrop.addEventListener("click", (e)=>{ if(e.target === backdrop) backdrop.remove(); });
+  backdrop.querySelector(".modal-close").addEventListener("click", ()=>backdrop.remove());
+  backdrop.querySelector('[data-choice="close"]').addEventListener("click", ()=>backdrop.remove());
+
+  // Same target loader/MC version the compatibility checker resolves to,
+  // used so dependencies added during bulk updates don't reintroduce issues.
+  const compatSelected = results.filter(r=>r.current).map(r=>({ mod: r.mod, version: r.current }));
+  const { loader: packTargetLoader, mcVersion: packTargetMc } = getCompatTargets(compatSelected);
+  const packTarget = { loader: packTargetLoader, mcVersion: packTargetMc };
+
+  async function updateOne(r, btn){
+    if(btn){ btn.disabled = true; btn.textContent = t('updating','Updating…'); }
+    try{
+      await applyModUpdate(r, packTarget);
+      if(btn && btn._slowLoadTimer){ clearTimeout(btn._slowLoadTimer); btn._slowLoadTimer = null; }
+      const row = backdrop.querySelector(`[data-update-row="${CSS.escape(r.mod.id)}"]`);
+      if(row){
+        row.className = "compat-issue update-done";
+        row.innerHTML = `<div class="issue-detail"><span class="update-done-check">${COMPAT_ICON_CHECK}</span><span>${tf('updateDoneNote','Updated <strong>{name}</strong> to <strong>{version}</strong>.', {name: escapeHtml(r.mod.title), version: escapeHtml(r.best.version_number)})}</span></div>`;
+      }
+      return true;
+    }catch(e){
+      console.error("Failed to update", r.mod.id, e);
+      if(btn && btn._slowLoadTimer){ clearTimeout(btn._slowLoadTimer); btn._slowLoadTimer = null; }
+      const row = backdrop.querySelector(`[data-update-row="${CSS.escape(r.mod.id)}"]`);
+      if(row){
+        if(btn){ btn.disabled = false; btn.textContent = `${UPDATE_ICON} ${t('updateThisMod','Update')}`; }
+        const detail = row.querySelector(".issue-detail");
+        if(detail) detail.insertAdjacentHTML("beforeend", `<div style="color:var(--danger-text); margin-top:4px;">${t('updateCouldntRun',"Couldn't check for updates")}</div>`);
+      }
+      return false;
+    }
+  }
+
+  backdrop.querySelectorAll(".update-mod-btn").forEach(btn=>{
+    btn.addEventListener("click", async ()=>{
+      const r = outdated.find(x=>x.mod.id === btn.dataset.update);
+      if(r) await updateOne(r, btn);
+    });
+  });
+  const allBtn = backdrop.querySelector("#updateAllBtn");
+  const progressEl = backdrop.querySelector("#updateAllProgress");
+  if(allBtn){
+    allBtn.addEventListener("click", async ()=>{
+      if(isLoadingButton(allBtn)) return;
+      startLoadingButton(allBtn, t('updating','Updating…'));
+      if(progressEl){
+        progressEl.style.display = "block";
+        progressEl.textContent = `0 / ${outdated.length}`;
+      }
+      // Let the browser paint the loading state before the (possibly heavy,
+      // mostly-synchronous) update work begins, or the button can look frozen.
+      await new Promise(res=>requestAnimationFrame(()=>requestAnimationFrame(res)));
+      let done = 0, failed = 0;
+      try{
+        for(const r of outdated){
+          const ok = await updateOne(r, backdrop.querySelector(`.update-mod-btn[data-update="${CSS.escape(r.mod.id)}"]`));
+          done++;
+          if(!ok) failed++;
+          if(progressEl) progressEl.textContent = `${done} / ${outdated.length}`;
+        }
+      } finally {
+        stopLoadingButton(allBtn, failed ? tf('updatesSkippedOne',"{n} mod skipped: couldn't check for updates.", {n: failed}) : t('updateAllDone','All updated'));
+        allBtn.disabled = true;
+        if(progressEl && !failed) progressEl.style.display = "none";
+      }
+    });
+  }
+  document.body.appendChild(backdrop);
+}
+
+function jumpToPackMod(id){
+  const tabBtn = document.querySelector('nav.tabs button[data-tab="pack"]');
+  if(tabBtn && !tabBtn.classList.contains("active")) tabBtn.click();
+  if(state.packSearch){
+    state.packSearch = "";
+    const searchInput = document.getElementById("packSearchInput");
+    if(searchInput) searchInput.value = "";
+    renderPack();
+  }
+  requestAnimationFrame(()=>{
+    const row = document.querySelector(`#packList .pack-row[data-id="${CSS.escape(id)}"]`);
+    if(!row) return;
+    row.scrollIntoView({ behavior: "smooth", block: "center" });
+    row.classList.add("jump-flash");
+    setTimeout(()=>row.classList.remove("jump-flash"), 1600);
+  });
+}
+
+let lastGeneratedShare = { code: "", sig: "" };
+function rememberShareCode(code){
+  lastGeneratedShare = { code, sig: packSignature(state.pack) };
+  attachShareCodeToSavedPack(code);
+}
+
+const PACK_CODE_ICON = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`;
+
+function saveCurrentPack(){
+  if(!state.pack.length){
+    showToast(t('toastSavePackEmpty',"Add mods to your pack before saving it."));
+    return;
+  }
+  const nameInput = document.getElementById("packName");
+  const name = ((nameInput && nameInput.value) || "").trim() || t('savedPackUntitled','Untitled modpack');
+  const versionInput = document.getElementById("packVersion");
+  const entry = {
+    id: "sp_" + Date.now().toString(36) + Math.random().toString(36).slice(2, 7),
+    name,
+    icon: state.packIcon || "",
+    version: (versionInput && versionInput.value) || "",
+    mods: JSON.parse(JSON.stringify(state.pack)),
+    // If a code was generated for exactly these mods, it still describes them.
+    shareCode: (lastGeneratedShare.code && lastGeneratedShare.sig === packSignature(state.pack))
+      ? lastGeneratedShare.code : "",
+    savedAt: new Date().toISOString()
+  };
+  const existingIdx = state.savedPacks.findIndex(sp=>sp.name === name);
+  if(existingIdx >= 0){
+    entry.id = state.savedPacks[existingIdx].id;
+    entry.shareCode = state.savedPacks[existingIdx].shareCode || "";
+    state.savedPacks[existingIdx] = entry;
+  } else {
+    state.savedPacks.unshift(entry);
+  }
+  saveSavedPacks();
+  if(state.tab === "favorites") renderFavorites();
+  showToast(tf('toastPackSaved','Saved "{name}" to your Saved tab.', { name }));
+}
+
+// Called after a share code is generated so the code lands on the matching
+// saved entry, instead of living only in the clipboard.
+function attachShareCodeToSavedPack(code){
+  if(!code) return;
+  const sig = packSignature(state.pack);
+  const nameInput = document.getElementById("packName");
+  const name = ((nameInput && nameInput.value) || "").trim();
+  // Prefer the entry whose contents match what was just encoded; fall back to
+  // the one carrying the current pack name.
+  const sp = state.savedPacks.find(x=>packSignature(x.mods) === sig)
+    || state.savedPacks.find(x=>x.name === name);
+  if(!sp) return;
+  sp.shareCode = code;
+  saveSavedPacks();
+  if(state.tab === "favorites") renderFavorites();
+}
+
+function openSavedPackInCreate(id){
+  const sp = state.savedPacks.find(x=>x.id === id);
+  if(!sp) return;
+  if(isSavedPackLoaded(sp)){
+    showToast(tf('toastPackAlreadyOpen','"{name}" is already open in Create.', { name: sp.name }));
+    renderSavedPacks(); // resync a card that was rendered before Create changed
+    return;
+  }
+  const replacing = state.pack.length > 0;
+  if(replacing && !confirm(tf('confirmReplacePack','Replace the {n} mod(s) currently in Create with "{name}"?', { n: state.pack.length, name: sp.name }))) return;
+  // Deep clone on the way out too, so editing the restored pack can't mutate
+  // the stored copy through a shared nested array.
+  state.pack = JSON.parse(JSON.stringify(sp.mods || []));
+  savePack();
+  renderPack();
+  if(sp.icon){ state.packIcon = sp.icon; savePackIcon(); renderLogoPicker(); }
+  const nameInput = document.getElementById("packName");
+  if(nameInput) nameInput.value = sp.name;
+  const versionInput = document.getElementById("packVersion");
+  if(versionInput && sp.version) versionInput.value = sp.version;
+  const createTab = document.querySelector('nav.tabs button[data-tab="pack"]');
+  if(createTab) createTab.click();
+  showToast(tf('toastPackOpened','Opened "{name}" in Create.', { name: sp.name }));
+}
+
+function deleteSavedPack(id){
+  const idx = state.savedPacks.findIndex(x=>x.id === id);
+  if(idx < 0) return;
+  const sp = state.savedPacks[idx];
+  if(!confirm(tf('confirmDeleteSavedPack','Delete the saved modpack "{name}"? This won\u2019t touch your current pack in Create.', { name: sp.name }))) return;
+  state.savedPacks.splice(idx, 1);
+  saveSavedPacks();
+  renderFavorites();
+  showToast(t('toastPackDeleted','Saved modpack deleted.'));
+}
+
+function packSignature(mods){
+  return (mods || [])
+    .map(m=>`${m.id}:${m.selectedVersionId || ""}`)
+    .sort()
+    .join("|");
+}
+function isSavedPackLoaded(sp){
+  return state.pack.length > 0 && packSignature(sp.mods) === packSignature(state.pack);
+}
+
+function savedPackCardHtml(sp){
+  const count = (sp.mods || []).length;
+  const loaded = isSavedPackLoaded(sp);
+  const icon = sp.icon || "icons/logo.png";
+  const sub = sp.version
+    ? tPlural(count,'savedPackModsOne','{n} mod','savedPackModsOther','{n} mods') + " · v" + escapeHtml(sp.version)
+    : tPlural(count,'savedPackModsOne','{n} mod','savedPackModsOther','{n} mods');
+  return `
+    <div class="saved-pack-card${loaded ? ' is-loaded' : ''}" data-sp="${escapeHtml(sp.id)}">
+      <div class="saved-pack-head">
+        <img class="saved-pack-icon" src="${escapeHtml(icon)}" alt="">
+        <div class="saved-pack-meta">
+          <span class="saved-pack-name">${escapeHtml(sp.name)}</span>
+          <span class="saved-pack-sub">${sub}</span>
+        </div>
+      </div>
+      ${sp.shareCode ? `<button type="button" class="saved-pack-code" data-copy-code="${escapeHtml(sp.shareCode)}" title="${t('savedPackCopyCode','Copy share code')}">${PACK_CODE_ICON}<span>${escapeHtml(sp.shareCode)}</span></button>` : ""}
+      <div class="saved-pack-actions">
+        ${loaded
+          ? `<button type="button" class="loaded" disabled aria-disabled="true">${t('savedPackAlreadyOpen','Already in Create')}</button>`
+          : `<button type="button" class="primary" data-open-sp="${escapeHtml(sp.id)}">${t('savedPackOpen','Open in Create')}</button>`}
+        <button type="button" class="danger" data-del-sp="${escapeHtml(sp.id)}" aria-label="${t('savedPackDelete','Delete')}" title="${t('savedPackDelete','Delete')}">✕</button>
+      </div>
+    </div>`;
+}
+
+function renderSavedPacks(){
+  const section = document.getElementById("savedPacksSection");
+  const list = document.getElementById("savedPacksList");
+  if(!section || !list) return;
+  if(!state.savedPacks.length){ section.style.display = "none"; list.innerHTML = ""; return; }
+  section.style.display = "";
+  list.innerHTML = state.savedPacks.map(savedPackCardHtml).join("");
+  list.querySelectorAll(".saved-pack-icon").forEach(img=>{
+    img.addEventListener("error", ()=>{ img.src = "icons/logo.png"; }, { once: true });
+  });
+  list.querySelectorAll("[data-open-sp]").forEach(b=>{
+    b.addEventListener("click", ()=>openSavedPackInCreate(b.dataset.openSp));
+  });
+  list.querySelectorAll("[data-del-sp]").forEach(b=>{
+    b.addEventListener("click", ()=>deleteSavedPack(b.dataset.delSp));
+  });
+  list.querySelectorAll("[data-copy-code]").forEach(b=>{
+    b.addEventListener("click", ()=>copyTextToClipboard(b.dataset.copyCode, b));
+  });
+}
+
+function renderFavorites(){
+  renderSavedPacks();
+  const resultsEl = document.getElementById("favResults");
+  const emptyEl = document.getElementById("favEmpty");
+  const sortBtn = document.getElementById("favSortBtn");
+  if(!resultsEl) return;
+  const q = (state.favSearch || "").trim().toLowerCase();
+  let filtered = q
+    ? state.favorites.filter(f=>(f.title||"").toLowerCase().includes(q) || (f.author||"").toLowerCase().includes(q))
+    : state.favorites.slice();
+
+  sortBtn.style.display = state.favorites.length ? "inline-flex" : "none";
+  sortBtn.textContent = state.favSort === "alpha" ? t('sortGroupByCategory','Group by category') : t('favSortAZ','Sort A→Z');
+  sortBtn.classList.toggle("active", state.favSort === "alpha");
+
+  if(state.favorites.length === 0){
+    resultsEl.className = state.favView;
+    resultsEl.innerHTML = "";
+    // With modpacks saved but no mods, the tab isn't empty — showing the
+    // "nothing here" state under a grid of cards would read as a bug.
+    emptyEl.style.display = state.savedPacks.length ? "none" : "block";
+    emptyEl.querySelector("p").innerHTML = t('favEmptyText','Nothing saved yet. Tap the heart on any mod in <strong>Browse</strong> or <strong>Modpacks</strong>, or save a modpack you built in <strong>Export</strong>.');
+    return;
+  }
+  if(filtered.length === 0){
+    resultsEl.className = state.favView;
+    resultsEl.innerHTML = ""; emptyEl.style.display = "block";
+    emptyEl.querySelector("p").innerHTML = tf('favNoMatch','Nothing saved matches "{q}".', { q: escapeHtml(state.favSearch) });
+    return;
+  }
+  emptyEl.style.display = "none";
+
+  if(state.favSort === "alpha"){
+    filtered.sort((a,b)=>(a.title||"").localeCompare(b.title||""));
+    resultsEl.className = state.favView;
+    resultsEl.innerHTML = filtered.map(f=>cardHtml({
+      project_id: f.id, title: f.title, icon_url: f.icon_url, author: f.author,
+      description: f.description, categories: f.categories, downloads: f.downloads, follows: f.follows
+    })).join("");
+  }else{
+    const groups = {};
+    filtered.forEach(f=>{
+      const cat = (f.categories && f.categories[0]) ? f.categories[0] : "uncategorized";
+      if(!groups[cat]) groups[cat] = [];
+      groups[cat].push(f);
+    });
+    const orderedCats = Object.keys(groups).sort((a,b)=>a.localeCompare(b));
+    resultsEl.className = "";
+    resultsEl.innerHTML = orderedCats.map(cat=>`
+      <div class="pack-category-group">
+        <h4 class="pack-category-label">${escapeHtml(formatCategoryName(cat))}</h4>
+        <div class="${state.favView}">${groups[cat].map(f=>cardHtml({
+          project_id: f.id, title: f.title, icon_url: f.icon_url, author: f.author,
+          description: f.description, categories: f.categories, downloads: f.downloads, follows: f.follows
+        })).join("")}</div>
+      </div>
+    `).join("");
+  }
+  wireCardEvents(resultsEl, id=>{
+    const f = state.favorites.find(x=>x.id===id);
+    return f ? {project_id:f.id, title:f.title, icon_url:f.icon_url, author:f.author, description:f.description, categories:f.categories, downloads:f.downloads, follows:f.follows} : null;
+  }, quickAdd);
+}
+
+const MODPACK_PAGE_SIZE = 30;
+const PINNED_MODPACK_SLUGS = ["fabulously-optimized", "fresh-smooth", "optifabric-modpack"];
+let pinnedModpacksCache = null;
+
+async function getPinnedModpacks(){
+  if(pinnedModpacksCache) return pinnedModpacksCache;
+  const results = await Promise.all(PINNED_MODPACK_SLUGS.map(slug=>
+    fetch(`${API}/project/${slug}`).then(r=>r.ok ? r.json() : null).catch(()=>null)
+  ));
+  const projects = results.filter(Boolean);
+  const authors = await Promise.all(projects.map(p=>resolveProjectAuthor(p.id)));
+  pinnedModpacksCache = projects.map((p, i)=>({
+    project_id: p.id,
+    title: p.title,
+    icon_url: p.icon_url,
+    author: authors[i],
+    description: p.description,
+    categories: p.categories || [],
+    game_versions: p.game_versions || [],
+    downloads: p.downloads,
+    follows: p.followers,
+    pinned: true
+  }));
+  return pinnedModpacksCache;
+}
+
+async function runModpackSearch(){
+  state.modpackSearched = true;
+  const resultsEl = document.getElementById("modpackResults");
+  const statusEl = document.getElementById("modpackStatusMsg");
+  const pageEl = document.getElementById("modpackPagination");
+  statusEl.style.display = "block";
+  statusEl.textContent = t('modpackSearching','Searching…');
+  resultsEl.innerHTML = "";
+  pageEl.innerHTML = "";
+
+  try{
+    const { hits, totalHits } = await fetchSortedPage(state.modpackQuery, buildModpackFacets(), state.modpackSort, state.modpackPage, MODPACK_PAGE_SIZE);
+    state.modpackResults = hits;
+    state.modpackTotalHits = totalHits;
+
+    const showPinned = !state.modpackQuery.trim() && state.modpackPage === 1 && state.modpackSort === "relevance";
+    if(showPinned){
+      let pinned = await getPinnedModpacks();
+      if(state.modpackLoaders.length){
+        pinned = pinned.filter(p=>state.modpackLoaders.some(l=>p.categories.includes(l)));
+      }
+      if(state.modpackCategories.length){
+        pinned = pinned.filter(p=>state.modpackCategories.some(c=>p.categories.includes(c)));
+      }
+      if(state.modpackMcVersion){
+        pinned = pinned.filter(p=>p.game_versions.includes(state.modpackMcVersion));
+      }
+      const pinnedIds = new Set(pinned.map(p=>p.project_id));
+      state.modpackResults = [...pinned, ...state.modpackResults.filter(h=>!pinnedIds.has(h.project_id))];
+    }
+
+    if(state.modpackResults.length === 0){
+      statusEl.textContent = t('modpackNothingFound','No modpacks found. Try a different search.');
+      return;
+    }
+    statusEl.style.display = "none";
+    renderModpackResults();
+    renderModpackPagination();
+  }catch(e){
+    console.error(e);
+    statusEl.textContent = t('modpackApiError',"Couldn't reach Modrinth's API from this page.");
+  }
+}
+
+function renderModpackResults(){
+  const resultsEl = document.getElementById("modpackResults");
+  if(!resultsEl) return;
+  resultsEl.className = state.modpackView;
+  resultsEl.innerHTML = state.modpackResults.map(hit=>{
+    const html = cardHtml(hit);
+    const alreadyAdded = state.pack.some(p=>p.fromModpack===hit.project_id);
+    const addLabelRe = new RegExp(escapeRegExp(t('cardAdd','+ Add'))+'|'+escapeRegExp(t('cardAdded','Added ✓')));
+    return html
+      .replace('data-add="'+hit.project_id+'"', 'data-addpack="'+hit.project_id+'"'+(alreadyAdded ? ' disabled' : ''))
+      .replace(/class="card-add\s*(added)?"/, alreadyAdded ? 'class="card-add added"' : 'class="card-add "')
+      .replace(addLabelRe, alreadyAdded ? t('cardInCreate','In Create ✓') : t('cardAddMods','+ Add mods'));
+  }).join("");
+
+  resultsEl.querySelectorAll(".card").forEach(card=>{
+    card.addEventListener("click", (e)=>{
+      if(e.target.closest("[data-addpack]") || e.target.closest(".card-fav")) return;
+      openModal(card.dataset.id, id=>state.modpackResults.find(h=>h.project_id===id));
+    });
+  });
+  resultsEl.querySelectorAll("[data-fav]").forEach(btn=>{
+    btn.addEventListener("click", (e)=>{
+      e.stopPropagation();
+      const hit = state.modpackResults.find(h=>h.project_id===btn.dataset.fav);
+      if(hit) toggleFavorite(hit);
+      updateCardButtonsEverywhere(btn.dataset.fav);
+      if(state.tab === "favorites") renderFavorites();
+    });
+  });
+  resultsEl.querySelectorAll("[data-addpack]").forEach(btn=>{
+    if(btn.disabled) return;
+    btn.addEventListener("click", (e)=>{
+      e.stopPropagation();
+      if(state.pack.some(p=>p.fromModpack===btn.dataset.addpack)) return;
+      addModpackToCreate(btn.dataset.addpack, btn);
+    });
+  });
+}
+
+function renderModpackPagination(){
+  const el = document.getElementById("modpackPagination");
+  const totalPages = Math.max(1, Math.ceil(state.modpackTotalHits / MODPACK_PAGE_SIZE));
+  if(totalPages <= 1){ el.innerHTML = ""; return; }
+  const cur = state.modpackPage;
+  const pagesToShow = [];
+  for(let p = 1; p <= totalPages; p++){
+    if(p === 1 || p === totalPages || Math.abs(p - cur) <= 1) pagesToShow.push(p);
+  }
+  let html = `<button class="page-btn" data-mpage="${cur-1}" ${cur===1?"disabled":""} aria-label="Previous page">‹</button>`;
+  let last = 0;
+  pagesToShow.forEach(p=>{
+    if(last && p - last > 1) html += `<span class="page-ellipsis">…</span>`;
+    html += `<button class="page-btn ${p===cur?'active':''}" data-mpage="${p}">${p}</button>`;
+    last = p;
+  });
+  html += `<button class="page-btn" data-mpage="${cur+1}" ${cur===totalPages?"disabled":""} aria-label="Next page">›</button>`;
+  el.innerHTML = html;
+  el.querySelectorAll(".page-btn:not(:disabled)").forEach(btn=>{
+    btn.addEventListener("click", ()=>{
+      state.modpackPage = parseInt(btn.dataset.mpage, 10);
+      runModpackSearch();
+      scrollToTopSmooth();
+    });
+  });
+}
+
+function compareMcVersions(a, b){
+  const pa = String(a).split(/[.\-]/).map(n=>parseInt(n,10));
+  const pb = String(b).split(/[.\-]/).map(n=>parseInt(n,10));
+  for(let i=0;i<Math.max(pa.length,pb.length);i++){
+    const va = isNaN(pa[i]) ? 0 : pa[i];
+    const vb = isNaN(pb[i]) ? 0 : pb[i];
+    if(va !== vb) return va - vb;
+  }
+  return 0;
+}
+
+async function pickModpackVersion(versions){
+  const usable = versions.filter(v=>v.files && v.files.length);
+  if(!usable.length) return null;
+  const UNSTABLE_LABEL_RE = /-(?:alpha|beta)\b/i;
+  const isStable = v=>!UNSTABLE_LABEL_RE.test(`${v.name || ""} ${v.version_number || ""}`);
+  const hasUnstable = usable.some(v=>!isStable(v));
+  const newestGv = v=>(v.game_versions||[]).reduce((best, gv)=>(!best || compareMcVersions(gv, best) > 0) ? gv : best, "");
+  const sortAll = list=>[...list].sort((a,b)=>{
+    const gvCmp = compareMcVersions(newestGv(b), newestGv(a));
+    return gvCmp !== 0 ? gvCmp : (b.date_published||"").localeCompare(a.date_published||"");
+  });
+  const stableOptions = sortAll(usable.filter(isStable));
+  const allOptions = sortAll(usable);
+  const distinctGv = [...new Set(usable.flatMap(v=>(v.game_versions||[]).length ? v.game_versions : ["unknown"]))];
+  if(usable.length <= 1) return usable[0];
+
+  function latestIdsFor(list){
+    const byGv = new Map();
+    for(const v of list){
+      const gvs = (v.game_versions||[]).length ? v.game_versions : ["unknown"];
+      for(const gv of gvs){
+        const cur = byGv.get(gv);
+        if(!cur || (v.date_published||"") > (cur.date_published||"")) byGv.set(gv, v);
+      }
+    }
+    return new Set([...byGv.values()].map(v=>v.id));
+  }
+
+  return new Promise(resolve=>{
+    const backdrop = document.createElement("div");
+    backdrop.className = "modal-backdrop";
+    backdrop.style.alignItems = "center";
+    backdrop.innerHTML = `
+      <div class="modal" style="max-width:400px;">
+        <div class="modal-head" style="margin-bottom:14px;">
+          <div class="name" style="font-size:1.05rem;">Pick a version to import</div>
+          <button class="modal-close" aria-label="${t('close','Close')}">✕</button>
+        </div>
+        <p style="margin:0 0 14px; font-size:0.85rem; color:var(--text-dim);">${distinctGv.length > 1 ? "This modpack has releases for more than one Minecraft version. Choose which build to import into Create." : "This modpack has more than one release available. Choose which build to import into Create."}</p>
+        <div class="modal-versions" id="modpackVersionList"></div>
+        ${hasUnstable ? `
+        <label class="modpack-unstable-toggle">
+          <span class="switch">
+            <input type="checkbox" id="modpackShowUnstable">
+            <span class="switch-track"><span class="switch-thumb"></span></span>
+          </span>
+          <span class="switch-label">${t('showAlphaBetaVersions','Show alpha/beta versions')}</span>
+        </label>` : ""}
+      </div>`;
+
+    const listEl = backdrop.querySelector("#modpackVersionList");
+    let current = stableOptions.length ? stableOptions : allOptions;
+    function renderList(){
+      const latestIds = latestIdsFor(current);
+      listEl.innerHTML = current.map((v,i)=>`
+        <div class="version-row" data-idx="${i}">
+          ${latestIds.has(v.id) ? `<span class="latest-dot" title="${t('latestUploadTitle','Latest version uploaded')}"></span>` : ""}
+          <span class="version-loaders">${loaderIconsHtml(v.loaders)}</span>
+          <span class="vname">${escapeHtml(v.version_number)}</span>
+          <span class="vmeta">${escapeHtml((v.game_versions||[]).slice(-3).join(", "))} · ${escapeHtml((v.loaders||[]).join(", "))}</span>
+        </div>`).join("");
+      listEl.querySelectorAll(".version-row").forEach(row=>{
+        row.addEventListener("click", ()=>finish(current[Number(row.dataset.idx)]));
+      });
+    }
+    renderList();
+
+    const unstableToggle = backdrop.querySelector("#modpackShowUnstable");
+    if(unstableToggle){
+      unstableToggle.addEventListener("change", ()=>{
+        current = unstableToggle.checked ? allOptions : (stableOptions.length ? stableOptions : allOptions);
+        renderList();
+      });
+    }
+
+    function finish(v){ backdrop.remove(); resolve(v); }
+    backdrop.addEventListener("click", (e)=>{ if(e.target === backdrop) finish(null); });
+    backdrop.querySelector(".modal-close").addEventListener("click", ()=>finish(null));
+    document.body.appendChild(backdrop);
+  });
+}
+
+async function extractMrpackIcon(zip){
+  const candidates = Object.keys(zip.files)
+    .filter(path => !zip.files[path].dir && /(^|\/)icon\.(png|jpe?g|webp|gif)$/i.test(path))
+    .sort((a,b) => a.split("/").length - b.split("/").length); // prefer shallower paths
+  if(!candidates.length) return null;
+  const path = candidates[0];
+  const ext = path.split(".").pop().toLowerCase();
+  const mime = ext === "jpg" ? "image/jpeg" : `image/${ext}`;
+  try{
+    const base64 = await zip.files[path].async("base64");
+    return `data:${mime};base64,${base64}`;
+  }catch(e){ return null; }
+}
+
+async function importMrpackZipIntoPack(zip, meta = {}){
+  const indexEntry = zip.file("modrinth.index.json");
+  if(!indexEntry) throw new Error("Not a Modrinth modpack format");
+  const index = JSON.parse(await indexEntry.async("string"));
+  const hashes = (index.files || []).map(f=>f.hashes && f.hashes.sha1).filter(Boolean);
+  if(hashes.length === 0) throw new Error("No mod files found in modpack.");
+
+  const versionLookupRes = await fetchWithTimeout(`${API}/version_files`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ hashes, algorithm: "sha1" })
+  });
+  if(!versionLookupRes.ok) throw new Error("Couldn't resolve modpack contents.");
+  const versionMap = await versionLookupRes.json();
+  const foundVersions = Object.values(versionMap);
+  const projectIds = [...new Set(foundVersions.map(v=>v.project_id))];
+
+  // Anything the lookup did not answer for. Keyed on the sha1 we sent, so a
+  // file is "unresolved" only when Modrinth genuinely returned nothing.
+  passthroughFiles = (index.files || []).filter(f=>{
+    const sha1 = f.hashes && f.hashes.sha1;
+    return sha1 && !versionMap[sha1];
+  }).map(f=>({
+    path: f.path,
+    hashes: f.hashes || {},
+    downloads: Array.isArray(f.downloads) ? f.downloads : [],
+    env: f.env,
+    fileSize: typeof f.fileSize === "number" ? f.fileSize : undefined
+  })).filter(f=>f.path && f.downloads.length);
+
+  // overrides/ is copied into the instance directory as-is. It regularly
+  // contains configs the pack needs, and sometimes jars for mods that are not
+  // on Modrinth at all.
+  importedOverrides = [];
+  try{
+    const overrideEntries = [];
+    zip.forEach((relPath, entry)=>{
+      if(entry.dir) return;
+      if(relPath.startsWith("overrides/") || relPath.startsWith("server-overrides/")){
+        overrideEntries.push({ path: relPath, entry });
+      }
+    });
+    importedOverrides = await Promise.all(overrideEntries.map(async o=>({
+      path: o.path,
+      data: await o.entry.async("uint8array")
+    })));
+  }catch(e){
+    console.warn("Couldn't read the modpack's overrides folder", e);
+  }
+
+  const projectsRes = await fetchWithTimeout(`${API}/projects?ids=${encodeURIComponent(JSON.stringify(projectIds))}`);
+  const projects = projectsRes.ok ? await projectsRes.json() : [];
+  const projectById = Object.fromEntries(projects.map(p=>[p.id, p]));
+
+  const deps = index.dependencies || {};
+  const manifestLoaders = Object.keys(deps).filter(k=>k!=="minecraft").map(k=>k.replace("-loader",""));
+  const loaders = manifestLoaders.length ? manifestLoaders : ((meta.loaders && meta.loaders.length) ? meta.loaders : []);
+  const gameVersions = deps.minecraft ? [deps.minecraft] : ((meta.gameVersions && meta.gameVersions.length) ? meta.gameVersions : []);
+
+  const authorById = Object.fromEntries(await Promise.all(
+    projectIds.map(async id=>[id, await resolveProjectAuthor(id)])
+  ));
+
+  let added = 0;
+  foundVersions.forEach(v=>{
+    if(state.pack.some(p=>p.id === v.project_id)) return;
+    const proj = projectById[v.project_id];
+    state.pack.push({
+      id: v.project_id,
+      title: proj ? proj.title : v.name,
+      icon_url: proj ? proj.icon_url : "",
+      author: authorById[v.project_id] || "",
+      categories: proj ? proj.categories : [],
+      projectType: (proj && proj.project_type) || "mod",
+      clientSide: (proj && proj.client_side) || "required",
+      serverSide: (proj && proj.server_side) || "required",
+      fromModpack: meta.fromModpackId || "imported-mrpack",
+      fromModpackLoaders: (v.loaders && v.loaders.length) ? v.loaders : loaders,
+      fromModpackGameVersions: (v.game_versions && v.game_versions.length) ? v.game_versions : gameVersions,
+      trustedFromModpack: true,
+      selectedVersionId: v.id,
+      selectedVersionNumber: v.version_number,
+      selectedFile: v.files.find(f=>f.primary) || v.files[0],
+      versions: [v]
+    });
+    added++;
+  });
+
+  savePack();
+  foundVersions.forEach(v=>updateCardButtonsEverywhere(v.project_id));
+
+  const packTarget = { loader: loaders[0] || null, mcVersion: gameVersions[0] || null };
+
+  // Adopt the manifest's target as the export target. Marked as touched so
+  // nothing downstream second-guesses it: the author's own numbers beat any
+  // heuristic we could run over the file list.
+  if(packTarget.mcVersion){
+    const expMcEl = document.getElementById("expMcVersion");
+    if(expMcEl){
+      if(!Array.from(expMcEl.options).some(o=>o.value === packTarget.mcVersion)){
+        // Older or snapshot targets are not in the dropdown; add it rather
+        // than silently falling back to something the pack cannot run on.
+        expMcEl.insertAdjacentHTML("afterbegin",
+          `<option value="${escapeHtml(packTarget.mcVersion)}">${escapeHtml(packTarget.mcVersion)}</option>`);
+      }
+      expMcEl.value = packTarget.mcVersion;
+      state.expMcTouched = true;
+    }
+  }
+  if(packTarget.loader){
+    const expLoaderEl = document.getElementById("expLoader");
+    if(expLoaderEl && Array.from(expLoaderEl.options).some(o=>o.value === packTarget.loader)){
+      expLoaderEl.value = packTarget.loader;
+      state.expLoaderTouched = true;
+    }
+  }
+
+  importedPackNotes = [];
+  const depVisited = new Set(foundVersions.map(v=>v.project_id));
+  for(const v of foundVersions){
+    const proj = projectById[v.project_id];
+    try{
+      await autoAddDependencies(v, depVisited, (proj && proj.project_type) || "mod", packTarget, true);
+    }catch(e){ console.error("Dependency resolution failed for", v.project_id, e); }
+  }
+  try{
+    await ensureLoaderApis(gameVersions, loaders, true);
+  }catch(e){ console.error("Loader API resolution failed", e); }
+  if(importedPackNotes.length){
+    console.info("[ModBench] Imported pack does not list these declared dependencies (left untouched):", importedPackNotes);
+  }
+  lastImportReport = {
+    filesInManifest: (index.files || []).length,
+    resolved: foundVersions.length,
+    added,
+    passthrough: passthroughFiles.length,
+    overrides: importedOverrides.length,
+    target: packTarget,
+    notes: importedPackNotes.slice()
+  };
+  savePack();
+  foundVersions.forEach(v=>updateCardButtonsEverywhere(v.project_id));
+
+  const icon = await extractMrpackIcon(zip).catch(()=>null);
+  return {
+    index,
+    total: foundVersions.length,
+    added,
+    name: (index.name || "").trim() || meta.fallbackName || "",
+    icon: icon || meta.fallbackIcon || ""
+  };
+}
+
+function applyImportedPackIdentity(result, wasEmptyBefore){
+  if(!result) return;
+  const nameInput = document.getElementById("packName");
+  const DEFAULT_NAME = "My Modpack (via ModBench)";
+  const shouldApply = wasEmptyBefore || !nameInput.value.trim() || nameInput.value.trim() === DEFAULT_NAME || nameInput.value.trim() === "My Modpack";
+  if(result.name && shouldApply){
+    nameInput.value = result.name;
+  }
+  if(result.icon && shouldApply){
+    state.packIcon = result.icon;
+    savePackIcon();
+    renderLogoPicker();
+  }
+}
+
+async function importModpackVersion(projectId, version, btn, fallbackMeta = {}){
+  const originalLabel = fallbackMeta.resetLabel !== undefined ? fallbackMeta.resetLabel : btn.dataset.originalLabel ?? btn.textContent;
+  startLoadingButton(btn, t('btnAdding','Adding…'));
+  let ok = false;
+  beginImportOp();
+  try{
+    const file = version.files.find(f=>f.primary) || version.files[0];
+    if(!file) throw new Error("No versions available");
+    const zipBuf = await fetchWithTimeout(file.url, {}, 30000).then(r=>{
+      if(!r.ok) throw new Error("Couldn't download modpack file.");
+      return r.arrayBuffer();
+    });
+    const zip = await JSZip.loadAsync(zipBuf);
+    const result = await importMrpackZipIntoPack(zip, {
+      fromModpackId: projectId,
+      loaders: version.loaders || [],
+      gameVersions: version.game_versions || [],
+      fallbackName: fallbackMeta.fallbackName,
+      fallbackIcon: fallbackMeta.fallbackIcon
+    });
+    ok = true;
+    return true;
+  }catch(e){
+    console.error(e);
+    showToast(t('alertImportModpackFailed',"Couldn't import that modpack's mods. Modrinth may be unreachable, or this modpack isn't in the standard .mrpack format."), { duration: 8000 });
+    return false;
+  }finally{
+    endImportOp();
+    stopLoadingButton(btn, originalLabel);
+    if(state.tab === "pack") renderPack();
+    if(state.tab === "export") renderExport();
+    renderModpackResults();
+    updateCardButtonsEverywhere(projectId);
+  }
+}
+
+const IMPORT_STATUS_ICON_CHECK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+const IMPORT_STATUS_ICON_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>';
+const IMPORT_STATUS_ICON_LOADING = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9" stroke-dasharray="42" stroke-dashoffset="14"/></svg>';
+
+function setImportStatus(kind, text, prefix = "mrpack"){
+  const statusEl = document.getElementById(`${prefix}ImportStatus`);
+  const iconEl = document.getElementById(`${prefix}ImportStatusIcon`);
+  const textEl = document.getElementById(`${prefix}ImportStatusText`);
+  statusEl.style.display = "flex";
+  statusEl.classList.remove("success", "error");
+  if(kind === "success") statusEl.classList.add("success");
+  if(kind === "error") statusEl.classList.add("error");
+  iconEl.innerHTML = kind === "success" ? IMPORT_STATUS_ICON_CHECK : kind === "error" ? IMPORT_STATUS_ICON_X : IMPORT_STATUS_ICON_LOADING;
+  textEl.textContent = text;
+  if(kind === "success" || kind === "error"){
+    statusEl.classList.remove("pop");
+    void statusEl.offsetWidth;
+    statusEl.classList.add("pop");
+  }
+}
+
+/* --- Create-tab import lock: grays out Create while a mod import is still running,
+   whether the import was kicked off from Export (file/share code) or Modpacks. --- */
+let packImportLockToastShown = false;
+
+function showPackImportLock(){
+  const overlay = document.getElementById("packImportLock");
+  const real = document.getElementById("packRealContent");
+  if(!overlay) return;
+  const alreadyShown = overlay.style.display === "block";
+  overlay.style.display = "block";
+  if(real) real.style.display = "none";
+  requestAnimationFrame(()=> overlay.classList.add("visible"));
+  if(!alreadyShown && !packImportLockToastShown){
+    packImportLockToastShown = true;
+    showToast(t('toastCreateLockedImporting', "**Mods are still importing.** Create will unlock **automatically** when it's done."));
+  }
+}
+
+function hidePackImportLock(){
+  const overlay = document.getElementById("packImportLock");
+  const real = document.getElementById("packRealContent");
+  if(!overlay) return;
+  overlay.classList.remove("visible");
+  packImportLockToastShown = false;
+  setTimeout(()=>{
+    if(state.importingCount === 0){
+      overlay.style.display = "none";
+      if(real) real.style.display = "";
+    }
+  }, 250);
+}
+
+function beginImportOp(){
+  state.importingCount++;
+  if(state.tab === "pack") showPackImportLock();
+}
+
+function endImportOp(){
+  state.importingCount = Math.max(0, state.importingCount - 1);
+  if(state.importingCount === 0) hidePackImportLock();
+}
+
+async function importMrpackFile(file){
+  if(!file) return;
+  if(!file.name.toLowerCase().endsWith(".mrpack")){
+    setImportStatus("error", t("importChooseMrpackFile","Please choose a .mrpack file."));
+    return;
+  }
+  setImportStatus("loading", t("importReadingPack","Reading pack…"));
+  beginImportOp();
+  try{
+    const buf = await file.arrayBuffer();
+    const zip = await JSZip.loadAsync(buf);
+    const wasEmptyBefore = state.pack.length === 0;
+    const fileNameFallback = file.name.replace(/\.mrpack$/i, "").replace(/[_-]+/g, " ").trim();
+    const result = await importMrpackZipIntoPack(zip, { fromModpackId: `imported:${file.name}`, fallbackName: fileNameFallback });
+    applyImportedPackIdentity(result, wasEmptyBefore);
+    if(state.tab === "pack") renderPack();
+    if(state.tab === "export") renderExport();
+    if(result.total === 0){
+      setImportStatus("error", t("importNoModsMatched","No mods could be matched on Modrinth for that file."));
+    } else if(result.added === 0){
+      setImportStatus("success", tPlural(result.total, "importAllAlreadyInCreateOne", "All {n} mod in that pack is already in Create.", "importAllAlreadyInCreateOther", "All {n} mods in that pack are already in Create."));
+    } else {
+      const skipped = result.total - result.added;
+      let msg = tPlural(result.total, "importAddedOfTotalOne", "Added {added} of {n} mod to Create.", "importAddedOfTotalOther", "Added {added} of {n} mods to Create.", {added: result.added});
+      if(skipped) msg += " " + tf("importAlreadyThereSuffix", "({n} already there.)", {n: skipped});
+      setImportStatus("success", msg);
+    }
+  }catch(e){
+    console.error(e);
+    setImportStatus("error", t("importCouldntReadFile","Couldn't read that file. Make sure it's a valid .mrpack."));
+  }finally{
+    endImportOp();
+  }
+}
+
+function buildShareData(){
+  const versionIds = state.pack.filter(m=>m.selectedVersionId).map(m=>m.selectedVersionId);
+  return {
+    n: (document.getElementById("packName").value || "").trim(),
+    mc: document.getElementById("expMcVersion").value || "",
+    l: document.getElementById("expLoader").value || "",
+    m: versionIds
+  };
+}
+function encodeShareData(data){
+  const raw = [
+    "1",
+    encodeURIComponent(data.mc || ""),
+    encodeURIComponent(data.l || ""),
+    encodeURIComponent(data.n || ""),
+    data.m.join(",")
+  ].join("~");
+  const b64 = btoa(unescape(encodeURIComponent(raw)));
+  return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
+}
+function decodeShareCode(code){
+  let b64 = code.trim().replace(/-/g, "+").replace(/_/g, "/");
+  while(b64.length % 4) b64 += "=";
+  const raw = decodeURIComponent(escape(atob(b64)));
+  const parts = raw.split("~");
+  if(parts.length < 5) throw new Error("bad share code shape");
+  const [, mc, l, n, mods] = parts;
+  return {
+    n: decodeURIComponent(n || ""),
+    mc: decodeURIComponent(mc || ""),
+    l: decodeURIComponent(l || ""),
+    m: mods ? mods.split(",").filter(Boolean) : []
+  };
+}
+function extractShareCode(raw){
+  const trimmed = (raw || "").trim();
+  const match = trimmed.match(/[?&#]import=([^&\s]+)/);
+  return match ? decodeURIComponent(match[1]) : trimmed;
+}
+function copyTextToClipboard(text, btn){
+  const done = ()=>{
+    if(!btn) return;
+    const original = btn.dataset.originalHtml !== undefined ? btn.dataset.originalHtml : btn.innerHTML;
+    btn.dataset.originalHtml = original;
+    btn.innerHTML = t("copiedConfirm","Copied ✓");
+    clearTimeout(btn._copyResetTimer);
+    btn._copyResetTimer = setTimeout(()=>{ btn.innerHTML = original; }, 1400);
+  };
+  if(navigator.clipboard && navigator.clipboard.writeText){
+    navigator.clipboard.writeText(text).then(done).catch(()=>fallbackCopyText(text, done));
+  } else {
+    fallbackCopyText(text, done);
+  }
+}
+function fallbackCopyText(text, done){
+  const ta = document.createElement("textarea");
+  ta.value = text;
+  ta.style.position = "fixed";
+  ta.style.opacity = "0";
+  document.body.appendChild(ta);
+  ta.focus();
+  ta.select();
+  try{ document.execCommand("copy"); }catch(e){}
+  document.body.removeChild(ta);
+  done();
+}
+function shareLinkFromCode(code){
+  return `${location.origin}${location.pathname}#import=${code}`;
+}
+function showShareModal(){
+  const data = buildShareData();
+  if(data.m.length === 0){
+    showToast(t('alertAddModsShareLink',"Add mods to your pack first, then generate a share link."));
+    return;
+  }
+  if(shareBackendConfigured() && getShareRemaining() <= 0){
+    showShareLimitReachedModal();
+    return;
+  }
+  const longCode = encodeShareData(data);
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  backdrop.innerHTML = `
+    <div class="modal" style="max-width:480px;">
+      <h3 style="margin:0 0 6px;">${t('shareModalTitle','Share your pack')}</h3>
+      <p style="margin:0 0 16px; color:var(--text-dim); font-size:0.85rem;" id="shareModalIntro">${tPlural(data.m.length, 'shareModalIntroOne','Anyone who opens this link, or pastes the code into <strong>Import a share code</strong>, gets the same {n} mod added to their Create tab.', 'shareModalIntroOther','Anyone who opens this link, or pastes the code into <strong>Import a share code</strong>, gets the same {n} mods added to their Create tab.')}</p>
+      <label style="display:block; font-weight:700; font-size:0.85rem; margin-bottom:6px;">${t('shareLinkLabel','Link')}</label>
+      <div style="display:flex; gap:8px;">
+        <input type="text" readonly id="shareLinkOutput" value="${shareBackendConfigured() ? t('shareGenerating','Generating…') : escapeHtml(shareLinkFromCode(longCode))}" style="flex:1; min-width:0; padding:10px 12px; border-radius:8px; border:1px solid var(--border); background:var(--surface-2); color:var(--text); font-family:inherit; font-size:0.8rem;">
+        <button type="button" class="export-btn" id="copyShareLinkBtn" style="width:auto; margin-top:0; padding:0 14px; white-space:nowrap;">${t('copy','Copy')}</button>
+      </div>
+      <label style="display:block; font-weight:700; font-size:0.85rem; margin:16px 0 6px;">${t('shareCodeOnlyLabel','Code only')}</label>
+      <div style="display:flex; gap:8px;">
+        <input type="text" readonly id="shareCodeOutput" value="${shareBackendConfigured() ? t('shareGenerating','Generating…') : escapeHtml(longCode)}" style="flex:1; min-width:0; padding:10px 12px; border-radius:8px; border:1px solid var(--border); background:var(--surface-2); color:var(--text); font-family:inherit; font-size:0.8rem;">
+        <button type="button" class="export-btn" id="copyShareCodeBtn" style="width:auto; margin-top:0; padding:0 14px; white-space:nowrap;">${t('copy','Copy')}</button>
+      </div>
+      <div class="modal-actions" style="justify-content:flex-end;">
+        <button class="page-btn" id="shareModalCloseBtn">${t('close','Close')}</button>
+      </div>
+    </div>`;
+  function close(){ backdrop.remove(); }
+  backdrop.addEventListener("click", (e)=>{ if(e.target === backdrop) close(); });
+  backdrop.querySelector("#shareModalCloseBtn").addEventListener("click", close);
+  document.body.appendChild(backdrop);
+
+  (async ()=>{
+    let code = longCode;
+    if(shareBackendConfigured()){
+      try{
+        const shortId = await createShortShareCode(longCode);
+        code = `mb-${shortId}`;
+        recordShareUsage();
+        rememberShareCode(code);
+      }catch(e){
+        console.error(e);
+        if(e && e.rateLimited){
+          exhaustShareUsage();
+          close();
+          showShareLimitReachedModal();
+          return;
+        }
+        const intro = backdrop.querySelector("#shareModalIntro");
+        if(intro) intro.insertAdjacentHTML("beforeend", " <em>"+t('shareLinkServiceFallback',"(Couldn't reach the short-link service, so here's the full self-contained code instead, it still works the same way.)")+"</em>");
+      }
+    }
+    const link = shareLinkFromCode(code);
+    const linkInput = backdrop.querySelector("#shareLinkOutput");
+    const codeInput = backdrop.querySelector("#shareCodeOutput");
+    if(linkInput) linkInput.value = link;
+    if(codeInput) codeInput.value = code;
+    const copyLinkBtn = backdrop.querySelector("#copyShareLinkBtn");
+    const copyCodeBtn = backdrop.querySelector("#copyShareCodeBtn");
+    if(copyLinkBtn) copyLinkBtn.addEventListener("click", (e)=>copyTextToClipboard(link, e.currentTarget));
+    if(copyCodeBtn) copyCodeBtn.addEventListener("click", (e)=>copyTextToClipboard(code, e.currentTarget));
+  })();
+}
+
+function showShareLimitReachedModal(){
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop";
+  backdrop.innerHTML = `
+    <div class="modal" style="max-width:420px;">
+      <h3 style="margin:0 0 6px;">${t('shareLimitReachedTitle',"Daily limit reached")}</h3>
+      <p style="margin:0; color:var(--text-dim); font-size:0.85rem;">${tf('shareLimitReachedBody',"You've used all {limit} code/link generations for today. You'll be able to create share codes and links again after {time}.",{ limit: DAILY_SHARE_LIMIT, time: formatShareResetTime() })}</p>
+      <div class="modal-actions" style="justify-content:flex-end;">
+        <button class="page-btn" id="shareLimitCloseBtn">${t('close','Close')}</button>
+      </div>
+    </div>`;
+  function close(){ backdrop.remove(); }
+  backdrop.addEventListener("click", (e)=>{ if(e.target === backdrop) close(); });
+  backdrop.querySelector("#shareLimitCloseBtn").addEventListener("click", close);
+  document.body.appendChild(backdrop);
+}
+
+async function importSharedPack(rawInput){
+  const code = extractShareCode(rawInput);
+  if(!code){
+    setImportStatus("error", t("alertPasteShareLinkOrCode","Paste a share link or code first."), "share");
+    return;
+  }
+  let data;
+  try{
+    setImportStatus("loading", code.startsWith("mb-") ? t("importLookingUpCode","Looking up short code…") : t("importReadingCode","Reading code…"), "share");
+    data = await resolveShareCode(code);
+    if(!data || !Array.isArray(data.m)) throw new Error("bad shape");
+  }catch(e){
+    console.error(e);
+    setImportStatus("error", e && e.userMessage ? e.userMessage : t("importInvalidCorrupted","That link/code looks invalid or corrupted."), "share");
+    return;
+  }
+  if(data.m.length === 0){
+    setImportStatus("error", t("importCodeNoMods","That share code doesn't contain any mods."), "share");
+    return;
+  }
+  setImportStatus("loading", t("importResolvingMods","Resolving mods on Modrinth…"), "share");
+  beginImportOp();
+  try{
+    const versionIds = [...new Set(data.m.filter(Boolean))];
+    const versionsRes = await fetch(`${API}/versions?ids=${encodeURIComponent(JSON.stringify(versionIds))}`);
+    if(!versionsRes.ok) throw new Error("versions fetch failed");
+    const versions = await versionsRes.json();
+    if(!versions.length) throw new Error("no versions resolved");
+    const projectIds = [...new Set(versions.map(v=>v.project_id))];
+    const projectsRes = await fetch(`${API}/projects?ids=${encodeURIComponent(JSON.stringify(projectIds))}`);
+    const projects = projectsRes.ok ? await projectsRes.json() : [];
+    const projectById = Object.fromEntries(projects.map(p=>[p.id, p]));
+
+    const authorById = Object.fromEntries(await Promise.all(
+      projectIds.map(async id=>[id, await resolveProjectAuthor(id)])
+    ));
+
+    const wasEmptyBefore = state.pack.length === 0;
+    let added = 0;
+    versions.forEach(v=>{
+      if(state.pack.some(p=>p.id === v.project_id)) return;
+      const proj = projectById[v.project_id];
+      state.pack.push({
+        id: v.project_id,
+        title: proj ? proj.title : v.name,
+        icon_url: proj ? proj.icon_url : "",
+        author: authorById[v.project_id] || "",
+        categories: proj ? proj.categories : [],
+        projectType: (proj && proj.project_type) || "mod",
+        clientSide: (proj && proj.client_side) || "required",
+        serverSide: (proj && proj.server_side) || "required",
+        fromModpack: "shared-code",
+        fromModpackLoaders: data.l ? [data.l] : [],
+        fromModpackGameVersions: data.mc ? [data.mc] : [],
+        selectedVersionId: v.id,
+        selectedVersionNumber: v.version_number,
+        selectedFile: v.files.find(f=>f.primary) || v.files[0],
+        versions: [v]
+      });
+      added++;
+    });
+
+    // A share code is a complete pack that already exported cleanly, so it is
+    // treated exactly like an imported .mrpack: resolve against its own
+    // target, and do not add to it.
+    const shareTarget = { loader: data.l || null, mcVersion: data.mc || null };
+    importedPackNotes = [];
+    const depVisited = new Set(versions.map(v=>v.project_id));
+    for(const v of versions){
+      const proj = projectById[v.project_id];
+      await autoAddDependencies(v, depVisited, (proj && proj.project_type) || "mod", shareTarget, true);
+    }
+    await ensureLoaderApis(data.mc ? [data.mc] : [], data.l ? [data.l] : [], true);
+    savePack();
+    versions.forEach(v=>updateCardButtonsEverywhere(v.project_id));
+
+    const nameInput = document.getElementById("packName");
+    const DEFAULT_NAME = "My Modpack (via ModBench)";
+    const shouldApplyName = wasEmptyBefore || !nameInput.value.trim() || nameInput.value.trim() === DEFAULT_NAME || nameInput.value.trim() === "My Modpack";
+    if(data.n && shouldApplyName) nameInput.value = data.n;
+
+    if(state.tab === "pack") renderPack();
+    if(state.tab === "export") renderExport();
+
+    const totalRequested = data.m.length;
+    const totalResolved = versions.length;
+    if(added === 0){
+      setImportStatus("success", tPlural(totalResolved, "importAllFromPackAlreadyOne", "All {n} mod from that pack is already in Create.", "importAllFromPackAlreadyOther", "All {n} mods from that pack are already in Create."), "share");
+    } else {
+      const skipped = totalResolved - added;
+      const missing = totalRequested - totalResolved;
+      let msg = tPlural(totalResolved, "importAddedOfTotalOne", "Added {added} of {n} mod to Create.", "importAddedOfTotalOther", "Added {added} of {n} mods to Create.", {added});
+      if(skipped) msg += " " + tf("importAlreadyThereSuffix", "({n} already there.)", {n: skipped});
+      if(missing) msg += " " + tPlural(missing, "importMissingFromCodeOne", "{n} mod from the code couldn't be found on Modrinth (maybe removed).", "importMissingFromCodeOther", "{n} mods from the code couldn't be found on Modrinth (maybe removed).");
+      setImportStatus("success", msg, "share");
+    }
+  }catch(e){
+    console.error(e);
+    setImportStatus("error", t("importCouldntResolvePack","Couldn't resolve that pack. Modrinth may be unreachable, or the code is invalid."), "share");
+  }finally{
+    endImportOp();
+  }
+}
+
+async function addModpackToCreate(projectId, btn){
+  if(state.pack.some(p=>p.fromModpack === projectId)) return; // already imported, nothing to do
+  const originalLabel = btn.textContent;
+  startLoadingButton(btn, t('btnLoading','Loading…'));
+  try{
+    const versions = await fetchVersionsRaw(projectId);
+    if(!versions.length) throw new Error("No versions available");
+    if(btn._slowLoadTimer){ clearTimeout(btn._slowLoadTimer); btn._slowLoadTimer = null; }
+    const chosen = await pickModpackVersion(versions);
+    if(!chosen){
+      stopLoadingButton(btn, originalLabel);
+      return;
+    }
+    const hit = findHitAnywhere(projectId);
+    await importModpackVersion(projectId, chosen, btn, { fallbackName: hit && hit.title, fallbackIcon: hit && hit.icon_url, resetLabel: originalLabel });
+  }catch(e){
+    console.error(e);
+    showToast(t('alertImportModpackFailed',"Couldn't import that modpack's mods. Modrinth may be unreachable, or this modpack isn't in the standard .mrpack format."), { duration: 8000 });
+    stopLoadingButton(btn, originalLabel);
+  }
+}
+
+function guessPackTarget(){
+  const selected = state.pack.filter(m=>m.selectedVersionId && Array.isArray(m.versions)).map(m=>({
+    mod: m,
+    version: m.versions.find(v=>v.id === m.selectedVersionId)
+  })).filter(x=>x.version);
+  if(!selected.length) return { mcVersion: "", loader: "" };
+  const gvBest = findMajoritySupport(selected, effectiveGameVersions);
+  const loaderBest = pickBestLoaderForPack(selected);
+  return {
+    mcVersion: gvBest ? gvBest.value : "",
+    loader: loaderBest ? loaderBest.loader : ""
+  };
+}
+
+function normalizeEnvSupport(value){
+  const valid = ["required", "optional", "unsupported"];
+  return valid.includes(value) ? value : "required";
+}
+
+const CONFETTI_COLORS = ["#2f6b4f", "#e3ede7", "#a3423a", "#ddd8cc", "#234f3a", "#f0c85a"];
+function fireConfetti(anchorEl){
+  const rect = anchorEl.getBoundingClientRect();
+  const originX = rect.left + rect.width/2;
+  const originY = rect.top;
+  const count = 42;
+  for(let i=0;i<count;i++){
+    const piece = document.createElement("div");
+    piece.className = "confetti-piece";
+    const angle = (Math.random() * Math.PI) + Math.PI; // upward-ish spread
+    const distance = 70 + Math.random()*160;
+    const dx = Math.cos(angle) * distance;
+    const dy = Math.sin(angle) * distance - 60;
+    const size = 6 + Math.random()*6;
+    piece.style.width = `${size}px`;
+    piece.style.height = `${size * (0.5 + Math.random()*0.6)}px`;
+    piece.style.left = `${originX}px`;
+    piece.style.top = `${originY}px`;
+    piece.style.background = CONFETTI_COLORS[i % CONFETTI_COLORS.length];
+    piece.style.setProperty("--dx", `${dx}px`);
+    piece.style.setProperty("--dy", `${dy}px`);
+    piece.style.setProperty("--rot", `${(Math.random()*720 - 360)|0}deg`);
+    piece.style.animationDuration = `${1.3 + Math.random()*0.5}s`;
+    piece.style.animationDelay = `${Math.random()*120}ms`;
+    document.body.appendChild(piece);
+    piece.addEventListener("animationend", ()=>piece.remove());
+    setTimeout(()=>piece.remove(), 2200);
+  }
+}
+
+function formatBytes(n){
+  if(!n || n <= 0) return "0 MB";
+  const mb = n / (1024*1024);
+  if(mb < 1) return `${Math.max(1, Math.round(n/1024))} KB`;
+  if(mb < 1000) return `${mb.toFixed(mb < 10 ? 1 : 0)} MB`;
+  return `${(mb/1024).toFixed(1)} GB`;
+}
+
+function renderLogoPicker(){
+  const img = document.getElementById("logoPreviewImg");
+  const resetBtn = document.getElementById("logoResetBtn");
+  if(state.packIcon){
+    img.src = state.packIcon;
+    resetBtn.style.display = "inline-flex";
+  } else {
+    img.src = "icons/logo.png";
+    resetBtn.style.display = "none";
+  }
+}
+
+function renderExport(){
+  renderLogoPicker();
+  const note = document.getElementById("exportNote");
+  const btn = document.getElementById("exportBtn");
+  const expMc = document.getElementById("expMcVersion");
+  const expLoader = document.getElementById("expLoader");
+  const statsEl = document.getElementById("exportStats");
+  const heroIcon = document.getElementById("exportHeroIcon");
+  document.getElementById("exportImportTip").style.display = "none";
+  if(!expMc.value || !expLoader.value){
+    const guess = guessPackTarget();
+    if(!expMc.value && guess.mcVersion) expMc.value = guess.mcVersion;
+    if(!expLoader.value && guess.loader) expLoader.value = guess.loader;
+  }
+  if(!expMc.value && state.mcVersion) expMc.value = state.mcVersion;
+  if(state.pack.length === 0){
+    note.textContent = t('exportNoteDefault',"Add mods to your pack first, then choose a version and loader.");
+    btn.disabled = true;
+    btn.classList.remove("success");
+    heroIcon.classList.remove("ready");
+    statsEl.innerHTML = "";
+  }else{
+    note.innerHTML = `<strong>${state.pack.length}</strong> ${t('exportReadyToExport','mod(s) ready to export.')}`;
+    btn.disabled = false;
+    btn.classList.remove("success");
+    heroIcon.classList.add("ready");
+
+    const clientMods = state.pack.filter(m=>m.clientSide !== "unsupported");
+    const knownSizeMods = clientMods.filter(m=>m.selectedFile && m.selectedFile.size > 0);
+    const unknownSizeMods = clientMods.filter(m=>!(m.selectedFile && m.selectedFile.size > 0));
+    const totalSize = knownSizeMods.reduce((sum,m)=>sum + m.selectedFile.size, 0);
+    const hasUnknown = unknownSizeMods.length > 0;
+    const sizeDisplay = totalSize > 0
+      ? `${hasUnknown ? "≥" : ""}${formatBytes(totalSize)}`
+      : (hasUnknown ? "Unknown" : "0 MB");
+    const catCounts = {};
+    state.pack.forEach(m=>(m.categories||[]).forEach(c=>{ catCounts[c] = (catCounts[c]||0) + 1; }));
+    const topCats = Object.entries(catCounts).sort((a,b)=>b[1]-a[1]).slice(0,4).map(([c])=>c);
+
+    statsEl.innerHTML = `
+      <div class="export-stat" style="animation-delay:0ms;">
+        <div class="stat-num">${state.pack.length}</div>
+        <div class="stat-label">Mod${state.pack.length===1?'':'s'}</div>
+      </div>
+      <div class="export-stat" style="animation-delay:40ms;" ${hasUnknown ? `title="${unknownSizeMods.length} mod${unknownSizeMods.length===1?'':'s'} missing file size data on Modrinth. Actual unpacked size will be larger than shown"` : `title="Combined size of every mod's .jar file as unpacked from Modrinth"`}>
+        <div class="stat-num">${sizeDisplay}</div>
+        <div class="stat-label">${t('statModpackSize','Modpack size')}${hasUnknown ? " "+t('statEst','est.') : ""}</div>
+      </div>
+      <div class="export-stat" style="animation-delay:80ms;">
+        <div class="stat-num">${state.pack.filter(m=>m.fromModpack).length}</div>
+        <div class="stat-label">${t('statFromModpacks','From modpacks')}</div>
+      </div>
+      ${topCats.length ? `<div class="export-cats" style="grid-column:1 / -1;">${topCats.map(c=>`<span class="tag">${escapeHtml(formatCategoryName(c))}</span>`).join("")}</div>` : ""}
+      ${hasUnknown ? `<div style="grid-column:1 / -1; font-size:0.82rem; color:var(--text-dim); margin-top:2px;">Size data missing for ${unknownSizeMods.length} mod${unknownSizeMods.length===1?'':'s'}. Actual download will be larger.</div>` : ""}
+    `;
+  }
+}
+
+
+async function getLoaderDependencyVersion(loader, mcVersion){
+  try{
+    if(loader === "fabric"){
+      // Per-version endpoint, not the global list. The global list is ordered
+      // newest-first overall, which says nothing about whether that build can
+      // run the Minecraft version being targeted; /loader/<mc> returns only
+      // builds that can.
+      if(mcVersion){
+        const res = await fetchWithTimeout(`https://meta.fabricmc.net/v2/versions/loader/${encodeURIComponent(mcVersion)}`, {}, 9000);
+        if(res.ok){
+          const entries = await res.json();
+          if(Array.isArray(entries) && entries.length){
+            const best = entries.find(e=>e.loader && e.loader.stable) || entries[0];
+            if(best && best.loader && best.loader.version) return best.loader.version;
+          }
+        }
+      }
+      const res = await fetchWithTimeout("https://meta.fabricmc.net/v2/versions/loader", {}, 8000);
+      if(res.ok){
+        const versions = await res.json();
+        const best = versions.find(v=>v.loader && v.loader.stable) || versions[0];
+        if(best && best.loader && best.loader.version) return best.loader.version;
+      }
+    } else if(loader === "quilt"){
+      if(mcVersion){
+        const res = await fetchWithTimeout(`https://meta.quiltmc.org/v3/versions/loader/${encodeURIComponent(mcVersion)}`, {}, 9000);
+        if(res.ok){
+          const entries = await res.json();
+          if(Array.isArray(entries) && entries.length){
+            const best = entries.find(e=>e.loader && e.loader.version && !/beta|alpha|rc/i.test(e.loader.version)) || entries[0];
+            if(best && best.loader && best.loader.version) return best.loader.version;
+          }
+        }
+      }
+      const res = await fetchWithTimeout("https://meta.quiltmc.org/v3/versions/loader", {}, 8000);
+      if(res.ok){
+        const versions = await res.json();
+        const best = versions.find(v=>v.version && !/beta|alpha|rc/i.test(v.version)) || versions[0];
+        if(best && best.version) return best.version;
+      }
+    } else if(loader === "neoforge"){
+      // NeoForge versions encode the Minecraft version: 1.21.1 -> 21.1.x,
+      // 1.20.4 -> 20.4.x. Filter to the matching series, newest stable first.
+      const res = await fetchWithTimeout("https://maven.neoforged.net/api/maven/versions/releases/net/neoforged/neoforge", {}, 9000);
+      if(res.ok){
+        const all = ((await res.json()).versions || []).filter(v=>!/beta/i.test(v));
+        const m = /^1\.(\d+)(?:\.(\d+))?$/.exec(mcVersion || "");
+        if(m){
+          const prefix = `${m[1]}.${m[2] || "0"}.`;
+          const series = all.filter(v=>v.startsWith(prefix));
+          if(series.length) return series[series.length - 1];
+        }
+        if(all.length) return all[all.length - 1];
+      }
+    } else if(loader === "forge"){
+      const res = await fetchWithTimeout("https://files.minecraftforge.net/net/minecraftforge/forge/promotions_slim.json", {}, 9000);
+      if(res.ok){
+        const promos = (await res.json()).promos || {};
+        const pick = promos[`${mcVersion}-recommended`] || promos[`${mcVersion}-latest`];
+        if(pick) return pick;
+      }
+    }
+  }catch(e){
+    console.warn(`Couldn't resolve the ${loader} loader version`, e);
+  }
+  return "";
+}
+
+function validatePackForExport(mcVersion, loader){
+  // passthroughFiles are deliberately not checked here: they carry no version
+  // metadata to check, and they came verbatim from a pack that worked.
+  const problems = { wrongMc: [], wrongLoader: [], noFile: [], noHash: [], duplicatePath: [] };
+  const bridges = (typeof getActiveLoaderBridges === "function")
+    ? getActiveLoaderBridges(state.pack
+        .filter(m=>m.selectedVersionId && Array.isArray(m.versions))
+        .map(m=>({ mod: m, version: m.versions.find(v=>v.id === m.selectedVersionId) }))
+        .filter(x=>x.version))
+    : [];
+  const runnable = (LOADER_RUNS_ON[loader] || [loader]).concat(
+    bridges.filter(b=>b.on.includes(loader)).flatMap(b=>b.runs)
+  );
+  const seenPaths = new Map();
+
+  state.pack.forEach(mod=>{
+    const version = Array.isArray(mod.versions)
+      ? mod.versions.find(v=>v.id === mod.selectedVersionId)
+      : null;
+    const file = mod.selectedFile;
+
+    if(!file || !file.filename || !file.url){ problems.noFile.push(mod.title); return; }
+    if(!file.hashes || !file.hashes.sha1 || !file.hashes.sha512){ problems.noHash.push(mod.title); }
+
+    const folder = ({ mod: "mods", shader: "shaderpacks", resourcepack: "resourcepacks" })[mod.projectType] || "mods";
+    const path = `${folder}/${file.filename}`;
+    if(seenPaths.has(path)){
+      problems.duplicatePath.push(`${mod.title} / ${seenPaths.get(path)}`);
+    } else {
+      seenPaths.set(path, mod.title);
+    }
+
+    // A missing version record means we cannot prove compatibility either
+    // way. Treat it as a failure rather than assuming the best.
+    if(!version){ problems.wrongMc.push(`${mod.title} (${t('exportUnknownVersion','version unknown')})`); return; }
+
+    const gvs = version.game_versions || [];
+    if(mcVersion && gvs.length && !mod.trustedFromModpack && !gvs.includes(mcVersion)){
+      problems.wrongMc.push(`${mod.title} (${gvs.slice(-3).join(", ")})`);
+    }
+
+    const loaders = version.loaders || [];
+    const agnostic = !loaders.length
+      || loaders.every(l=>["minecraft","iris","optifine","canvas","vanilla","datapack"].includes(l));
+    // A file still on the version its modpack shipped is left alone: the pack
+    // ran with it, whatever the loader tags say.
+    if(loader && !agnostic && !mod.trustedFromModpack && !loaders.some(l=>runnable.includes(l))){
+      problems.wrongLoader.push(`${mod.title} (${loaders.join(", ")})`);
+    }
+  });
+
+  const total = Object.values(problems).reduce((n, arr)=>n + arr.length, 0);
+  return { problems, total };
+}
+
+function exportProblemsHtml(problems, mcVersion, loader){
+  const block = (list, headingKey, headingFallback)=>{
+    if(!list.length) return "";
+    return `<div style="margin-top:12px;">
+      <div style="font-weight:800; font-size:0.86rem; margin-bottom:5px;">${escapeHtml(t(headingKey, headingFallback))}</div>
+      <ul style="margin:0; padding-left:18px; font-size:0.83rem; color:var(--text-dim); line-height:1.55;">
+        ${list.slice(0, 12).map(x=>`<li>${escapeHtml(x)}</li>`).join("")}
+        ${list.length > 12 ? `<li>${escapeHtml(tf('exportAndMore','and {n} more', { n: list.length - 12 }))}</li>` : ""}
+      </ul>
+    </div>`;
+  };
+  return `<div style="text-align:left;">
+    <p style="margin:0; font-size:0.9rem;">${escapeHtml(tf('exportBlockedIntro',
+      'This pack would not launch on Minecraft {mc} with {loader}. Here is what needs fixing:',
+      { mc: mcVersion, loader: formatLoaderName(loader) }))}</p>
+    ${block(problems.wrongMc, 'exportWrongMc', 'Wrong Minecraft version')}
+    ${block(problems.wrongLoader, 'exportWrongLoader', 'Wrong mod loader')}
+    ${block(problems.noFile, 'exportNoFile', 'No file selected')}
+    ${block(problems.noHash, 'exportNoHash', 'Missing file checksums')}
+    ${block(problems.duplicatePath, 'exportDuplicate', 'Two mods produce the same filename')}
+  </div>`;
+}
+
+document.getElementById("exportBtn").addEventListener("click", async ()=>{
+  const mcVersion = document.getElementById("expMcVersion").value;
+  const loader = document.getElementById("expLoader").value;
+  const packName = document.getElementById("packName").value.trim() || "My Modpack";
+  const packVersion = document.getElementById("packVersion").value.trim() || "1.0.0";
+
+  if(!mcVersion || !loader){
+    showToast(t('alertExportNeedsTarget',"Choose a Minecraft version and mod loader before exporting."));
+    return;
+  }
+  if(!state.pack.length){
+    showToast(t('alertExportEmpty',"There is nothing in Create to export yet."));
+    return;
+  }
+
+  // Preflight. Refusing here is the whole point: a pack that fails at launch
+  // costs the user a download, an install and a crash log to read.
+  const check = validatePackForExport(mcVersion, loader);
+  if(check.total){
+    const fix = await showConfirm(exportProblemsHtml(check.problems, mcVersion, loader), {
+      confirmLabel: t('exportFixNow','Try to fix automatically'),
+      danger: false
+    });
+    if(!fix) return;
+    if(typeof autoFixCompatibility === "function"){
+      try{ await autoFixCompatibility([]); }catch(e){ console.warn(e); }
+    }
+    const recheck = validatePackForExport(mcVersion, loader);
+    if(recheck.total){
+      await showConfirm(
+        exportProblemsHtml(recheck.problems, mcVersion, loader)
+        + `<p style="margin:14px 0 0; font-size:0.86rem;">${escapeHtml(t('exportStillBroken',
+            'These could not be resolved automatically. Change the target version or loader, or remove the mods listed above.'))}</p>`,
+        { confirmLabel: t('close','Close'), danger: false }
+      );
+      return;
+    }
+    renderPack();
+  }
+
+  const PACK_FOLDER = { mod: "mods", shader: "shaderpacks", resourcepack: "resourcepacks" };
+  const folderForType = t => PACK_FOLDER[t] || "mods";
+
+  const LOADER_DEP_KEY = { fabric: "fabric-loader", quilt: "quilt-loader", forge: "forge", neoforge: "neoforge" };
+  const loaderDepVersion = await getLoaderDependencyVersion(loader, mcVersion);
+
+  // Without a loader entry the launcher builds a vanilla instance and nothing
+  // loads. Better to stop than to hand over a pack that silently does nothing.
+  if(!loaderDepVersion){
+    console.warn(`No ${loader} build is published for Minecraft ${mcVersion}.`);
+    await showConfirm(
+      escapeHtml(tf('exportNoLoaderVersion',
+        "Couldn't work out which {loader} version to pair with Minecraft {mc}. Exporting now would produce a pack with no mod loader, so nothing would load. Try again in a moment, or pick a different target.",
+        { loader: formatLoaderName(loader), mc: mcVersion })),
+      { confirmLabel: t('close','Close'), danger: false }
+    );
+    return;
+  }
+
+  const manifest = {
+    formatVersion: 1,
+    game: "minecraft",
+    versionId: packVersion,
+    name: packName,
+    files: state.pack.map(mod=>{
+      const file = mod.selectedFile;
+      const hashes = {};
+      if(file.hashes && file.hashes.sha1) hashes.sha1 = file.hashes.sha1;
+      if(file.hashes && file.hashes.sha512) hashes.sha512 = file.hashes.sha512;
+
+      // Shaders and resource packs are client-side by definition. Trusting
+      // Modrinth's project-level flags here produced entries marking a
+      // shaderpack as server-required, which breaks a server install.
+      const clientOnly = mod.projectType === "shader" || mod.projectType === "resourcepack";
+      const entry = {
+        path: `${folderForType(mod.projectType)}/${file.filename}`,
+        hashes,
+        env: {
+          client: clientOnly ? "required" : normalizeEnvSupport(mod.clientSide),
+          server: clientOnly ? "unsupported" : normalizeEnvSupport(mod.serverSide)
+        },
+        downloads: [file.url]
+      };
+      // fileSize is optional in the spec, and emitting `undefined` makes the
+      // whole entry unparseable for some launchers.
+      if(typeof file.size === "number" && file.size > 0) entry.fileSize = file.size;
+      return entry;
+    }),
+    dependencies: {
+      minecraft: mcVersion,
+      [LOADER_DEP_KEY[loader]]: loaderDepVersion
+    }
+  };
+
+  // Files that were never Modrinth projects go back in exactly as they came.
+  passthroughFiles.forEach(f=>{
+    if(manifest.files.some(x=>x.path === f.path)) return;
+    const entry = {
+      path: f.path,
+      hashes: f.hashes || {},
+      env: f.env || { client: "required", server: "required" },
+      downloads: f.downloads
+    };
+    if(typeof f.fileSize === "number" && f.fileSize > 0) entry.fileSize = f.fileSize;
+    manifest.files.push(entry);
+  });
+
+  const zip = new JSZip();
+  zip.file("modrinth.index.json", JSON.stringify(manifest, null, 2));
+
+  // Reproduce overrides/ and server-overrides/ byte for byte. Dropping these
+  // silently changes a pack's configuration, and can drop mods outright when
+  // the author bundled jars there.
+  importedOverrides.forEach(o=>{ zip.file(o.path, o.data); });
+  try{
+    // Don't clobber an icon the imported pack already shipped.
+    if(!importedOverrides.some(o=>o.path === "overrides/icon.png")){
+      const iconRes = await fetch(state.packIcon || "icons/logo.png");
+      if(iconRes.ok){
+        const iconBlob = await iconRes.blob();
+        // Only add something JSZip can actually read. An unusable blob does
+        // not throw here, it throws later inside generateAsync, outside this
+        // try block, and takes the whole export down with it.
+        if(iconBlob && typeof iconBlob.size === "number" && iconBlob.size > 0){
+          zip.file("overrides/icon.png", iconBlob);
+        }
+      }
+    }
+  }catch(e){
+    console.warn("Couldn't bundle modpack icon", e);
+  }
+
+  const blob = await zip.generateAsync({type:"blob", mimeType:"application/octet-stream"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = `${packName.replace(/[^a-z0-9\-_ ]/gi,"")}.mrpack`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+
+  const exportBtn = document.getElementById("exportBtn");
+  const originalLabel = exportBtn.textContent;
+  exportBtn.classList.add("success");
+  exportBtn.textContent = t('exportDownloadedBtn','Downloaded ✓');
+  fireConfetti(exportBtn);
+  document.getElementById("exportImportTip").style.display = "block";
+  setTimeout(()=>{
+    exportBtn.classList.remove("success");
+    exportBtn.textContent = originalLabel;
+  }, 1800);
+});
+
+document.getElementById("searchInput").addEventListener("input", (e)=>{
+  state.query = e.target.value; state.page = 1; scheduleSearch();
+});
+document.getElementById("sortSelect").addEventListener("change", (e)=>{
+  state.sort = e.target.value; state.page = 1; runSearch();
+});
+document.getElementById("mcVersion").addEventListener("change", (e)=>{
+  state.mcVersion = e.target.value; state.page = 1; runSearch();
+});
+document.querySelectorAll(".loaderCheck").forEach(cb=>{
+  cb.addEventListener("change", ()=>{
+    state.loaders = [...document.querySelectorAll(".loaderCheck:checked")].map(c=>c.value);
+    state.page = 1;
+    runSearch();
+  });
+});
+document.querySelectorAll(".envCheck").forEach(cb=>{
+  cb.addEventListener("change", ()=>{
+    state.environments = [...document.querySelectorAll(".envCheck:checked")].map(c=>c.value);
+    state.page = 1;
+    runSearch();
+  });
+});
+wireCategoryCheckboxes();
+document.getElementById("favSearchInput").addEventListener("input", (e)=>{
+  state.favSearch = e.target.value;
+  renderFavorites();
+});
+document.getElementById("favSortBtn").addEventListener("click", ()=>{
+  state.favSort = state.favSort === "alpha" ? "category" : "alpha";
+  renderFavorites();
+});
+let modpackSearchTimer = null;
+document.getElementById("modpackSearchInput").addEventListener("input", (e)=>{
+  state.modpackQuery = e.target.value;
+  state.modpackPage = 1;
+  clearTimeout(modpackSearchTimer);
+  modpackSearchTimer = setTimeout(runModpackSearch, 350);
+});
+document.getElementById("modpackSortSelect").addEventListener("change", (e)=>{
+  state.modpackSort = e.target.value;
+  state.modpackPage = 1;
+  runModpackSearch();
+});
+document.getElementById("modpackMcVersion").addEventListener("change", (e)=>{
+  state.modpackMcVersion = e.target.value; state.modpackPage = 1; runModpackSearch();
+});
+document.querySelectorAll(".modpackLoaderCheck").forEach(cb=>{
+  cb.addEventListener("change", ()=>{
+    state.modpackLoaders = [...document.querySelectorAll(".modpackLoaderCheck:checked")].map(c=>c.value);
+    state.modpackPage = 1;
+    runModpackSearch();
+  });
+});
+document.querySelectorAll(".modpackCatCheck").forEach(cb=>{
+  cb.addEventListener("change", ()=>{
+    state.modpackCategories = [...document.querySelectorAll(".modpackCatCheck:checked")].map(c=>c.value);
+    state.modpackPage = 1;
+    runModpackSearch();
+  });
+});
+function wireCatToggle(toggleId, bodyId){
+  const toggle = document.getElementById(toggleId);
+  const body = document.getElementById(bodyId);
+  const expanded = window.matchMedia("(min-width: 861px)").matches;
+  toggle.setAttribute("aria-expanded", String(expanded));
+  body.classList.toggle("open", expanded);
+  toggle.addEventListener("click", ()=>{
+    const isExpanded = toggle.getAttribute("aria-expanded") === "true";
+    toggle.setAttribute("aria-expanded", String(!isExpanded));
+    body.classList.toggle("open", !isExpanded);
+  });
+}
+wireCatToggle("catToggleBrowse", "catBodyBrowse");
+wireCatToggle("catToggleModpacks", "catBodyModpacks");
+wireCatToggle("catToggleEnv", "catBodyEnv");
+
+document.getElementById("removeAllBtn").addEventListener("click", async ()=>{
+  if(state.pack.length === 0) return;
+  const count = state.pack.length;
+  const ok = await showConfirm(
+    tPlural(count, 'removeAllConfirmOne','Remove all <strong>{n}</strong> item (mods, shaders, and resource packs) from Create? <strong>This action is permanent and cannot be undone.</strong>', 'removeAllConfirmOther','Remove all <strong>{n}</strong> items (mods, shaders, and resource packs) from Create? <strong>This action is permanent and cannot be undone.</strong>'),
+    {confirmLabel: t('removeAllConfirmBtn','Remove all')}
+  );
+  if(ok){
+    const listEl = document.getElementById("packList");
+    const summaryEl = document.getElementById("importSummary");
+    // A dismissed banner (or one from a previous, already-cleared import)
+    // has nothing left to animate - only fade it if it's still on screen.
+    const summaryVisible = !!(summaryEl && !summaryEl.hidden);
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const doClear = ()=>{
+      state.pack = [];
+      state.packIcon = "";
+      savePackIcon();
+      renderLogoPicker();
+      refreshAllViews();
+      listEl.classList.remove("pack-clear-out");
+      if(summaryVisible) summaryEl.classList.remove("import-summary-clear-out");
+      const emptyEl = document.getElementById("packEmpty");
+      if(!reduceMotion && emptyEl){
+        emptyEl.classList.remove("empty-pop-in");
+        void emptyEl.offsetWidth; // restart animation
+        requestAnimationFrame(()=> emptyEl.classList.add("empty-pop-in"));
+      }
+    };
+    const rows = listEl ? Array.from(listEl.querySelectorAll(".pack-row, .pack-category-label, .pack-type-label")) : [];
+    if(reduceMotion || !listEl || !rows.length){
+      doClear();
+    }else{
+      let done = false;
+      const finish = ()=>{ if(done) return; done = true; doClear(); };
+      listEl.classList.add("pack-clear-out");
+      if(summaryVisible) requestAnimationFrame(()=> summaryEl.classList.add("import-summary-clear-out"));
+      const stagger = Math.min(28, 260 / rows.length);
+      rows.forEach((row, i)=>{
+        row.style.transitionDelay = `${i * stagger}ms`;
+        requestAnimationFrame(()=> row.classList.add("row-clear-out"));
+      });
+      const totalDelay = (rows.length - 1) * stagger + 380;
+      setTimeout(finish, totalDelay);
+    }
+  }
+});
+document.getElementById("packSearchInput").addEventListener("input", (e)=>{
+  state.packSearch = e.target.value;
+  renderPack();
+});
+const autoCompatToggleEl = document.getElementById("autoCompatToggle");
+autoCompatToggleEl.checked = state.autoCompatCheck;
+autoCompatToggleEl.addEventListener("change", ()=>{
+  state.autoCompatCheck = autoCompatToggleEl.checked;
+  safeLocalStorageSet("modbench_auto_compat_check", state.autoCompatCheck ? "on" : "off");
+  updatePackIssueHighlights();
+  queueSync("settings", buildSettingsSnapshot());
+});
+document.getElementById("expLoader").addEventListener("change", ()=>{ state.expLoaderTouched = true; });
+document.getElementById("expMcVersion").addEventListener("change", ()=>{ state.expMcTouched = true; });
+document.getElementById("sortAlphaBtn").addEventListener("click", ()=>{
+  state.packSort = state.packSort === "alpha" ? "category" : "alpha";
+  document.getElementById("sortAlphaBtn").textContent = state.packSort === "alpha" ? t('sortGroupByCategory','Group by category') : t('createSortAZ','Sort A→Z');
+  document.getElementById("sortAlphaBtn").classList.toggle("active", state.packSort === "alpha");
+  renderPack();
+});
+document.getElementById("checkCompatBtn").addEventListener("click", async ()=>{
+  const btn = document.getElementById("checkCompatBtn");
+  const originalLabel = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = "Checking…";
+  try{
+    await showCompatibilityResults();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalLabel;
+  }
+});
+document.getElementById("checkUpdatesBtn").addEventListener("click", async ()=>{
+  const btn = document.getElementById("checkUpdatesBtn");
+  const originalLabel = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = t('updateChecking','Checking…');
+  try{
+    await showUpdateResults();
+  } finally {
+    btn.disabled = false;
+    btn.textContent = originalLabel;
+  }
+});
+document.getElementById("packIssueBanner").addEventListener("click", ()=>{
+  showCompatibilityResults();
+});
+document.getElementById("historyUndoBtn").addEventListener("click", ()=>{
+  undoLastAction();
+});
+document.getElementById("historyRedoBtn").addEventListener("click", ()=>{
+  redoLastAction();
+});
+document.getElementById("historyListToggleBtn").addEventListener("click", (e)=>{
+  e.stopPropagation();
+  const popover = document.getElementById("historyPopover");
+  const toggleBtn = document.getElementById("historyListToggleBtn");
+  const willOpen = popover.hidden;
+  popover.hidden = !willOpen;
+  toggleBtn.setAttribute("aria-expanded", String(willOpen));
+});
+document.getElementById("historyList").addEventListener("click", (e)=>{
+  const item = e.target.closest("[data-history-idx]");
+  if(!item) return;
+  undoHistoryToIndex(Number(item.dataset.historyIdx));
+});
+document.addEventListener("click", (e)=>{
+  const controls = document.getElementById("historyControls");
+  if(controls && !controls.contains(e.target)) closeHistoryPopover();
+});
+document.getElementById("gridBtn").addEventListener("click", ()=>{
+  state.view = "grid";
+  document.getElementById("gridBtn").classList.add("active");
+  document.getElementById("listBtn").classList.remove("active");
+  renderResults();
+});
+document.getElementById("listBtn").addEventListener("click", ()=>{
+  state.view = "list";
+  document.getElementById("listBtn").classList.add("active");
+  document.getElementById("gridBtn").classList.remove("active");
+  renderResults();
+});
+
+document.getElementById("favGridBtn").addEventListener("click", ()=>{
+  state.favView = "grid";
+  document.getElementById("favGridBtn").classList.add("active");
+  document.getElementById("favListBtn").classList.remove("active");
+  renderFavorites();
+});
+document.getElementById("favListBtn").addEventListener("click", ()=>{
+  state.favView = "list";
+  document.getElementById("favListBtn").classList.add("active");
+  document.getElementById("favGridBtn").classList.remove("active");
+  renderFavorites();
+});
+
+document.getElementById("modpackGridBtn").addEventListener("click", ()=>{
+  state.modpackView = "grid";
+  document.getElementById("modpackGridBtn").classList.add("active");
+  document.getElementById("modpackListBtn").classList.remove("active");
+  renderModpackResults();
+});
+document.getElementById("modpackListBtn").addEventListener("click", ()=>{
+  state.modpackView = "list";
+  document.getElementById("modpackListBtn").classList.add("active");
+  document.getElementById("modpackGridBtn").classList.remove("active");
+  renderModpackResults();
+});
+
+document.getElementById("packEmptyBrowseBtn").addEventListener("click", ()=>{
+  document.querySelector('nav.tabs button[data-tab="browse"]').click();
+});
+
+document.getElementById("mrpackFileInput").addEventListener("change", (e)=>{
+  const file = e.target.files[0];
+  importMrpackFile(file);
+  e.target.value = "";
+});
+
+(function setupMrpackDragDrop(){
+  const zone = document.getElementById("mrpackDropZone");
+  let dragDepth = 0;
+  ["dragenter","dragover","dragleave","drop"].forEach(evt=>{
+    zone.addEventListener(evt, (e)=>{ e.preventDefault(); e.stopPropagation(); });
+  });
+  zone.addEventListener("dragenter", ()=>{
+    dragDepth++;
+    zone.classList.add("drag-over");
+  });
+  zone.addEventListener("dragleave", ()=>{
+    dragDepth = Math.max(0, dragDepth - 1);
+    if(dragDepth === 0) zone.classList.remove("drag-over");
+  });
+  zone.addEventListener("drop", (e)=>{
+    dragDepth = 0;
+    zone.classList.remove("drag-over");
+    const file = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+    if(!file) return;
+    if(!file.name.toLowerCase().endsWith(".mrpack")){
+      showToast(t('alertDropMrpack',"Please drop a .mrpack file."));
+      return;
+    }
+    importMrpackFile(file);
+  });
+})();
+
+document.getElementById("logoFileInput").addEventListener("change", async (e)=>{
+  const file = e.target.files[0];
+  e.target.value = "";
+  if(!file) return;
+  if(!file.type.startsWith("image/")){
+    showToast(t('logoNotImage',"Please choose an image file."));
+    return;
+  }
+  if(file.size > 5 * 1024 * 1024){
+    showToast(t('logoTooBig',"Please choose an image under 5 MB."));
+    return;
+  }
+  try{
+    // Pack icons are displayed square by every launcher, so crop rather than
+    // let the launcher squash it. 256px also keeps the data URL small enough
+    // to sync without bloating every save.
+    const { dataUrl } = await cropImageToSquare(file, 256);
+    state.packIcon = dataUrl;
+    savePackIcon();
+    renderLogoPicker();
+  }catch(err){
+    console.warn(err);
+    showToast(t('logoBadImage',"That image couldn't be read. Try another one."));
+  }
+});
+
+document.getElementById("savePackBtn").addEventListener("click", saveCurrentPack);
+
+document.getElementById("logoResetBtn").addEventListener("click", ()=>{
+  state.packIcon = "";
+  savePackIcon();
+  renderLogoPicker();
+});
+
+document.addEventListener("click", (e)=>{
+  if(e.target.closest && e.target.closest("#shareLinkBtn")){
+    if(!canGenerateShareCodes()){
+      showToast(t('toastShareNeedsAccount',"Sign in to generate share codes."));
+      return;
+    }
+    showShareModal();
+  }
+});
+document.getElementById("copyShareCodeBtn2").addEventListener("click", async (e)=>{
+  if(!canGenerateShareCodes()){
+    showToast(t('toastShareNeedsAccount',"Sign in to generate share codes."));
+    return;
+  }
+  const data = buildShareData();
+  if(data.m.length === 0){
+    showToast(t('alertAddModsShareCode',"Add mods to your pack first, then copy a share code."));
+    return;
+  }
+  if(shareBackendConfigured() && getShareRemaining() <= 0){
+    showShareLimitReachedModal();
+    return;
+  }
+  const longCode = encodeShareData(data);
+  const btn = e.currentTarget;
+  let code = longCode;
+  if(shareBackendConfigured()){
+    const original = btn.innerHTML;
+    btn.disabled = true;
+    btn.innerHTML = t('shareCreatingCode','Creating code…');
+    try{
+      const shortId = await createShortShareCode(longCode);
+      code = `mb-${shortId}`;
+      recordShareUsage();
+      rememberShareCode(code);
+    }catch(err){
+      console.error(err);
+      btn.disabled = false;
+      btn.innerHTML = original;
+      if(err && err.rateLimited){
+        exhaustShareUsage();
+        showShareLimitReachedModal();
+        return;
+      }
+      copyTextToClipboard(code, btn);
+      return;
+    }
+    btn.disabled = false;
+    btn.innerHTML = original;
+  }
+  copyTextToClipboard(code, btn);
+});
+document.getElementById("shareImportBtn").addEventListener("click", ()=>{
+  importSharedPack(document.getElementById("shareImportInput").value);
+});
+document.getElementById("shareImportInput").addEventListener("keydown", (e)=>{
+  if(e.key === "Enter"){
+    e.preventDefault();
+    importSharedPack(document.getElementById("shareImportInput").value);
+  }
+});
+
+async function checkIncomingShareLink(){
+  const match = location.hash.match(/[#&]import=([^&\s]+)/);
+  if(!match) return;
+  const code = decodeURIComponent(match[1]);
+  history.replaceState(null, "", location.pathname + location.search);
+  let data;
+  try{
+    data = await resolveShareCode(code);
+    if(!data || !Array.isArray(data.m) || !data.m.length) throw new Error("bad shape");
+  }catch(e){
+    console.error(e);
+    return;
+  }
+  const ok = await showConfirm(
+    tPlural(data.m.length, 'importSharedPackConfirmOne','Import the shared pack{name} with <strong>{n}</strong> mod into Create?', 'importSharedPackConfirmOther','Import the shared pack{name} with <strong>{n}</strong> mods into Create?', {
+      name: data.n ? ` "<strong>${escapeHtml(data.n)}</strong>"` : ""
+    }),
+    {confirmLabel: t('importConfirmBtn','Import'), danger:false}
+  );
+  if(ok){
+    const exportTabBtn = document.querySelector('nav.tabs button[data-tab="export"]');
+    if(exportTabBtn) exportTabBtn.click();
+    document.getElementById("shareImportInput").value = code;
+    importSharedPack(code);
+  }
+}
+
+function showGettingStarted(force){
+  if(!force && safeLocalStorageGet("modbench_intro_seen")) return;
+  const backdrop = document.createElement("div");
+  backdrop.className = "modal-backdrop intro-backdrop";
+  backdrop.innerHTML = `
+    <div class="modal intro-modal">
+      <div class="modal-head">
+        <span class="intro-logo"><img src="icons/logo.png" alt="ModBench logo"></span>
+        <div class="intro-head-text">
+          <div class="name">${t('introWelcomeTitle','Welcome to ModBench')}</div>
+          <p style="margin:2px 0 0; color:var(--text-dim); font-size:0.86rem;">${t('introWelcomeSubtitle','Here is a quick tour before you start building a pack.')}</p>
+        </div>
+      </div>
+      <div class="intro-steps">
+        <div class="intro-step">
+          <div class="intro-step-icon">🔍</div>
+          <div>
+            <h4>${t('introBrowseTitle','Browse')}</h4>
+            <p>${t('introBrowseDesc','<strong>Search</strong> live mods, shaders, and resource packs straight from Modrinth. <strong>Filter</strong> by Minecraft version, loader, and category, then add anything you like.')}</p>
+            <p style="margin-top:6px;">${t('introBrowseTip','Tip: hover a mod and press <kbd>A</kbd> to quickly add it to Create.')}</p>
+          </div>
+        </div>
+        <div class="intro-step">
+          <div class="intro-step-icon">🧰</div>
+          <div>
+            <h4>${t('introCreateTitle','Create')}</h4>
+            <p>${t('introCreateDesc',"Everything you've added lives here. <strong>Pick</strong> a specific file per mod, <strong>check compatibility</strong> across your whole pack, and remove anything you change your mind about.")}</p>
+            <p style="margin-top:6px;">${t('introCreateTip','Tip: hover a mod in your pack and press <kbd>R</kbd> to quickly remove it.')}</p>
+          </div>
+        </div>
+        <div class="intro-step">
+          <div class="intro-step-icon">📦</div>
+          <div>
+            <h4>${t('introModpacksTitle','Modpacks')}</h4>
+            <p>${t('introModpacksDesc','<strong>Browse</strong> existing modpacks on Modrinth and <strong>import</strong> their entire mod list into Create in one click, a great starting point for your own pack.')}</p>
+          </div>
+        </div>
+        <div class="intro-step">
+          <div class="intro-step-icon">⭐</div>
+          <div>
+            <h4>${t('introFavoritesTitle','Favorites')}</h4>
+            <p>${t('introFavoritesDesc',"<strong>Like</strong> mods while browsing to save them for later, independent of whatever pack you're currently building.")}</p>
+          </div>
+        </div>
+        <div class="intro-step">
+          <div class="intro-step-icon">⬇️</div>
+          <div>
+            <h4>${t('introExportTitle','Export')}</h4>
+            <p>${t('introExportDesc',"<strong>Name</strong> your pack, set its Minecraft version and loader, and <strong>download</strong> a ready-to-use <code>.mrpack</code>. You can also import an existing <code>.mrpack</code> here to keep editing it, and customize the pack's icon before exporting.")}</p>
+          </div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="export-btn" id="introCloseBtn" style="flex:1;">${t('introGotIt',"Got it, let's go")}</button>
+      </div>
+      <p class="intro-footnote">${t('introFootnote','You can reopen this guide any time from the <strong>?</strong> button in the header.')}</p>
+    </div>
+  `;
+  document.body.appendChild(backdrop);
+  const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  function close(){
+    safeLocalStorageSet("modbench_intro_seen", "1");
+    if(reduceMotion){
+      backdrop.remove();
+      return;
+    }
+    const modalEl = backdrop.querySelector(".intro-modal");
+    backdrop.classList.add("closing");
+    if(modalEl) modalEl.classList.add("closing");
+    let done = false;
+    const finish = ()=>{ if(done) return; done = true; backdrop.remove(); };
+    backdrop.addEventListener("animationend", finish, {once:true});
+    setTimeout(finish, 220);
+  }
+  backdrop.querySelector("#introCloseBtn").addEventListener("click", close);
+  backdrop.addEventListener("click", (e)=>{ if(e.target === backdrop) close(); });
+}
+/* ---- Header burger menu (guide / language / theme) ---- */
+const headerMenuEl = document.getElementById("headerMenu");
+const headerMenuBtn = document.getElementById("headerMenuBtn");
+let headerMenuOpen = false;
+
+function closeHeaderMenu(immediate){
+  if(!headerMenuOpen) return;
+  headerMenuOpen = false;
+  headerMenuBtn.setAttribute("aria-expanded", "false");
+  document.removeEventListener("click", closeHeaderMenuOnOutsideClick);
+  document.removeEventListener("keydown", closeHeaderMenuOnEscape);
+  const reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  if(immediate || reduced){ headerMenuEl.hidden = true; return; }
+  headerMenuEl.classList.add("closing");
+  let done = false;
+  const hide = ()=>{
+    if(done) return;
+    done = true;
+    headerMenuEl.classList.remove("closing");
+    headerMenuEl.hidden = true;
+  };
+  headerMenuEl.addEventListener("animationend", hide, { once: true });
+  setTimeout(hide, 240);
+}
+function closeHeaderMenuOnOutsideClick(e){
+  if(!headerMenuEl.contains(e.target) && e.target !== headerMenuBtn) closeHeaderMenu();
+}
+function closeHeaderMenuOnEscape(e){
+  if(e.key === "Escape"){ closeHeaderMenu(); headerMenuBtn.focus(); }
+}
+function openHeaderMenu(){
+  if(typeof closeAccountMenu === "function") closeAccountMenu(true);
+  headerMenuEl.classList.remove("closing");
+  headerMenuEl.hidden = false;
+  headerMenuOpen = true;
+  headerMenuBtn.setAttribute("aria-expanded", "true");
+  setTimeout(()=>{
+    document.addEventListener("click", closeHeaderMenuOnOutsideClick);
+    document.addEventListener("keydown", closeHeaderMenuOnEscape);
+  }, 0);
+}
+headerMenuBtn.addEventListener("click", (e)=>{
+  e.stopPropagation();
+  headerMenuOpen ? closeHeaderMenu() : openHeaderMenu();
+});
+document.getElementById("helpToggle").addEventListener("click", ()=>{
+  closeHeaderMenu(true);
+  showGettingStarted(true);
+});
+
+document.getElementById("themeToggle").addEventListener("click", ()=>{
+  const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+  if(isDark){
+    document.documentElement.removeAttribute("data-theme");
+    safeLocalStorageSet("modbench-theme", "light");
+  } else {
+    document.documentElement.setAttribute("data-theme", "dark");
+    safeLocalStorageSet("modbench-theme", "dark");
+  }
+});
+
+const SEARCH_INPUT_ID_BY_TAB = {
+  browse: "searchInput",
+  pack: "packSearchInput",
+  modpacks: "modpackSearchInput",
+  favorites: "favSearchInput"
+};
+document.addEventListener("keydown", (e)=>{
+  if((e.metaKey || e.ctrlKey) && e.key === "Enter"){
+    const exportBtn = document.getElementById("exportBtn");
+    if(exportBtn && !exportBtn.disabled) exportBtn.click();
+    e.preventDefault();
+    return;
+  }
+  if(e.metaKey || e.ctrlKey || e.altKey) return;
+  const active = document.activeElement;
+  const isTyping = active && (active.tagName === "INPUT" || active.tagName === "TEXTAREA" || active.isContentEditable);
+  if((e.key === "/" || e.key === ":") && !isTyping){
+    const inputId = SEARCH_INPUT_ID_BY_TAB[state.tab];
+    const input = inputId ? document.getElementById(inputId) : null;
+    if(input && input.offsetParent !== null){
+      e.preventDefault();
+      input.focus();
+      input.select();
+    }
+    return;
+  }
+  if((e.key === "a" || e.key === "A") && !isTyping && hoveredAddCard && document.body.contains(hoveredAddCard)){
+    e.preventDefault();
+    if(e.repeat) return;
+    const addBtn = hoveredAddCard.querySelector("[data-add]");
+    if(addBtn && !addBtn.disabled) addBtn.click();
+    return;
+  }
+  if((e.key === "r" || e.key === "R") && !isTyping && hoveredPackRow && document.body.contains(hoveredPackRow)){
+    e.preventDefault();
+    if(e.repeat) return;
+    const removeBtn = hoveredPackRow.querySelector("[data-remove]");
+    if(removeBtn) removeBtn.click();
+    return;
+  }
+  if(e.key === "Escape" && isTyping && active.tagName === "INPUT" && Object.values(SEARCH_INPUT_ID_BY_TAB).includes(active.id) && active.value === ""){
+    active.blur();
+  }
+});
+
+updatePackCount();
+updateFavCount();
+renderLogoPicker();
+const gameVersionRankReady = loadGameVersions().then(()=>{
+  if(state.tab === "pack") renderPack();
+});
+runSearch();
+
+(function applyInitialTabFromUrl(){
+  const params = new URLSearchParams(location.search);
+  const urlTab = params.get("tab");
+  const tab = TAB_URL_TO_INTERNAL[urlTab] || urlTab;
+  if(tab && tab !== "browse" && TAB_IDS.includes(tab)) activateTab(tab, {push:false});
+})();
+
+initAuth().finally(()=>{
+  if(location.hash.includes("import=")){
+    checkIncomingShareLink();
+  } else {
+    showGettingStarted();
+  }
+});
