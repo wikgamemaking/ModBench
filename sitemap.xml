@@ -7,25 +7,25 @@
     <priority>1.0</priority>
   </url>
   <url>
-    <loc>https://modbench.net/?tab=pack</loc>
+    <loc>https://modbench.net/create/</loc>
     <lastmod>2026-09-13</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.7</priority>
   </url>
   <url>
-    <loc>https://modbench.net/?tab=modpacks</loc>
+    <loc>https://modbench.net/modpacks/</loc>
     <lastmod>2026-09-13</lastmod>
     <changefreq>weekly</changefreq>
     <priority>0.6</priority>
   </url>
   <url>
-    <loc>https://modbench.net/?tab=saved</loc>
+    <loc>https://modbench.net/saved/</loc>
     <lastmod>2026-09-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.4</priority>
   </url>
   <url>
-    <loc>https://modbench.net/?tab=export</loc>
+    <loc>https://modbench.net/export/</loc>
     <lastmod>2026-09-13</lastmod>
     <changefreq>monthly</changefreq>
     <priority>0.4</priority>
