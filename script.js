@@ -242,11 +242,28 @@ if(rest){ rest.hidden = false; }
 toggle.remove();
 });
 const MAX_VISIBLE_TOASTS = 4;
-function dismissToastEl(el){
+function collapseAndRemoveToast(el){
+if(!el.isConnected) return;
 clearTimeout(el._dismissTimer);
+const reduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
 el.classList.add("leaving");
-el.addEventListener("animationend", ()=>el.remove(), { once:true });
-setTimeout(()=>el.remove(), 250);
+if(reduced){ el.remove(); return; }
+const rect = el.getBoundingClientRect();
+el.style.height = rect.height + "px";
+void el.offsetHeight;
+requestAnimationFrame(()=>{
+el.style.height = "0px";
+el.style.marginBottom = "0px";
+el.style.paddingTop = "0px";
+el.style.paddingBottom = "0px";
+});
+let done = false;
+const finish = ()=>{ if(done) return; done = true; el.remove(); };
+el.addEventListener("transitionend", (e)=>{ if(e.propertyName === "height") finish(); });
+setTimeout(finish, 320);
+}
+function dismissToastEl(el){
+collapseAndRemoveToast(el);
 }
 function showToast(message, opts = {}){
 const { actionLabel, onAction, duration = 6000, variant } = opts;
