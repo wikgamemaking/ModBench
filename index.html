@@ -2289,16 +2289,16 @@
           <span id="shareImportStatusText"></span>
         </div>
         <div style="display:flex; gap:8px;">
-          <input type="text" id="shareImportInput" placeholder="Paste share code" style="flex:1; min-width:0;" data-i18n-attr="placeholder:exportPasteShareCode">
+          <input type="text" id="shareImportInput" maxlength="8000" placeholder="Paste share code" style="flex:1; min-width:0;" data-i18n-attr="placeholder:exportPasteShareCode">
           <button type="button" class="export-btn" id="shareImportBtn" style="width:auto; margin-top:0; padding:0 16px; white-space:nowrap;" data-i18n="exportImportBtn">Import</button>
         </div>
       </div>
 
       <label for="packName" data-i18n="exportPackName">Pack name</label>
-      <input type="text" id="packName" placeholder="My Modpack" value="My Modpack (via ModBench)" data-i18n-attr="placeholder:exportPackNamePlaceholder">
+      <input type="text" id="packName" maxlength="100" placeholder="My Modpack" value="My Modpack (via ModBench)" data-i18n-attr="placeholder:exportPackNamePlaceholder">
 
       <label for="packVersion" data-i18n="exportPackVersion">Pack version</label>
-      <input type="text" id="packVersion" placeholder="1.0.0" value="1.0.0">
+      <input type="text" id="packVersion" maxlength="50" placeholder="1.0.0" value="1.0.0">
 
       <label data-i18n="exportModpackIcon">Modpack icon</label>
       <div class="logo-picker">
