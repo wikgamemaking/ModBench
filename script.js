@@ -4,6 +4,107 @@ let importedPackNotes = [];
 let lastImportReport = null;
 let passthroughFiles = [];
 let importedOverrides = [];
+
+/* =============================================================================
+   SECURITY HARDENING — read this before touching auth, fetch, or share-code code
+   =============================================================================
+   ModBench is a static, client-only app (GitHub Pages, no server we control).
+   That shapes what "security hardening" can mean here:
+
+   1) RATE LIMITING
+      A page of JavaScript can never enforce real IP-based rate limiting —
+      anyone can just reload the page or open dev tools and skip our code.
+      The actual security boundary lives on the servers we call:
+        - Supabase Auth (GoTrue) already rate-limits sign-in/sign-up/password
+          reset/email-sending per project. Tune it under
+          Project Settings -> Auth -> Rate Limits in the Supabase dashboard —
+          that is the authoritative control, not anything below.
+        - Share-code creation is capped server-side (see DAILY_SHARE_LIMIT /
+          createShortShareCode) via a Postgres check tied to the signed-in
+          user, enforced by RLS + a DB constraint/function, not by the client.
+        - Modrinth's public API enforces its own per-IP rate limits and
+          returns HTTP 429 when exceeded.
+      What we *can* usefully do client-side is (a) be a good citizen and slow
+      ourselves down before we get a 429, (b) stop a user from hammering a
+      button (double-submits, accidental spam), and (c) turn a raw 429 into a
+      clear "try again in Xs" message instead of a confusing generic error.
+      That's what clientRateLimit() / apiFetch() below do. Treat them as UX
+      polish and abuse-friction, not as the real defense.
+
+   2) INPUT VALIDATION
+      Anything typed by a user, or decoded from a share code someone else
+      generated, is untrusted. We validate shape/type/length here for two
+      real reasons even without a server of our own: it stops malformed data
+      from corrupting localStorage / the exported .mrpack, and it stops a
+      hostile share code (arbitrary base64 someone crafted by hand and sent
+      as a link) from injecting oversized or unexpected data into the app.
+      The DOM-injection side (XSS) is handled by consistently escaping with
+      escapeHtml() at render time — validateFields() below additionally
+      rejects the input up front so bad data never gets that far.
+
+   3) API KEYS
+      The only credential in this file is SUPABASE_ANON_KEY. That is not a
+      secret — per Supabase's own docs, the anon key is meant to ship in
+      client bundles, and it is safe specifically because every table it can
+      touch is protected by Postgres Row Level Security (RLS) policies on
+      the server. Hiding it (env vars, a build step, obfuscation) would not
+      add real security, since anything sent to the browser is visible to
+      the user by definition — it would just move the same string into a
+      bundler config while giving a false sense of secrecy. The actual
+      security control is: keep RLS policies correct, and never add a
+      genuinely secret key (a Supabase service_role key, a paid API key with
+      a quota you're billed for, etc.) to this client-side file. If a future
+      feature needs a real secret, it MUST go behind a server component we
+      control (e.g. a Supabase Edge Function) that holds the secret and the
+      browser never sees it — not into script.js.
+   ============================================================================= */
+
+/**
+ * Client-side sliding-window rate limiter. Backed by localStorage so a
+ * cooldown survives a page reload (closing the modal and reopening it
+ * shouldn't reset the clock). This is UX friction, not a security boundary —
+ * see the note above.
+ *
+ * @param {string} action  unique key for the thing being limited, e.g. "auth:reset"
+ * @param {number} max     max allowed hits inside the window
+ * @param {number} windowMs window size in ms
+ * @returns {{allowed:boolean, retryAfterMs:number}}
+ */
+function clientRateLimit(action, max, windowMs){
+const key = `modbench_ratelimit_${action}`;
+const now = Date.now();
+let hits = [];
+try{
+hits = JSON.parse(safeLocalStorageGet(key, "[]"));
+if(!Array.isArray(hits)) hits = [];
+}catch(e){ hits = []; }
+hits = hits.filter(ts=>now - ts < windowMs);
+if(hits.length >= max){
+const retryAfterMs = windowMs - (now - hits[0]);
+return { allowed: false, retryAfterMs: Math.max(0, retryAfterMs) };
+}
+hits.push(now);
+safeLocalStorageSet(key, JSON.stringify(hits));
+return { allowed: true, retryAfterMs: 0 };
+}
+
+/** Formats a millisecond duration as "in 12s" / "in 2m" for cooldown messages. */
+function formatRetryAfter(ms){
+const secs = Math.ceil(ms / 1000);
+if(secs < 60) return t('rateLimitInSeconds', 'in {n}s').replace('{n}', secs);
+const mins = Math.ceil(secs / 60);
+return t('rateLimitInMinutes', 'in {n}m').replace('{n}', mins);
+}
+
+/** Error type thrown when a request is refused for being rate-limited. */
+class RateLimitedError extends Error{
+constructor(message, retryAfterMs){
+super(message);
+this.name = "RateLimitedError";
+this.retryAfterMs = retryAfterMs || 0;
+}
+}
+
 async function fetchWithTimeout(url, options = {}, timeoutMs = 15000){
 const controller = new AbortController();
 const timer = setTimeout(()=>controller.abort(), timeoutMs);
@@ -15,6 +116,104 @@ throw e;
 }finally{
 clearTimeout(timer);
 }
+}
+
+/**
+ * Wraps fetchWithTimeout for calls to third-party public APIs (Modrinth,
+ * loader metadata services, etc.) and turns their own rate limiting into a
+ * clean signal instead of a confusing generic failure:
+ *  - On HTTP 429, honors a Retry-After header (seconds or HTTP-date) with a
+ *    short bounded backoff and retries once; if it's still 429, throws a
+ *    RateLimitedError with the wait time so the UI can show
+ *    "Too many requests, try again in Xs" instead of a stack trace.
+ * Callers that already do their own res.ok handling keep working unchanged —
+ * this only changes behavior on an actual 429.
+ */
+async function apiFetch(url, options = {}, timeoutMs = 15000){
+let res = await fetchWithTimeout(url, options, timeoutMs);
+if(res.status === 429){
+const waitMs = parseRetryAfter(res.headers.get("Retry-After"), 2000, 8000);
+await new Promise(r=>setTimeout(r, waitMs));
+res = await fetchWithTimeout(url, options, timeoutMs);
+if(res.status === 429){
+const retryAfterMs = parseRetryAfter(res.headers.get("Retry-After"), 5000, 30000);
+throw new RateLimitedError("Too many requests — please slow down.", retryAfterMs);
+}
+}
+return res;
+}
+
+/** Parses a Retry-After header (seconds or HTTP-date) into a bounded ms value. */
+function parseRetryAfter(header, minMs, maxMs){
+if(!header) return minMs;
+const asSeconds = Number(header);
+let ms;
+if(!isNaN(asSeconds)) ms = asSeconds * 1000;
+else {
+const date = Date.parse(header);
+ms = isNaN(date) ? minMs : (date - Date.now());
+}
+return Math.min(maxMs, Math.max(minMs, ms || minMs));
+}
+
+/**
+ * Minimal schema validator for untrusted input (form fields, decoded share
+ * codes). Rejects unknown fields, enforces type/length/pattern, and returns
+ * a *new*, clamped object — callers should use the returned value, not the
+ * original, so nothing unvalidated slips through.
+ *
+ * schema: { fieldName: { type: 'string'|'number'|'array', required, maxLength,
+ *   minLength, pattern, max, min, itemPattern, itemMaxLength, maxItems } }
+ */
+function validateFields(input, schema){
+const errors = [];
+const out = {};
+const src = (input && typeof input === "object") ? input : {};
+for(const field of Object.keys(schema)){
+const rule = schema[field];
+let value = src[field];
+if(value === undefined || value === null){
+if(rule.required){ errors.push(`${field} is required`); }
+else if(rule.default !== undefined){ out[field] = rule.default; }
+continue;
+}
+if(rule.type === "string"){
+value = String(value);
+// Strip control/zero-width characters that have no legitimate use in
+// names, versions, codes, etc. and are a common obfuscation vector.
+value = value.replace(/[\u0000-\u001F\u007F\u200B-\u200D\uFEFF]/g, "");
+if(rule.trim !== false) value = value.trim();
+if(typeof rule.maxLength === "number") value = value.slice(0, rule.maxLength);
+if(typeof rule.minLength === "number" && value.length < rule.minLength){
+errors.push(`${field} is too short`); continue;
+}
+if(rule.pattern && !rule.pattern.test(value)){
+errors.push(`${field} has an invalid format`); continue;
+}
+out[field] = value;
+} else if(rule.type === "number"){
+value = Number(value);
+if(!Number.isFinite(value)){ errors.push(`${field} must be a number`); continue; }
+if(typeof rule.min === "number") value = Math.max(rule.min, value);
+if(typeof rule.max === "number") value = Math.min(rule.max, value);
+out[field] = value;
+} else if(rule.type === "array"){
+if(!Array.isArray(value)){ errors.push(`${field} must be a list`); continue; }
+let arr = value.slice(0, rule.maxItems || 500);
+if(rule.itemMaxLength || rule.itemPattern){
+arr = arr
+.map(v=>String(v).slice(0, rule.itemMaxLength || 200))
+.filter(v=>!rule.itemPattern || rule.itemPattern.test(v));
+}
+out[field] = arr;
+} else {
+out[field] = value;
+}
+}
+// Unexpected fields are dropped silently (not copied into `out`) rather
+// than rejected outright — a hostile input can't smuggle extra data in,
+// but this stays permissive enough not to break forward-compatible codes.
+return { valid: errors.length === 0, errors, value: out };
 }
 const projectAuthorCache = new Map();
 async function resolveProjectAuthor(projectId){
@@ -671,6 +870,13 @@ const drop = ()=>{ if(done) return; done = true; backdrop.remove(); };
 backdrop.addEventListener("animationend", drop, { once: true });
 setTimeout(drop, 300);
 }
+// Explicit allowlist rather than "starts with image/": SVG is technically
+// an image MIME type but can embed <script>/event-handler payloads, so it's
+// deliberately excluded from anything we render back (avatar, pack icon).
+const ALLOWED_IMAGE_TYPES = ["image/png", "image/jpeg", "image/webp", "image/gif"];
+function isAllowedImageFile(file){
+return Boolean(file) && ALLOWED_IMAGE_TYPES.includes(file.type);
+}
 const AVATAR_BUCKET = "avatars";
 async function uploadAvatarToStorage(blob){
 if(!state.user || !state.session) throw new Error("not signed in");
@@ -754,7 +960,7 @@ note.className = "avatar-note" + (kind ? " " + kind : "");
 }
 async function accept(file){
 if(!file) return;
-if(!file.type.startsWith("image/")){
+if(!isAllowedImageFile(file)){
 setNote(t('avatarNotImage',"That file isn't an image."), "err");
 return;
 }
@@ -794,7 +1000,13 @@ backdrop.addEventListener("dragover", (e)=>e.preventDefault());
 backdrop.addEventListener("drop", (e)=>e.preventDefault());
 const nameInput = backdrop.querySelector("#displayNameInput");
 saveBtn.addEventListener("click", async ()=>{
-const newName = (nameInput.value || "").trim();
+// Defense in depth alongside the input's maxlength="40": strips control
+// characters and clamps length even if the DOM attribute is bypassed.
+const { value: nameFields } = validateFields(
+{ display_name: nameInput.value },
+{ display_name: { type: "string", maxLength: 40 } }
+);
+const newName = nameFields.display_name || "";
 const currentName = getDisplayName(state.user) || "";
 const nameChanged = newName !== currentName;
 if(!pending && !nameChanged){ close(); return; }
@@ -910,7 +1122,7 @@ bodyEl.innerHTML = `
             <label for="authEmail">${t('authEmailLabel','Email')}</label>
             <div class="auth-field-input-wrap">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"></rect><polyline points="22 6 12 13 2 6"></polyline></svg>
-              <input type="email" id="authEmail" autocomplete="email" required>
+              <input type="email" id="authEmail" autocomplete="email" maxlength="254" required>
             </div>
           </div>
           ${isReset ? "" : `
@@ -918,7 +1130,7 @@ bodyEl.innerHTML = `
             <label for="authPassword">${t('authPasswordLabel','Password')}</label>
             <div class="auth-field-input-wrap">
               <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-              <input type="password" id="authPassword" autocomplete="${mode==='signup' ? 'new-password' : 'current-password'}" minlength="6" required>
+              <input type="password" id="authPassword" autocomplete="${mode==='signup' ? 'new-password' : 'current-password'}" minlength="6" maxlength="128" required>
             </div>
             ${mode==='signup' ? pwStrengthMarkup('authPassword') : ""}
           </div>`}
@@ -1013,8 +1225,31 @@ const strengthEl = backdrop.querySelector("#authPasswordStrength");
 if(strengthEl) attachPasswordStrength(backdrop.querySelector("#authPassword"), strengthEl);
 }
 }
+// Per-action client-side cooldowns. These are UX friction against
+// accidental spam/double-clicks, not the real defense — see the SECURITY
+// HARDENING note near the top of this file. The real limits live on
+// Supabase's Auth server (Project Settings -> Auth -> Rate Limits).
+// Password reset gets the strictest budget since each attempt sends an
+// email — this is also what stops the "reset password" button from being
+// used to spam a stranger's inbox.
+const AUTH_RATE_LIMITS = {
+signin: { max: 6, windowMs: 5 * 60 * 1000 },      // 6 tries / 5 min
+signup: { max: 4, windowMs: 15 * 60 * 1000 },     // 4 tries / 15 min
+reset:  { max: 3, windowMs: 15 * 60 * 1000 },     // 3 emails / 15 min
+oauth:  { max: 8, windowMs: 60 * 1000 }           // 8 clicks / minute (debounce, not abuse-grade)
+};
+
+const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
 async function handleOAuth(provider){
 showError("");
+// Debounce rapid/double clicks on the OAuth buttons — each one opens a
+// provider redirect, and stacking several is confusing, not useful.
+const limit = clientRateLimit("auth:oauth", AUTH_RATE_LIMITS.oauth.max, AUTH_RATE_LIMITS.oauth.windowMs);
+if(!limit.allowed){
+showError(tf('authErrRateLimitedWithTime','Too many attempts — try again {when}.', { when: formatRetryAfter(limit.retryAfterMs) }));
+return;
+}
 signedOutIntentionally = false;
 try{
 const { error } = await sb.auth.signInWithOAuth({
@@ -1031,11 +1266,39 @@ async function handleSubmit(e){
 e.preventDefault();
 showError("");
 const submitBtn = backdrop.querySelector("#authSubmitBtn");
-const email = backdrop.querySelector("#authEmail").value.trim();
+
+// --- Input validation (schema-based, defense in depth) ---------------
+// Reject/clamp before we ever touch the network: enforce type, trim,
+// strip control characters, and cap length. Supabase re-validates on its
+// end regardless — this just fails fast with a clear message and stops
+// pathological input (e.g. a 50,000-character paste) from being sent.
+const rawEmail = backdrop.querySelector("#authEmail").value;
 const passwordInput = backdrop.querySelector("#authPassword");
-const password = passwordInput ? passwordInput.value : "";
+const rawPassword = passwordInput ? passwordInput.value : "";
+const { value: fields } = validateFields(
+{ email: rawEmail, password: rawPassword },
+{
+email: { type: "string", required: true, maxLength: 254 },
+// Passwords are never trimmed (a leading/trailing space can be part
+// of a deliberate password) and capped high enough to never affect a
+// real password, just to stop absurd input sizes.
+password: { type: "string", required: mode !== "reset", trim: false, maxLength: 128 }
+}
+);
+const email = fields.email || "";
+const password = fields.password || "";
 if(!email){ showError(t('authErrMissingEmail','Enter your email.')); return; }
+if(!EMAIL_PATTERN.test(email)){ showError(t('authErrInvalidEmail','Enter a valid email address.')); return; }
 if(mode !== "reset" && password.length < 6){ showError(t('authErrWeakPassword','Password must be at least 6 characters.')); return; }
+
+// --- Rate limiting -----------------------------------------------------
+const limitCfg = AUTH_RATE_LIMITS[mode] || AUTH_RATE_LIMITS.signin;
+const limit = clientRateLimit(`auth:${mode}`, limitCfg.max, limitCfg.windowMs);
+if(!limit.allowed){
+showError(tf('authErrRateLimitedWithTime','Too many attempts — try again {when}.', { when: formatRetryAfter(limit.retryAfterMs) }));
+return;
+}
+
 if(isLoadingButton(submitBtn)) return;
 startLoadingButton(submitBtn);
 signedOutIntentionally = false;
@@ -1100,7 +1363,7 @@ backdrop.innerHTML = `
           <label for="newPassword">${t('authNewPasswordLabel','New password')}</label>
           <div class="auth-field-input-wrap">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-            <input type="password" id="newPassword" autocomplete="new-password" minlength="6" required>
+            <input type="password" id="newPassword" autocomplete="new-password" minlength="6" maxlength="128" required>
           </div>
           ${pwStrengthMarkup('newPassword')}
         </div>
@@ -1122,7 +1385,11 @@ e.preventDefault();
 const btn = document.getElementById("newPasswordSubmitBtn");
 if(isLoadingButton(btn)) return;
 document.getElementById("newPasswordErrorSlot").innerHTML = "";
-const password = document.getElementById("newPassword").value;
+const { value: fields } = validateFields(
+{ password: document.getElementById("newPassword").value },
+{ password: { type: "string", required: true, trim: false, maxLength: 128 } }
+);
+const password = fields.password || "";
 if(password.length < 6){
 showError(t('authPasswordTooShort','Password must be at least 6 characters.'));
 return;
@@ -2276,17 +2543,22 @@ const ASCENDING_SORT_MAP = { downloads_asc: "downloads", oldest: "newest" };
 async function fetchSortedPage(query, facets, sort, page, pageSize){
   const isAscending = ASCENDING_SORT_MAP.hasOwnProperty(sort);
   const apiIndex = isAscending ? ASCENDING_SORT_MAP[sort] : sort;
+  // Cap query length before it goes anywhere near a URL/network call — a
+  // pathological paste (e.g. thousands of characters) shouldn't turn into
+  // an oversized request. Modrinth would reject/handle it anyway, but this
+  // fails fast and keeps the URL sane.
+  const safeQuery = String(query || "").slice(0, 200);
 
   if(!isAscending){
-    const params = new URLSearchParams({ query, limit:String(pageSize), offset:String((page-1)*pageSize), index:apiIndex, facets:JSON.stringify(facets) });
-    const res = await fetch(`${API}/search?${params.toString()}`);
+    const params = new URLSearchParams({ query: safeQuery, limit:String(pageSize), offset:String((page-1)*pageSize), index:apiIndex, facets:JSON.stringify(facets) });
+    const res = await apiFetch(`${API}/search?${params.toString()}`);
     if(!res.ok) throw new Error("Search failed: " + res.status);
     const data = await res.json();
     return { hits: data.hits || [], totalHits: data.total_hits || 0 };
   }
 
-  const countParams = new URLSearchParams({ query, limit:"1", offset:"0", index:apiIndex, facets:JSON.stringify(facets) });
-  const countRes = await fetch(`${API}/search?${countParams.toString()}`);
+  const countParams = new URLSearchParams({ query: safeQuery, limit:"1", offset:"0", index:apiIndex, facets:JSON.stringify(facets) });
+  const countRes = await apiFetch(`${API}/search?${countParams.toString()}`);
   if(!countRes.ok) throw new Error("Search failed: " + countRes.status);
   const totalHits = (await countRes.json()).total_hits || 0;
 
@@ -2295,8 +2567,8 @@ async function fetchSortedPage(query, facets, sort, page, pageSize){
 
   const limit = Math.min(pageSize, remainingBefore);
   const offset = Math.max(0, totalHits - page * pageSize);
-  const params = new URLSearchParams({ query, limit:String(limit), offset:String(offset), index:apiIndex, facets:JSON.stringify(facets) });
-  const res = await fetch(`${API}/search?${params.toString()}`);
+  const params = new URLSearchParams({ query: safeQuery, limit:String(limit), offset:String(offset), index:apiIndex, facets:JSON.stringify(facets) });
+  const res = await apiFetch(`${API}/search?${params.toString()}`);
   if(!res.ok) throw new Error("Search failed: " + res.status);
   const data = await res.json();
   return { hits: (data.hits || []).slice().reverse(), totalHits };
@@ -2341,7 +2613,11 @@ async function runSearch(){
     renderPagination();
   }catch(e){
     console.error(e);
-    statusEl.textContent = t('browseApiError',"Couldn't reach Modrinth's API from this page.");
+    if(e instanceof RateLimitedError){
+      statusEl.textContent = tf('browseRateLimited',"Modrinth's API is rate-limiting us — try again {when}.", { when: formatRetryAfter(e.retryAfterMs) });
+    } else {
+      statusEl.textContent = t('browseApiError',"Couldn't reach Modrinth's API from this page.");
+    }
   }
 }
 
@@ -4711,7 +4987,11 @@ renderModpackResults();
 renderModpackPagination();
 }catch(e){
 console.error(e);
+if(e instanceof RateLimitedError){
+statusEl.textContent = tf('modpackRateLimited',"Modrinth's API is rate-limiting us — try again {when}.", { when: formatRetryAfter(e.retryAfterMs) });
+} else {
 statusEl.textContent = t('modpackApiError',"Couldn't reach Modrinth's API from this page.");
+}
 }
 }
 function renderModpackResults(){
@@ -5145,8 +5425,12 @@ endImportOp();
 }
 function buildShareData(){
 const versionIds = state.pack.filter(m=>m.selectedVersionId).map(m=>m.selectedVersionId);
+const { value } = validateFields(
+{ n: document.getElementById("packName").value },
+{ n: { type: "string", maxLength: 100 } }
+);
 return {
-n: (document.getElementById("packName").value || "").trim(),
+n: value.n || "",
 mc: document.getElementById("expMcVersion").value || "",
 l: document.getElementById("expLoader").value || "",
 m: versionIds
@@ -5163,22 +5447,62 @@ data.m.join(",")
 const b64 = btoa(unescape(encodeURIComponent(raw)));
 return b64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
 }
+// Modrinth project IDs/slugs are short alnum+dash+underscore strings. This
+// is intentionally permissive (matches Modrinth's own slug rules) but still
+// rejects anything that couldn't possibly be a real project reference.
+const MODRINTH_ID_PATTERN = /^[a-zA-Z0-9_-]{1,64}$/;
+
 function decodeShareCode(code){
-let b64 = code.trim().replace(/-/g, "+").replace(/_/g, "/");
+// A share code can come from a link someone else crafted by hand, so treat
+// it as fully untrusted: cap its size before we ever call atob()/decode it
+// (an unbounded string here could otherwise hang the tab on a huge paste),
+// then validate/clamp every field we pull out of it.
+const trimmedInput = String(code || "").trim();
+if(!trimmedInput || trimmedInput.length > 8000){
+throw new Error("bad share code shape");
+}
+let b64 = trimmedInput.replace(/-/g, "+").replace(/_/g, "/");
 while(b64.length % 4) b64 += "=";
-const raw = decodeURIComponent(escape(atob(b64)));
+let raw;
+try{
+raw = decodeURIComponent(escape(atob(b64)));
+}catch(e){
+// Malformed base64 (not valid Base64, or decodes to invalid UTF-8) —
+// surface the same generic "bad shape" error rather than leaking the
+// underlying DOMException/URIError to the user.
+throw new Error("bad share code shape");
+}
 const parts = raw.split("~");
 if(parts.length < 5) throw new Error("bad share code shape");
 const [, mc, l, n, mods] = parts;
-return {
+let fieldsIn;
+try{
+fieldsIn = {
 n: decodeURIComponent(n || ""),
 mc: decodeURIComponent(mc || ""),
 l: decodeURIComponent(l || ""),
 m: mods ? mods.split(",").filter(Boolean) : []
 };
+}catch(e){
+// Malformed percent-encoding in a hand-edited code — same generic error.
+throw new Error("bad share code shape");
+}
+const { value } = validateFields(
+fieldsIn,
+{
+n: { type: "string", maxLength: 100 },
+mc: { type: "string", maxLength: 32 },
+l: { type: "string", maxLength: 32 },
+// Cap the mod list generously above any realistic modpack size, and
+// drop any entry that isn't a plausible Modrinth id/slug — this is
+// the field most directly under an attacker's control.
+m: { type: "array", maxItems: 500, itemMaxLength: 64, itemPattern: MODRINTH_ID_PATTERN }
+}
+);
+return value;
 }
 function extractShareCode(raw){
-const trimmed = (raw || "").trim();
+const trimmed = (raw || "").trim().slice(0, 8000);
 const match = trimmed.match(/[?&#]import=([^&\s]+)/);
 return match ? decodeURIComponent(match[1]) : trimmed;
 }
@@ -5220,6 +5544,14 @@ return;
 }
 if(shareBackendConfigured() && getShareRemaining() <= 0){
 showShareLimitReachedModal();
+return;
+}
+// Light client-side cooldown on top of the server-enforced daily quota
+// (DAILY_SHARE_LIMIT, checked server-side in createShortShareCode) — this
+// just stops accidental double-clicks from burning through that quota.
+const genLimit = clientRateLimit("share:generate", 10, 60 * 1000);
+if(!genLimit.allowed){
+showToast(tf('shareGenRateLimited','Slow down a little — try again {when}.', { when: formatRetryAfter(genLimit.retryAfterMs) }));
 return;
 }
 const longCode = encodeShareData(data);
@@ -5298,6 +5630,16 @@ async function importSharedPack(rawInput){
 const code = extractShareCode(rawInput);
 if(!code){
 setImportStatus("error", t("alertPasteShareLinkOrCode","Paste a share link or code first."), "share");
+return;
+}
+// Client-side throttle on lookups: mainly to stop a runaway loop/script
+// from hammering the Supabase short-code table, since each attempt is a
+// network request regardless of whether the code is valid. The keyspace
+// itself (7 chars, 58-symbol alphabet) is what actually makes guessing
+// short codes infeasible; this is just good-citizen throttling on top.
+const importLimit = clientRateLimit("share:import", 20, 60 * 1000);
+if(!importLimit.allowed){
+setImportStatus("error", tf('importRateLimited','Too many import attempts — try again {when}.', { when: formatRetryAfter(importLimit.retryAfterMs) }), "share");
 return;
 }
 let data;
@@ -5655,8 +5997,19 @@ return `<div style="text-align:left;">
 document.getElementById("exportBtn").addEventListener("click", async ()=>{
 const mcVersion = document.getElementById("expMcVersion").value;
 const loader = document.getElementById("expLoader").value;
-const packName = document.getElementById("packName").value.trim() || "My Modpack";
-const packVersion = document.getElementById("packVersion").value.trim() || "1.0.0";
+// Defense in depth alongside the inputs' maxlength attributes.
+const { value: exportFields } = validateFields(
+{
+packName: document.getElementById("packName").value,
+packVersion: document.getElementById("packVersion").value
+},
+{
+packName: { type: "string", maxLength: 100 },
+packVersion: { type: "string", maxLength: 50 }
+}
+);
+const packName = exportFields.packName || "My Modpack";
+const packVersion = exportFields.packVersion || "1.0.0";
 if(!mcVersion || !loader){
 showToast(t('alertExportNeedsTarget',"Choose a Minecraft version and mod loader before exporting."));
 return;
