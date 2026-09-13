@@ -242,11 +242,12 @@ if(rest){ rest.hidden = false; }
 toggle.remove();
 });
 function showToast(message, opts = {}){
-const { actionLabel, onAction, duration = 6000 } = opts;
+const { actionLabel, onAction, duration = 6000, variant } = opts;
 const stack = document.getElementById("toastStack");
 if(!stack) return null;
 const toast = document.createElement("div");
 toast.className = "toast";
+if(variant === "success" || variant === "error") toast.classList.add(variant);
 toast.setAttribute("role", "status");
 const msg = document.createElement("span");
 msg.className = "toast-msg";
@@ -1241,6 +1242,119 @@ oauth:  { max: 8, windowMs: 60 * 1000 }           // 8 clicks / minute (debounce
 
 const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
+// --- Disposable / temp-mail blocklist -------------------------------------
+// This is a client-side speed bump, not the real defense (see SECURITY
+// HARDENING note near the top of this file) — anyone editing the request in
+// dev tools, or using a disposable domain we don't know about yet, can get
+// past it. It still stops the overwhelming majority of casual temp-mail
+// signups (10minutemail, mailinator, guerrillamail, etc.) for free, with no
+// server component. For real enforcement, add a Supabase Auth Hook
+// ("Before User Created") that checks the email's domain against a
+// disposable-domain service server-side and rejects the signup — that runs
+// on Supabase's servers and can't be bypassed by the client. This list is a
+// reasonable starting point; swap in a maintained list (e.g. the
+// disposable-email-domains project on GitHub) and extend it over time as you
+// see new domains show up in signups.
+const DISPOSABLE_EMAIL_DOMAINS = new Set([
+"0-mail.com","0815.ru","0clickemail.com","10minutemail.com","10minutemail.net","10minutemail.co.za",
+"20minutemail.com","33mail.com","3trtmt.com","4gfdsgdsfgfd.com","5jt7bd.com","account.tj",
+"anonbox.net","anonymbox.com","antichef.com","antispam.de","binkmail.com","bobmail.info",
+"boximail.com","burnermail.io","byom.de","chammy.info","cool.fr.nf","correotemporal.org",
+"cuvox.de","deadaddress.com","despam.it","despammed.com","dfgh.net","disposable.com",
+"disposableaddress.com","disposableemailaddresses.com","disposableinbox.com","dispose.it",
+"dispostable.com","dodgeit.com","dodgit.com","dontreg.com","dontsendmespam.de","dropmail.me",
+"e4ward.com","easytrashmail.com","emailisvalid.com","emailondeck.com","emailsensei.com",
+"emailtemporanea.com","emailtemporanea.net","emailthe.net","emailtmp.com","emailwarden.com",
+"emailxfer.com","emeil.in","emeraldwebmail.com","emkei.com","emkei.cf","fakeinbox.com",
+"fakeinformation.com","fakemail.net","fakemailgenerator.com","fastacura.com","fastmail.fm",
+"fdfdsfds.com","fightallspam.com","filzmail.com","fizmail.com","fleckens.hu","frapmail.com",
+"front14.org","garliclife.com","get1mail.com","get2mail.fr","getairmail.com","getnada.com",
+"getonemail.com","ghosttexter.de","girlsundertheinfluence.com","gishpuppy.com","great-host.in",
+"grr.la","guerillamail.biz","guerillamail.com","guerillamail.net","guerillamail.org",
+"guerillamailblock.com","guerrillamail.biz","guerrillamail.com","guerrillamail.de",
+"guerrillamail.info","guerrillamail.net","guerrillamail.org","guerrillamailblock.com",
+"harakirimail.com","hidemail.de","hidzz.com","hmamail.com","hopemail.biz","ieatspam.eu",
+"ieatspam.info","ihateyoualot.info","imails.info","inboxalias.com","inboxbear.com",
+"incognitomail.com","incognitomail.net","incognitomail.org","insorg-mail.info","instant-mail.de",
+"ipoo.org","irish2me.com","jetable.com","jetable.fr.nf","jetable.net","jetable.org",
+"jnxjn.com","jsrsolutions.com","kasmail.com","kaspop.com","killmail.com","killmail.net",
+"kir.ch.tc","klassmaster.com","klzlk.com","koszmail.pl","kurzepost.de","lawlita.com",
+"letthemeatspam.com","lhsdv.com","lifebyfood.com","link2mail.net","litedrop.com",
+"lookugly.com","lopl.co.cc","lortemail.dk","lr78.com","luckymail.org","lukop.dk",
+"m21.cc","mail-filter.com","mail-temporaire.fr","mail.by","mail.mezimages.net",
+"mail1a.de","mail21.cc","mail2rss.org","mail333.com","mail4trash.com","mailbidon.com",
+"mailbiz.biz","mailblocks.com","mailcatch.com","mailde.de","mailde.info","maildrop.cc",
+"maildu.de","maileater.com","mailexpire.com","mailfa.tk","mailforspam.com","mailfreeonline.com",
+"mailguard.me","mailin8r.com","mailinater.com","mailinator.com","mailinator.net",
+"mailinator.org","mailinator2.com","mailincubator.com","mailismagic.com","mailme.lv",
+"mailme24.com","mailmetrash.com","mailmoat.com","mailnesia.com","mailnull.com",
+"mailorg.org","mailpick.biz","mailrock.biz","mailscrap.com","mailshell.com","mailsiphon.com",
+"mailslapping.com","mailslite.com","mailtemp.info","mailtome.de","mailtothis.com",
+"mailtrash.net","mailtv.net","mailtv.tv","mailzilla.com","mailzilla.org","mbx.cc",
+"mega.zik.dj","meltmail.com","messagebeamer.de","mierdamail.com","mintemail.com",
+"mjukglass.nu","mobi.web.id","moburl.com","moncourrier.fr.nf","monemail.fr.nf",
+"monmail.fr.nf","monumentmail.com","msa.minsmail.com","mt2009.com","mt2014.com",
+"mx0.wwwnew.eu","mycleaninbox.net","mytrashmail.com","neomailbox.com","nepwk.com",
+"nervmich.net","nervtmich.net","netmails.com","netmails.net","netzidiot.de",
+"neverbox.com","nice-4u.com","nincsmail.hu","nnh.com","no-spam.ws","nobulk.com",
+"noclickemail.com","nogmailspam.info","nomail.xl.cx","nomail2me.com","nomorespamemails.com",
+"nospam.ze.tc","nospam4.us","nospamfor.us","nospammail.net","notmailinator.com",
+"nowmymail.com","nurfuerspam.de","nus.edu.sg","objectmail.com","obobbo.com","odaymail.com",
+"oneoffemail.com","onewaymail.com","onlatedotcom.info","oopi.org","ordinaryamerican.net",
+"otherinbox.com","ourklips.com","outlawspam.com","ovpn.to","owlpic.com","pancakemail.com",
+"paplease.com","pepbot.com","pfui.ru","pimpedupmyspace.com","pjjkp.com","politikerclub.de",
+"poofy.org","pookmail.com","privacy.net","proxymail.eu","prtnx.com","punkass.com",
+"putthisinyourspamdatabase.com","quickinbox.com","rcpt.at","reallymymail.com",
+"recode.me","recursor.net","regbypass.com","regbypass.comsafe-mail.net","rejectmail.com",
+"rhyta.com","rmqkr.net","rppkn.com","rtrtr.com","s0ny.net","safe-mail.net","safersignup.de",
+"safetymail.info","safetypost.de","sandelf.de","saynotospams.com","selfdestructingmail.com",
+"sendspamhere.com","shieldedmail.com","shiftmail.com","shitmail.me","shitmail.org",
+"shitware.nl","sibmail.com","simplemailproxy.com","skeefmail.com","slaskpost.se",
+"sleepy.info","slopsbox.com","smashmail.de","smellfear.com","snakemail.com","sneakemail.com",
+"sneakmail.de","snkmail.com","sofimail.com","sofort-mail.de","sogetthis.com","soodonims.com",
+"spam.la","spam.su","spam4.me","spamail.de","spamarrest.com","spambob.com","spambob.net",
+"spambob.org","spambog.com","spambog.de","spambog.ru","spambox.info","spambox.us",
+"spamcannon.com","spamcannon.net","spamcero.com","spamcon.org","spamcorptastic.com",
+"spamcowboy.com","spamcowboy.net","spamcowboy.org","spamday.com","spamex.com",
+"spamfree24.com","spamfree24.de","spamfree24.eu","spamfree24.info","spamfree24.net",
+"spamfree24.org","spamgoes.in","spamherelots.com","spamhereplease.com","spamhole.com",
+"spamify.com","spaminator.de","spamkill.info","spaml.com","spaml.de","spammotel.com",
+"spamobox.com","spamoff.de","spamsalad.in","spamslicer.com","spamspot.com","spamthis.co.uk",
+"spamthisplease.com","spamtrail.com","spamtroll.net","speed.1s.fr","spikio.com",
+"spoofmail.de","stinkefinger.net","stop-my-spam.com","streetwisemail.com","stuffmail.de",
+"super-auswahl.de","supergreatmail.com","supermailer.jp","superstachel.de","suremail.info",
+"talkinator.com","tempalias.com","tempe-mail.com","tempemail.biz","tempemail.co.za",
+"tempemail.com","tempemail.net","tempinbox.co.uk","tempinbox.com","tempmail.eu",
+"tempmail.it","tempmail2.com","tempmaildemo.com","tempmailer.com","tempmailer.de",
+"tempomail.fr","temporarily.de","temporaryemail.net","temporaryforwarding.com",
+"temporaryinbox.com","temporarymailaddress.com","tempsky.com","tempthe.net","thanksnospam.info",
+"thankyou2010.com","thc.st","thelimestones.com","thisisnotmyrealemail.com",
+"throwawayemailaddress.com","throwawaymail.com","tilien.com","tmailinator.com",
+"toiea.com","tradermail.info","trash-amil.com","trash-mail.at","trash-mail.com",
+"trash-mail.de","trash2009.com","trashdevil.com","trashemail.de","trashmail.at",
+"trashmail.com","trashmail.de","trashmail.me","trashmail.net","trashmail.org",
+"trashmail.ws","trashmailer.com","trashymail.com","trashymail.net","trbvm.com",
+"trbvn.com","trickmail.net","trillianpro.com","turual.com","twinmail.de","tyldd.com",
+"uggsrock.com","uroid.com","us.af","venompen.com","veryrealemail.com","vidchart.com",
+"viditag.com","viewcastmedia.com","viewcastmedia.net","viewcastmedia.org","vpn.st",
+"vsimcard.com","vubby.com","wasteland.rfc822.org","webemail.me","weg-werf-email.de",
+"wegwerf-email-addressen.de","wegwerf-emails.de","wegwerfadresse.de","wegwerfemail.com",
+"wegwerfemail.de","wegwerfmail.de","wegwerfmail.info","wegwerfmail.net","wegwerfmail.org",
+"wetrainbayarea.com","wetrainbayarea.org","wh4f.org","whatpaas.com","whopy.com",
+"willselfdestruct.com","winemaven.info","wronghead.com","wuzup.net","wuzupmail.net",
+"www.e4ward.com","www.gishpuppy.com","xagloo.com","xemaps.com","xents.com","xmaily.com",
+"xoxy.net","yeah.net","yep.it","yopmail.com","yopmail.fr","yopmail.net","ypmail.webarnak.fr.eu.org",
+"yuurok.com","z1p.biz","za.com","zehnminutenmail.de","zetmail.com","zippymail.info",
+"zoemail.com","zoemail.org","zomg.info"
+]);
+
+function isDisposableEmail(email){
+const at = email.lastIndexOf("@");
+if(at === -1) return false;
+const domain = email.slice(at + 1).trim().toLowerCase();
+return DISPOSABLE_EMAIL_DOMAINS.has(domain);
+}
+
 async function handleOAuth(provider){
 showError("");
 // Debounce rapid/double clicks on the OAuth buttons — each one opens a
@@ -1289,6 +1403,7 @@ const email = fields.email || "";
 const password = fields.password || "";
 if(!email){ showError(t('authErrMissingEmail','Enter your email.')); return; }
 if(!EMAIL_PATTERN.test(email)){ showError(t('authErrInvalidEmail','Enter a valid email address.')); return; }
+if(mode === "signup" && isDisposableEmail(email)){ showError(t('authErrDisposableEmail','Temporary/disposable email addresses aren\u2019t allowed. Please use a permanent email address.')); return; }
 if(mode !== "reset" && password.length < 6){ showError(t('authErrWeakPassword','Password must be at least 6 characters.')); return; }
 
 // --- Rate limiting -----------------------------------------------------
@@ -5372,11 +5487,24 @@ importStatusHideTimers[prefix] = null;
 }, autoHideMs);
 }
 }
+const SKELETON_ROW_HTML = '<div class="import-skeleton-row"><div class="sk-icon"></div><div class="sk-lines"><div class="sk-line sk-line-title"></div><div class="sk-line sk-line-sub"></div></div></div>';
 let packImportLockToastShown = false;
 function showPackImportLock(){
 const overlay = document.getElementById("packImportLock");
 const real = document.getElementById("packRealContent");
 if(!overlay) return;
+// The skeleton behind the blur is meant to stand in for the real pack
+// list while it's hidden during an import. A fixed row count looked fine
+// when Create was empty, but if you already had a full pack and dropped
+// more mods in, the overlay was noticeably shorter than the content it
+// was covering — it didn't fill the space, so the page visibly shrank
+// and the effect looked broken instead of like a smooth lock. Size it to
+// the pack you actually have instead (clamped to a sane range).
+const skeleton = document.getElementById("importLockSkeleton");
+if(skeleton){
+const rowCount = Math.min(Math.max(state.pack.length || 0, 4), 12);
+skeleton.innerHTML = SKELETON_ROW_HTML.repeat(rowCount);
+}
 const alreadyShown = overlay.style.display === "block";
 overlay.style.display = "block";
 if(real) real.style.display = "none";
@@ -5505,11 +5633,9 @@ const files = Array.from(fileList || []).filter(Boolean);
 if(!files.length) return;
 const capped = files.slice(0, MOD_FILE_BATCH_CAP);
 const overflow = files.length - capped.length;
-setImportStatus("loading",
-capped.length > 1
-? tf("modFileCheckingMulti","Checking {n} files against Modrinth…", { n: capped.length })
-: t("modFileChecking","Checking against Modrinth…"),
-"modFile");
+// The "checking…" state during a mod-file drag-and-drop import is covered
+// by the import-lock overlay (see showPackImportLock/beginImportOp) rather
+// than a standalone status line, so we only need to toast the *result*.
 beginImportOp();
 const results = [];
 try{
@@ -5529,12 +5655,12 @@ const errored = results.filter(r=>r.status === "error");
 const cancelled = results.filter(r=>r.status === "cancelled");
 if(results.length === 1){
 const r = results[0];
-if(r.status === "added") setImportStatus("success", tf("modFileAdded","Added {mod} to Create.", { mod: r.title }), "modFile", 6000);
-else if(r.status === "already") setImportStatus("success", t("modFileAlreadyInCreate","That mod is already in Create."), "modFile", 6000);
-else if(r.status === "notfound") setImportStatus("error", t("modFileNotOnModrinth","This file doesn't match anything listed on Modrinth, so it can't be added."), "modFile", 6000);
-else if(r.status === "badtype") setImportStatus("error", t("modFileChooseJar","Please choose a .jar mod file."), "modFile", 6000);
-else if(r.status === "cancelled") setImportStatus("error", t("modFileCancelled","Not added."), "modFile", 6000);
-else setImportStatus("error", t("modFileImportFailed","Couldn't check that file against Modrinth. Try again."), "modFile", 6000);
+if(r.status === "added") showToast(tf("modFileAdded","Added {mod} to Create.", { mod: r.title }), { variant: "success" });
+else if(r.status === "already") showToast(t("modFileAlreadyInCreate","That mod is already in Create."), { variant: "success" });
+else if(r.status === "notfound") showToast(t("modFileNotOnModrinth","This file doesn't match anything listed on Modrinth, so it can't be added."), { variant: "error" });
+else if(r.status === "badtype") showToast(t("modFileChooseJar","Please choose a .jar mod file."), { variant: "error" });
+else if(r.status === "cancelled") showToast(t("modFileCancelled","Not added."), { variant: "error" });
+else showToast(t("modFileImportFailed","Couldn't check that file against Modrinth. Try again."), { variant: "error" });
 return;
 }
 const parts = [];
@@ -5546,7 +5672,7 @@ if(cancelled.length) parts.push(tf("modFileSkippedCancelled","{n} skipped",{n:ca
 if(errored.length) parts.push(tf("modFileSkippedError","{n} failed to check",{n:errored.length}));
 let summary = parts.join(", ") + ".";
 if(overflow > 0) summary += " " + tf("modFileBatchCapNotice","Only the first {cap} files were checked ({overflow} ignored).", { cap: MOD_FILE_BATCH_CAP, overflow });
-setImportStatus(added.length > 0 ? "success" : "error", summary, "modFile", 6000);
+showToast(summary, { variant: added.length > 0 ? "success" : "error", duration: 8000 });
 }
 function buildShareData(){
 const versionIds = state.pack.filter(m=>m.selectedVersionId).map(m=>m.selectedVersionId);
