@@ -10,8 +10,12 @@
 <meta property="og:description" content="Build and export Minecraft modpacks, right in your browser.">
 <meta property="og:image" content="https://modbench.net/icons/logo.png">
 <meta property="og:url" content="https://modbench.net/">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'unsafe-inline' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://cdn.modrinth.com https://www.gravatar.com https://nwshmuzkphmozilcpdti.supabase.co https://raw.githubusercontent.com; connect-src 'self' https://api.modrinth.com https://nwshmuzkphmozilcpdti.supabase.co https://meta.fabricmc.net https://meta.quiltmc.org https://maven.neoforged.net https://files.minecraftforge.net; object-src 'none'; base-uri 'self'; form-action 'self';">
 <meta name="theme-color" content="#4e9a52">
 <link rel="canonical" href="https://modbench.net/">
+<link rel="alternate" hreflang="en" href="https://modbench.net/">
+<link rel="alternate" hreflang="fr" href="https://modbench.net/?lang=fr">
+<link rel="alternate" hreflang="x-default" href="https://modbench.net/">
 <link rel="sitemap" type="application/xml" href="/sitemap.xml">
 <link rel="icon" type="image/png" href="icons/logo.png">
 <script type="application/ld+json">
@@ -4483,10 +4487,23 @@ function refreshDynamicContentForLanguage(){
   document.querySelectorAll(".modal-backdrop").forEach(b=>b.remove());
 }
 
+function syncLangToUrl(lang){
+  const params = new URLSearchParams(location.search);
+  if(lang === "en") params.delete("lang"); else params.set("lang", lang);
+  const qs = params.toString();
+  history.replaceState(history.state, "", location.pathname + (qs ? "?"+qs : "") + location.hash);
+}
+
 document.getElementById("langToggle").addEventListener("click", ()=>{
   const next = LANGUAGES[(LANGUAGES.indexOf(state.lang) + 1) % LANGUAGES.length];
   applyLanguage(next);
+  syncLangToUrl(next);
 });
+
+(function applyInitialLangFromUrl(){
+  const urlLang = new URLSearchParams(location.search).get("lang");
+  if(urlLang && LANGUAGES.includes(urlLang) && urlLang !== state.lang) applyLanguage(urlLang, false);
+})();
 
 applyLanguage(state.lang, false);
 updateFooterSeparator();
@@ -4531,9 +4548,10 @@ function activateTab(tab, opts){
   if(footerLegalLinks) footerLegalLinks.style.display = (state.tab === "browse") ? "" : "none";
   if(push){
     const urlName = TAB_URL_NAMES[state.tab] || state.tab;
-    const url = (state.tab === "browse")
-      ? location.pathname + location.hash
-      : `?tab=${urlName}${location.hash}`;
+    const params = new URLSearchParams(location.search);
+    if(state.tab === "browse") params.delete("tab"); else params.set("tab", urlName);
+    const qs = params.toString();
+    const url = location.pathname + (qs ? "?"+qs : "") + location.hash;
     history.pushState({tab: state.tab}, "", url);
   }
 }
@@ -4547,6 +4565,8 @@ window.addEventListener("popstate", ()=>{
   const urlTab = params.get("tab") || "browse";
   const tab = TAB_URL_TO_INTERNAL[urlTab] || urlTab;
   if(TAB_IDS.includes(tab)) activateTab(tab, {push:false});
+  const urlLang = params.get("lang") || "en";
+  if(LANGUAGES.includes(urlLang) && urlLang !== state.lang) applyLanguage(urlLang, false);
 });
 
 (function(){
