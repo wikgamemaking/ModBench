@@ -1,0 +1,2364 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<base href="/">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ModBench - Build a Minecraft Modpack (Fabric, Forge, Quilt, NeoForge)</title>
+<meta property="og:title" content="ModBench - Build a Minecraft Modpack (Fabric, Forge, Quilt, NeoForge)">
+<meta property="og:site_name" content="ModBench">
+<meta name="description" content="Add mods, resolve dependencies automatically, and assemble a custom Minecraft modpack for Fabric, Forge, Quilt or NeoForge, right in your browser.">
+<meta property="og:description" content="Add mods, resolve dependencies automatically, and assemble a custom Minecraft modpack for Fabric, Forge, Quilt or NeoForge, right in your browser.">
+<meta property="og:image" content="https://modbench.net/icons/logo.png">
+<meta property="og:url" content="https://modbench.net/create/">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-Ei3Yw99jCnwg+SOMIXwZYjgcOSkyeIQA8ZmW4DuE1B8=' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://cdn.modrinth.com https://www.gravatar.com https://nwshmuzkphmozilcpdti.supabase.co https://raw.githubusercontent.com https://lh3.googleusercontent.com; connect-src 'self' https://api.modrinth.com https://nwshmuzkphmozilcpdti.supabase.co https://meta.fabricmc.net https://meta.quiltmc.org https://maven.neoforged.net https://files.minecraftforge.net; object-src 'none'; base-uri 'self'; form-action 'self';">
+<meta name="theme-color" content="#4e9a52">
+<link rel="canonical" href="https://modbench.net/create/">
+<link rel="alternate" hreflang="en" href="https://modbench.net/create/">
+<link rel="alternate" hreflang="fr" href="https://modbench.net/create/?lang=fr">
+<link rel="alternate" hreflang="x-default" href="https://modbench.net/create/">
+<link rel="sitemap" type="application/xml" href="/sitemap.xml">
+<link rel="icon" type="image/png" href="icons/logo.png">
+<script type="application/ld+json">
+{
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  "name": "ModBench",
+  "url": "https://modbench.net/create/",
+  "description": "Add mods, resolve dependencies automatically, and assemble a custom Minecraft modpack for Fabric, Forge, Quilt or NeoForge, right in your browser.",
+  "applicationCategory": "UtilitiesApplication",
+  "operatingSystem": "Any (Web Browser)",
+  "offers": {
+    "@type": "Offer",
+    "price": "0",
+    "priceCurrency": "USD"
+  }
+}
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:ital,wght@0,400;0,700;1,400&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
+<!-- i18n: add a script tag per language file here -->
+<script src="i18n/fr.js"></script>
+<script>
+  (function(){
+    let saved = null;
+    try{ saved = localStorage.getItem("modbench-theme"); }catch(e){ /* storage blocked; fall back to system preference */ }
+    const theme = saved || (window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    if(theme === "dark") document.documentElement.setAttribute("data-theme","dark");
+  })();
+</script>
+<style>
+  :root{
+    --bg: #f6f5f1;
+    --surface: #ffffff;
+    --surface-2: #efece4;
+    --border: #ddd8cc;
+    --text: #262420;
+    --text-dim: #6b665c;
+    --accent: #2f6b4f;
+    --accent-dark: #234f3a;
+    --accent-soft: #e3ede7;
+    --danger: #a3423a;
+    --danger-soft: #fbeceb;
+    --danger-border: #e3b7b2;
+    --danger-text: #7a3a34;
+    --warn: #b8860b;
+    --warn-soft: #fbf1d9;
+    --warn-border: #e8c877;
+    --warn-text: #8a6410;
+    --radius: 10px;
+    --maxw: 1180px;
+  }
+  html[data-theme="dark"]{
+    --bg: #1a1a17;
+    --surface: #232320;
+    --surface-2: #2c2c28;
+    --border: #3a3a35;
+    --text: #ece9e1;
+    --text-dim: #a6a196;
+    --accent: #4f9c76;
+    --accent-dark: #7fc7a2;
+    --accent-soft: #24352c;
+    --danger: #d97369;
+    --danger-soft: #3a2422;
+    --danger-border: #5c342e;
+    --danger-text: #e0a29c;
+    --warn: #d9a93a;
+    --warn-soft: #3a3221;
+    --warn-border: #5c4f2e;
+    --warn-text: #e0c28a;
+  }
+  *{ box-sizing: border-box; }
+  html,body{ margin:0; padding:0; }
+  html{ touch-action: manipulation; scrollbar-gutter: stable; }
+  select{
+    appearance: none !important;
+    -webkit-appearance: none !important;
+    -moz-appearance: none !important;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%236b665c' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='7 15 12 20 17 15'%3E%3C/polyline%3E%3Cpolyline points='7 9 12 4 17 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
+    background-repeat: no-repeat !important;
+    background-position: right 10px center !important;
+    background-size: 16px !important;
+    padding-right: 34px !important;
+  }
+  html[data-theme="dark"] select{
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%231a1a17' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='7 15 12 20 17 15'%3E%3C/polyline%3E%3Cpolyline points='7 9 12 4 17 9'%3E%3C/polyline%3E%3C/svg%3E") !important;
+  }
+  body{
+    font-family: 'Atkinson Hyperlegible', system-ui, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.5;
+    transition: background .15s, color .15s;
+    display:flex; flex-direction:column; min-height:100vh;
+  }
+  header.site{ flex-shrink:0; }
+  main{ flex:1 0 auto; width:100%; box-sizing:border-box; }
+  footer{ flex-shrink:0; }
+  p{ text-wrap: pretty; }
+  h1, h2, h3, h4{ text-wrap: balance; }
+  .theme-toggle{
+    display:flex; align-items:center; justify-content:center;
+    width:36px; height:36px; flex-shrink:0;
+    background: var(--surface-2); border:1px solid var(--border);
+    border-radius:8px; cursor:pointer; color: var(--text-dim);
+    overflow:hidden; position:relative;
+    transition: background .18s ease, color .18s ease, border-color .18s ease, transform .15s;
+  }
+  .help-toggle svg{ width:18px; height:18px; }
+  .theme-toggle:hover{ background: var(--accent-soft); color: var(--accent-dark); border-color: var(--accent-soft); transform: scale(1.05); }
+  .theme-toggle:active{ transform: scale(.92); }
+  .theme-toggle svg{ width:18px; height:18px; position:absolute; top:50%; left:50%; transform: translate(-50%,-50%); transition: opacity .28s ease, transform .32s cubic-bezier(.3,1.4,.4,1); }
+  .theme-toggle .icon-moon{ opacity:0; transform: translate(-50%,-50%) rotate(-70deg) scale(.4); }
+  .theme-toggle .icon-sun{ opacity:1; transform: translate(-50%,-50%) rotate(0deg) scale(1); }
+  html[data-theme="dark"] .theme-toggle .icon-sun{ opacity:0; transform: translate(-50%,-50%) rotate(70deg) scale(.4); }
+  html[data-theme="dark"] .theme-toggle .icon-moon{ opacity:1; transform: translate(-50%,-50%) rotate(0deg) scale(1); }
+  @media (prefers-reduced-motion: reduce){
+    .theme-toggle svg{ transition: opacity .15s ease; transform: translate(-50%,-50%) !important; }
+  }
+  html[data-theme="dark"] select,
+  html[data-theme="dark"] input[type=text],
+  html[data-theme="dark"] input[type=search]{
+    background-color: #eeece6 !important;
+    color: #1a1a17 !important;
+    color-scheme: light;
+  }
+  html[data-theme="dark"] .search-box{
+    background-color: #eeece6 !important;
+    border-color: #d5d2c7;
+  }
+  html[data-theme="dark"] .search-box input{
+    color: #1a1a17 !important;
+  }
+  html[data-theme="dark"] .search-box input::placeholder{
+    color: #767268 !important;
+    opacity: 1;
+  }
+  html[data-theme="dark"] select option{
+    background: #fff;
+    color: #1a1a17;
+  }
+  a{ color: var(--accent-dark); }
+  img{ max-width:100%; display:block; }
+
+  header.site{
+    position: sticky; top:0; z-index: 30;
+    background: var(--surface);
+    border-bottom: 1px solid var(--border);
+  }
+  .header-inner{
+    max-width: var(--maxw);
+    margin: 0 auto;
+    padding: 12px 20px;
+    display:flex;
+    align-items:center;
+    gap: 24px;
+    flex-wrap: wrap;
+  }
+  .brand{
+    display:flex; align-items:center; gap:10px;
+    white-space:nowrap;
+  }
+  .brand .mark{
+    width:32px; height:32px; border-radius:8px;
+    overflow:hidden;
+    box-shadow: 0 1px 2px rgba(0,0,0,.18);
+    display:flex; align-items:center; justify-content:center;
+    background: var(--surface-2);
+    transition: transform .3s cubic-bezier(.2,.9,.3,1.2);
+  }
+  .brand .mark img{ width:100%; height:100%; object-fit:cover; }
+  .brand:hover .mark{ transform: rotate(-8deg) scale(1.08); }
+  .brand-text{ display:flex; flex-direction:column; line-height:1.15; }
+  .brand-name{
+    font-weight:700; font-size:1.2rem; letter-spacing:.01em;
+  }
+  .brand-tag{
+    font-size:0.68rem; font-weight:400; color: var(--text-dim);
+    letter-spacing:.02em;
+  }
+  nav.tabs{ display:flex; gap:4px; flex-wrap:wrap; }
+  nav.tabs button{
+    font-family:inherit; font-size:0.95rem;
+    background:none; border:1px solid transparent;
+    padding:8px 14px; border-radius:8px; cursor:pointer;
+    color: var(--text-dim); font-weight:700;
+    display:flex; align-items:center; gap:6px;
+    white-space:nowrap; flex-shrink:0;
+    transition: background .18s ease, color .18s ease, transform .12s ease;
+  }
+  nav.tabs button:active{ transform: scale(.94); }
+  nav.tabs button.active{ animation: tab-activate .22s cubic-bezier(.3,1.5,.4,1); }
+  @keyframes tab-activate{ 0%{ transform: scale(.95); } 60%{ transform: scale(1.03); } 100%{ transform: scale(1); } }
+  @media (prefers-reduced-motion: reduce){
+    nav.tabs button.active{ animation: none; }
+  }
+  @media (max-width: 640px){
+    .header-inner{ flex-wrap:nowrap; gap:12px; padding:10px 12px; }
+    .brand-text{ display:none; }
+    nav.tabs{
+      flex-wrap:nowrap; overflow-x:auto; -webkit-overflow-scrolling:touch;
+      scrollbar-width:none; flex:1; min-width:0;
+      mask-image: linear-gradient(to right, transparent, black 12px, black calc(100% - 12px), transparent);
+      -webkit-mask-image: linear-gradient(to right, transparent, black 12px, black calc(100% - 12px), transparent);
+    }
+    nav.tabs::-webkit-scrollbar{ display:none; }
+    nav.tabs button{ padding:8px 12px; font-size:0.88rem; }
+  }
+  nav.tabs button:hover{ background: var(--surface-2); color:var(--text); }
+  nav.tabs button.active{
+    background: var(--accent-soft); color: var(--accent-dark); border-color: var(--accent-soft);
+  }
+  .pack-count{
+    background: var(--accent);
+    color:#fff; font-size:0.7rem; font-weight:700;
+    border-radius:999px; padding:1px 7px; min-width:18px; text-align:center;
+    transition: transform .18s cubic-bezier(.3,1.6,.5,1);
+  }
+  .pack-count.bump{ animation: count-bump .3s cubic-bezier(.3,1.6,.5,1); }
+  @keyframes count-bump{
+    0%{ transform: scale(1); }
+    45%{ transform: scale(1.35); }
+    100%{ transform: scale(1); }
+  }
+  .confetti-piece{
+    position: fixed;
+    border-radius: 1px;
+    pointer-events: none;
+    z-index: 9999;
+    opacity: 1;
+    animation-name: confetti-burst;
+    animation-timing-function: cubic-bezier(.15,.6,.4,1);
+    animation-fill-mode: forwards;
+  }
+  @keyframes confetti-burst{
+    0%{ transform: translate(0, 0) rotate(0deg); opacity: 1; }
+    70%{ opacity: 1; }
+    100%{ transform: translate(var(--dx), calc(var(--dy) + 140px)) rotate(var(--rot)); opacity: 0; }
+  }
+
+  main{
+    max-width: var(--maxw);
+    margin: 0 auto;
+    padding: 20px;
+  }
+  .layout{
+    display:grid;
+    grid-template-columns: 240px 1fr;
+    gap: 24px;
+    align-items:start;
+  }
+  @media (max-width: 860px){
+    .layout{ grid-template-columns: 1fr; }
+  }
+
+  aside.filters{
+    background: var(--surface);
+    border:1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 16px;
+    position: sticky;
+    top: 74px;
+    display:flex;
+    flex-direction:column;
+    gap:18px;
+  }
+  @media (max-width: 860px){
+    aside.filters{ position:static; }
+  }
+  aside.filters h3{
+    margin: 0 0 8px; font-size:0.78rem; letter-spacing:.04em;
+    text-transform: uppercase; color: var(--text-dim);
+  }
+  .type-toggle{ display:flex; flex-direction:column; gap:4px; }
+  .cat-subheader{
+    font-size:0.7rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em;
+    color: var(--text-dim); margin:10px 0 4px; padding:0 2px;
+  }
+  .cat-subheader:first-child{ margin-top:0; }
+  .type-btn{
+    font-family:inherit; font-size:0.88rem; font-weight:700; text-align:center;
+    background:var(--surface-2); border:1px solid var(--border); color:var(--text-dim);
+    padding:8px 10px; border-radius:8px; cursor:pointer;
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    transition: background .18s cubic-bezier(.3,1.4,.4,1), color .18s ease, border-color .18s ease;
+  }
+  .type-btn-icon{ width:16px; height:16px; flex-shrink:0; }
+  .type-btn:hover{ background: var(--accent-soft); color: var(--accent-dark); }
+  .type-btn.active{ background: var(--accent); color:#fff; border-color: var(--accent); animation: type-btn-activate .22s ease-out; }
+  @keyframes type-btn-activate{
+    0%{ transform: scale(.97); }
+    100%{ transform: scale(1); }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .type-btn.active{ animation:none; }
+  }
+  .pack-type-label{
+    font-size:0.75rem; font-weight:700; text-transform:uppercase; letter-spacing:.05em;
+    color: var(--text-dim); margin:0 0 8px; padding-bottom:6px; border-bottom:1px solid var(--border);
+  }
+  .pack-type-group{ margin-bottom:22px; }
+  .pack-type-group:last-child{ margin-bottom:0; }
+  .filter-group{ margin-bottom:0; }
+  .filter-sep{ border:none; border-top:1px solid var(--border); margin:0; }
+  .cat-subheader{ border-top:1px solid var(--border); padding-top:10px; }
+  .cat-subheader:first-child{ border-top:none; padding-top:0; }
+  .filter-group label{
+    display:flex; align-items:center; gap:8px;
+    font-size:0.92rem; padding:4px 8px; margin:0 -8px; border-radius:6px; cursor:pointer;
+    transition: background .12s, color .12s, transform .12s;
+  }
+  .filter-group label:hover{ background: var(--surface-2); color: var(--text); transform: translateX(2px); }
+  .filter-group label:has(input:checked){ background: var(--accent-soft); color: var(--accent-dark); }
+  .filter-group select{
+    width:100%; padding:8px; border-radius:8px;
+    border:1px solid var(--border); font-family:inherit; font-size:0.9rem;
+    background-color: var(--surface);
+    transition: border-color .15s, box-shadow .15s;
+  }
+  .filter-group select:hover{ border-color: var(--accent); }
+  .filter-group select:focus-visible{ box-shadow: 0 0 0 3px var(--accent-soft); }
+  input[type=checkbox]{
+    appearance:none; -webkit-appearance:none; -moz-appearance:none;
+    width:16px; height:16px; margin:0; flex-shrink:0;
+    border:1.5px solid var(--border); border-radius:4px;
+    background: var(--surface);
+    box-shadow:none; background-clip:border-box;
+    color-scheme: light;
+    display:inline-block; position:relative;
+    transition: background .15s ease, border-color .15s ease;
+    cursor:pointer;
+  }
+  input[type=checkbox]::after{
+    content:"";
+    position:absolute; inset:0;
+    background-color:#fff;
+    -webkit-mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'%3E%3C/polyline%3E%3C/svg%3E");
+    mask-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='black' stroke-width='3' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='20 6 9 17 4 12'%3E%3C/polyline%3E%3C/svg%3E");
+    -webkit-mask-repeat:no-repeat; mask-repeat:no-repeat;
+    -webkit-mask-position:center; mask-position:center;
+    -webkit-mask-size:11px; mask-size:11px;
+    opacity:0; transform: scale(.4);
+    transition: opacity .12s ease, transform .18s cubic-bezier(.34,1.56,.64,1);
+  }
+  input[type=checkbox]:hover{ border-color: var(--accent); }
+  input[type=checkbox]:checked{ background: var(--accent); border-color: var(--accent); }
+  input[type=checkbox]:checked::after{ opacity:1; transform: scale(1); }
+  input[type=checkbox]:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
+  input[type=checkbox]:active{ transform: scale(.9); }
+  .filter-icon{
+    width:15px; height:15px; flex-shrink:0; color: var(--text-dim); vertical-align:-3px;
+    transition: transform .22s cubic-bezier(.2,.8,.3,1), color .22s ease;
+  }
+  .loader-icon{
+    width:18px; height:18px; flex-shrink:0; vertical-align:-4px; transition: transform .2s;
+    object-fit:contain; border-radius:4px;
+  }
+  .filter-group label:hover .loader-icon{ transform: scale(1.18) rotate(-6deg); }
+  .cat-toggle{
+    display:flex; align-items:center; justify-content:space-between; width:100%;
+    background:none; border:none; padding:0 0 8px; margin:0; cursor:pointer; font-family:inherit;
+    border-radius:6px; transition: color .12s;
+  }
+  .cat-toggle:hover{ color: var(--accent-dark); }
+  .cat-toggle h3{ margin:0; }
+  .cat-toggle .chev{ width:16px; height:16px; color:var(--text-dim); transition: transform .15s; flex-shrink:0; }
+  .cat-toggle[aria-expanded="true"] .chev{ transform: rotate(180deg); }
+  .cat-body{
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows .28s cubic-bezier(.4,0,.2,1);
+  }
+  .cat-body.open{ grid-template-rows: 1fr; }
+  .cat-body-inner{
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    margin-left: -6px;
+  }
+  .cat-body-inner.scrollable{
+    max-height: 272px;
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+  html{ scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
+  ::-webkit-scrollbar{ width:8px; height:8px; }
+  ::-webkit-scrollbar-track{ background:transparent; }
+  ::-webkit-scrollbar-thumb{ background:var(--border); border-radius:4px; }
+  ::-webkit-scrollbar-thumb:hover{ background:var(--text-dim); }
+  html[data-theme="dark"]{ color-scheme: dark; }
+  .cat-body label{
+    display:flex; align-items:center; gap:6px;
+    border-radius:6px; padding:4px 6px; margin:0; cursor:pointer;
+    transition: background .22s cubic-bezier(.2,.8,.3,1), color .22s cubic-bezier(.2,.8,.3,1), transform .18s cubic-bezier(.2,.8,.3,1), box-shadow .22s ease;
+  }
+  .cat-body label:hover{ background: var(--surface-2); transform: translateX(3px); }
+  .cat-body label:hover .filter-icon{ transform: scale(1.15) rotate(-6deg); color: var(--accent-dark); }
+  .cat-body label:has(input:checked){ background: var(--accent-soft); color: var(--accent-dark); font-weight:600; box-shadow: inset 0 0 0 1px var(--accent-soft); }
+  .cat-body label:has(input:checked):hover{ transform: translateX(3px) scale(1.01); }
+
+  .toolbar{
+    display:flex; gap:10px; margin-bottom:16px; flex-wrap:wrap; align-items:center;
+  }
+  .search-box{
+    flex:1; min-width:200px;
+    display:flex; align-items:center; gap:8px;
+    background: var(--surface); border:1px solid var(--border);
+    border-radius: 8px; padding: 10px 14px;
+    transition: border-color .25s cubic-bezier(.22,1,.36,1), box-shadow .25s cubic-bezier(.22,1,.36,1), transform .25s cubic-bezier(.22,1,.36,1), background-color .25s cubic-bezier(.22,1,.36,1);
+  }
+  .search-box:focus-within{
+    border-color: var(--accent);
+    box-shadow: 0 0 0 4px var(--accent-soft), 0 4px 14px -6px var(--accent);
+    transform: translateY(-1px);
+  }
+  .search-box > span[aria-hidden]{ transition: transform .25s cubic-bezier(.34,1.56,.64,1), opacity .25s ease; opacity:.75; }
+  .search-box:focus-within > span[aria-hidden]{ transform: scale(1.12); opacity:1; }
+  @media (prefers-reduced-motion: reduce){
+    .search-box, .search-box > span[aria-hidden]{ transition: none; }
+    .search-box:focus-within{ transform:none; }
+  }
+  .search-box input{
+    border:none; outline:none; font-family:inherit; font-size:1rem;
+    width:100%; background:transparent; color:var(--text);
+  }
+  .search-box .kbd-hint{
+    flex-shrink:0; font-family:inherit; font-size:0.72rem; font-weight:700;
+    color: var(--text-dim); background: var(--surface-2); border:1px solid var(--border);
+    border-radius:5px; padding:2px 7px; line-height:1.5;
+    opacity:1; transform: scale(1);
+    transition: opacity .18s ease, transform .18s ease, visibility 0s linear 0s;
+  }
+  .search-box:focus-within .kbd-hint,
+  .search-box:has(input:not(:placeholder-shown)) .kbd-hint{
+    opacity:0; transform: scale(.85);
+    visibility:hidden;
+    transition: opacity .18s ease, transform .18s ease, visibility 0s linear .18s;
+  }
+  @media (max-width: 640px){ .search-box .kbd-hint{ display:none; } }
+  select#sortSelect, select#modpackSortSelect{
+    padding:10px 12px; border-radius:8px; border:1px solid var(--border);
+    font-family:inherit; font-size:0.92rem; background-color: var(--surface);
+    transition: border-color .15s, box-shadow .15s;
+  }
+  select#sortSelect:hover, select#modpackSortSelect:hover{ border-color: var(--accent); }
+  select#sortSelect:focus-visible, select#modpackSortSelect:focus-visible{ box-shadow: 0 0 0 3px var(--accent-soft); }
+  .view-toggle{ display:flex; border:1px solid var(--border); border-radius:8px; overflow:hidden; }
+  .view-toggle button{
+    background:var(--surface); border:none; width:40px; height:40px; cursor:pointer;
+    color: var(--text-dim); display:flex; align-items:center; justify-content:center;
+    transition: background .15s ease, color .15s ease, transform .12s ease;
+  }
+  .view-toggle button svg{ width:18px; height:18px; transition: transform .18s cubic-bezier(.3,1.6,.5,1); }
+  .view-toggle button:hover{ color: var(--text); }
+  .view-toggle button:active svg{ transform: scale(.82); }
+  .view-toggle button.active{ background: var(--accent-soft); color: var(--accent-dark); }
+  .view-toggle button.active svg{ transform: scale(1.05); }
+
+  @media (max-width: 640px){
+    .toolbar{ flex-wrap:wrap; }
+    .toolbar .search-box{ flex:1 1 100%; min-width:0; }
+    select#sortSelect, select#modpackSortSelect{ flex:1 1 auto; width:auto; min-width:0; }
+    .view-toggle{ flex:0 0 auto; }
+    #favSortBtn{ flex:1 1 auto; min-width:0; }
+  }
+
+  #createToolbar{ justify-content:flex-end; align-items:center; flex-wrap:wrap; gap:10px; }
+  @media (max-width: 640px){
+    #createToolbar{ justify-content:flex-start; }
+    #createToolbar #historyControls{
+      flex:1 1 100%; justify-content:flex-start;
+      border-right:none; padding-right:0; margin-right:0; margin-bottom:2px;
+    }
+    #createToolbar #autoCompatToggleWrap{ flex:1 1 100%; margin-right:0; margin-bottom:2px; }
+    #createToolbar #sortAlphaBtn,
+    #createToolbar #checkUpdatesBtn,
+    #createToolbar #checkCompatBtn,
+    #createToolbar #removeAllBtn{
+      flex:1 1 calc(50% - 5px);
+      text-align:center;
+    }
+  }
+
+  #results.grid, #favResults.grid, #modpackResults.grid, .pack-category-group .grid{
+    display:grid;
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
+    gap: 14px;
+  }
+  #results .card, #favResults .card, #modpackResults .card, .pack-category-group .card{
+    animation: card-in .25s ease-out backwards;
+  }
+  @keyframes card-in{
+    from{ opacity:0; transform: translateY(6px); }
+    to{ opacity:1; transform: translateY(0); }
+  }
+  @media (prefers-reduced-motion: reduce){
+    #results .card, #favResults .card, #modpackResults .card, .pack-category-group .card{ animation: none; }
+  }
+  .grid .card:nth-child(1){ animation-delay: 0s; }
+  .grid .card:nth-child(2){ animation-delay: .02s; }
+  .grid .card:nth-child(3){ animation-delay: .04s; }
+  .grid .card:nth-child(4){ animation-delay: .06s; }
+  .grid .card:nth-child(5){ animation-delay: .08s; }
+  .grid .card:nth-child(6){ animation-delay: .1s; }
+  .grid .card:nth-child(7){ animation-delay: .12s; }
+  .grid .card:nth-child(8){ animation-delay: .14s; }
+  .card{
+    background: var(--surface);
+    border:1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 14px;
+    display:flex; flex-direction:column; gap:8px;
+    cursor:pointer;
+    transition: border-color .18s ease, transform .18s ease, box-shadow .18s ease, opacity .3s cubic-bezier(.22,1,.36,1), filter .3s cubic-bezier(.22,1,.36,1);
+  }
+  .card:hover{ border-color: var(--accent); transform: translateY(-2px); box-shadow: 0 6px 18px rgba(38,36,32,.08); }
+  .card:active{ transform: scale(0.99); }
+  #favResults .card.card-unfav-out{
+    opacity: 0;
+    transform: scale(.92) translateY(6px);
+    filter: blur(2px);
+    pointer-events: none;
+  }
+  @media (prefers-reduced-motion: reduce){
+    #favResults .card.card-unfav-out{ transition: none; }
+  }
+  .card.card-conflict{ border-color: var(--warn-border); background: var(--warn-soft); }
+  .card.card-conflict:hover{ border-color: var(--warn); }
+  .card-conflict-note{
+    display:inline-flex; align-items:center; gap:5px;
+    font-size:0.74rem; font-weight:700; color: var(--warn-text);
+    background: var(--warn-soft); border:1px solid var(--warn-border);
+    padding:3px 9px; border-radius:999px; white-space:normal; line-height:1.3;
+    width:fit-content;
+  }
+  html[data-theme="dark"] .card-conflict-note{ background: rgba(0,0,0,.15); }
+  .card-top{ display:flex; gap:10px; align-items:flex-start; }
+  .card-icon{
+    width:48px; height:48px; border-radius:8px; object-fit:cover;
+    background: var(--surface-2); flex-shrink:0;
+  }
+  @media (min-width: 861px){
+    .card-icon{ width:60px; height:60px; border-radius:10px; }
+  }
+  .card-title{ font-weight:700; font-size:1rem; line-height:1.25; }
+  .card-author{ font-size:0.8rem; color:var(--text-dim); }
+  .card-desc{
+    font-size:0.85rem; color: var(--text-dim);
+    display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow:hidden;
+    flex:1;
+  }
+  .card-tags{ display:flex; gap:6px; flex-wrap:wrap; }
+  .tag{
+    font-size:0.72rem; background: var(--surface-2); color:var(--text-dim);
+    padding: 2px 8px; border-radius:999px;
+    transition: background .12s, color .12s;
+    white-space: nowrap;
+  }
+  .tag:hover{ background: var(--accent-soft); color: var(--accent-dark); }
+  .card-stats{ display:flex; gap:12px; font-size:0.78rem; color:var(--text-dim); align-items:center; }
+  .card-add{
+    align-self:flex-start; margin-top:auto;
+    background: var(--accent); color:#fff; border:none;
+    padding: 7px 14px; border-radius:7px; font-family:inherit; font-weight:700;
+    font-size:0.85rem; cursor:pointer; white-space:nowrap;
+    min-width: 100px; text-align:center;
+    transition: background .18s ease, transform .12s ease;
+  }
+  .card-add.added{ background: var(--surface-2); color: var(--text-dim); }
+  .card-add:hover:not(.added){ background: var(--accent-dark); transform: translateY(-1px); }
+  .card-add:active{ transform: translateY(0) scale(.97); }
+  .card-fav{
+    background:none; border:1px solid var(--border); border-radius:7px;
+    width:32px; height:32px; flex-shrink:0; cursor:pointer;
+    color: var(--text-dim); display:flex; align-items:center; justify-content:center;
+    margin-left:auto;
+    transition: border-color .18s ease, color .18s ease, background .18s ease, transform .12s ease;
+  }
+  .card-fav svg{ width:16px; height:16px; transition: transform .15s; }
+  .card-fav:hover{ border-color: var(--danger); color: var(--danger); }
+  .card-fav:hover svg{ transform: scale(1.15); }
+  .card-fav:active svg{ transform: scale(.9); }
+  .card-fav.faved{ background: var(--danger-soft); border-color: var(--danger-border); color: var(--danger); animation: fav-pop .3s cubic-bezier(.3,1.6,.5,1); }
+  @keyframes fav-pop{
+    0%{ transform: scale(1); }
+    40%{ transform: scale(1.3); }
+    100%{ transform: scale(1); }
+  }
+  .card-stats{ position:relative; }
+
+  #results.list, #favResults.list, #modpackResults.list, .pack-category-group .list{ display:flex; flex-direction:column; gap:8px; }
+  #results.list .card, #favResults.list .card, #modpackResults.list .card, .pack-category-group .list .card{
+    flex-direction:row; align-items:center; padding:10px 14px;
+  }
+  #results.list .card-top, #favResults.list .card-top, #modpackResults.list .card-top, .pack-category-group .list .card-top{ flex:1; min-width:0; }
+  #results.list .card-desc, #favResults.list .card-desc, #modpackResults.list .card-desc, .pack-category-group .list .card-desc{ -webkit-line-clamp:1; margin:0; }
+  #results.list .card-tags, #favResults.list .card-tags, #modpackResults.list .card-tags, .pack-category-group .list .card-tags{ display:none; }
+  #results.list .card-icon, #favResults.list .card-icon, #modpackResults.list .card-icon, .pack-category-group .list .card-icon{ width:36px; height:36px; }
+  #results.list .card-stats, #favResults.list .card-stats, #modpackResults.list .card-stats, .pack-category-group .list .card-stats{ flex-shrink:0; }
+
+  @media (max-width: 640px){
+    #results.list .card, #favResults.list .card, #modpackResults.list .card, .pack-category-group .list .card{
+      flex-wrap: wrap;
+      row-gap: 8px;
+      padding: 12px;
+    }
+    #results.list .card-top, #favResults.list .card-top, #modpackResults.list .card-top, .pack-category-group .list .card-top{ width:100%; }
+    #results.list .card-desc, #favResults.list .card-desc, #modpackResults.list .card-desc, .pack-category-group .list .card-desc{ display:-webkit-box; -webkit-line-clamp:2; margin:0; }
+    #results.list .card-stats, #favResults.list .card-stats, #modpackResults.list .card-stats, .pack-category-group .list .card-stats{
+      width:100%;
+      justify-content: flex-start;
+    }
+  }
+
+  .pack-category-group{ margin-bottom:24px; }
+  .pack-category-label{
+    display:inline-flex; align-items:center; gap:6px;
+    font-size:0.7rem; font-weight:700; letter-spacing:.06em; text-transform:uppercase;
+    color: var(--accent-dark); background: var(--accent-soft);
+    padding: 5px 12px; border-radius:999px; margin: 0 0 10px;
+  }
+  .pack-category-label::before{
+    content:""; width:6px; height:6px; border-radius:50%; background: var(--accent);
+  }
+  .pack-list{ display:flex; flex-direction:column; gap:8px; }
+  .pack-row{
+    display:flex; align-items:center; gap:12px;
+    background: var(--surface); border:1px solid var(--border);
+    border-radius: var(--radius); padding: 10px 14px;
+    transition: border-color .18s ease, box-shadow .18s ease;
+    cursor:pointer;
+  }
+  .pack-row:hover{ border-color: var(--accent); box-shadow: 0 4px 12px rgba(38,36,32,.06); }
+  .pack-row.has-issue{ border-color: var(--danger-border); background: var(--danger-soft); }
+  .pack-row.has-issue:hover{ border-color: var(--danger); box-shadow: 0 4px 12px rgba(163,66,58,.12); }
+  .pack-row img{ width:40px; height:40px; border-radius:7px; flex-shrink:0; background:var(--surface-2); }
+  .pack-row .info{ flex:1; min-width:0; }
+  .pack-row .info .name{ font-weight:700; font-size:0.95rem; overflow-wrap:anywhere; display:flex; align-items:center; gap:6px; flex-wrap:wrap; }
+  .pack-row .info .sub{ font-size:0.8rem; color:var(--text-dim); overflow-wrap:anywhere; }
+  .pack-row-issue-badge{
+    display:inline-flex; align-items:center; justify-content:center;
+    width:16px; height:16px; color: var(--danger); flex-shrink:0;
+  }
+  .pack-row-issue-badge svg{ width:14px; height:14px; }
+  .pack-row-issue-badge[hidden]{ display:none !important; }
+  .auto-compat-toggle{ display:inline-flex; align-items:center; gap:8px; cursor:pointer; margin-right:auto; }
+  .switch{ position:relative; display:inline-block; width:34px; height:20px; flex-shrink:0; }
+  .switch input{ position:absolute; opacity:0; width:100%; height:100%; margin:0; cursor:pointer; z-index:1; }
+  .switch-track{
+    position:absolute; inset:0; background: var(--surface-2); border:1px solid var(--border);
+    border-radius:999px; transition: background .15s ease, border-color .15s ease;
+  }
+  .switch-thumb{
+    position:absolute; top:1px; left:1px; width:16px; height:16px; border-radius:50%;
+    background: var(--text-dim); transition: transform .15s ease, background .15s ease;
+  }
+  .switch input:checked ~ .switch-track{ background: var(--accent); border-color: var(--accent); }
+  .switch input:checked ~ .switch-track .switch-thumb{ transform: translateX(14px); background:#fff; }
+  .switch-label{ font-size:0.85rem; color: var(--text-dim); }
+  #packIssueBanner.compat-summary{ cursor:pointer; transition: filter .15s ease; }
+  #packIssueBanner.compat-summary:hover{ filter: brightness(0.97); }
+  html[data-theme="dark"] #packIssueBanner.compat-summary:hover{ filter: brightness(1.12); }
+  .pack-row select{
+    padding:6px 8px; border-radius:6px; border:1px solid var(--border);
+    font-family:inherit; font-size:0.82rem; max-width:150px;
+    text-overflow: ellipsis; overflow: hidden; white-space: nowrap;
+  }
+  .pack-row button.remove{
+    background:none; border:1px solid var(--border); color: var(--danger);
+    border-radius:6px; padding:6px 10px; cursor:pointer; font-family:inherit; font-weight:700;
+    transition: background .15s, transform .12s;
+  }
+  .pack-row button.remove:hover{ background: var(--danger-soft); transform: translateY(-1px); }
+  .pack-row button.remove:active{ transform: translateY(0) scale(.95); }
+  .pack-row{ animation: row-in .22s ease-out; }
+  @media (max-width: 640px){
+    .pack-row{
+      flex-wrap: wrap;
+      row-gap: 10px;
+    }
+    .pack-row .info{
+      flex: 1 1 100%;
+      width: 100%;
+      order: 1;
+    }
+    .pack-row img{ order: 0; }
+    .pack-row select{
+      order: 2;
+      flex: 0 0 calc(100% - 88px);
+      width: calc(100% - 88px);
+      max-width: none;
+      min-width: 0;
+    }
+    .pack-row button.remove{
+      order: 3;
+      flex: 0 0 76px;
+      width: 76px;
+      text-align: center;
+      padding-left: 0;
+      padding-right: 0;
+    }
+  }
+  @keyframes row-in{
+    from{ opacity:0; transform: translateX(-6px); }
+    to{ opacity:1; transform: translateX(0); }
+  }
+
+  .empty-state{
+    text-align:center; padding: 60px 20px; color: var(--text-dim);
+  }
+  .empty-state .big{ font-size:2.2rem; margin-bottom:6px; display:inline-block; animation: gentle-bob 2.6s ease-in-out infinite; }
+  @keyframes gentle-bob{
+    0%, 100%{ transform: translateY(0); }
+    50%{ transform: translateY(-6px); }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .empty-state .big{ animation: none; }
+  }
+  .empty-state.empty-pop-in{ animation: empty-pop-in .45s cubic-bezier(.22,1,.36,1) backwards; }
+  @keyframes empty-pop-in{
+    from{ opacity:0; transform: scale(.94) translateY(10px); }
+    to{ opacity:1; transform: scale(1) translateY(0); }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .empty-state.empty-pop-in{ animation: none; }
+  }
+
+  #packList{ transition: opacity .4s cubic-bezier(.22,1,.36,1), filter .4s cubic-bezier(.22,1,.36,1); transform-origin: top center; }
+  #packList.pack-clear-out{ pointer-events:none; }
+  #packList .pack-row, #packList .pack-category-label, #packList .pack-type-label{ transform-origin: left center; transition: opacity .38s cubic-bezier(.22,1,.36,1), transform .38s cubic-bezier(.22,1,.36,1), filter .38s cubic-bezier(.22,1,.36,1); }
+  #packList .pack-row.row-clear-out, #packList .pack-category-label.row-clear-out, #packList .pack-type-label.row-clear-out{ opacity:0; transform: scale(.94) translateX(-10px); filter: blur(3px); }
+  @media (prefers-reduced-motion: reduce){
+    #packList{ transition: none; }
+    #packList .pack-row, #packList .pack-category-label, #packList .pack-type-label{ transition: none; }
+  }
+
+  .export-panel{
+    background: var(--surface); border:1px solid var(--border);
+    border-radius: var(--radius); padding: 22px; max-width: 520px;
+    width: 100%; margin: 0 auto;
+  }
+  @media (min-width: 900px){
+    .export-panel{ max-width: 720px; }
+  }
+  #tab-export{ display:flex; justify-content:center; }
+  .export-hero{ display:flex; align-items:center; gap:14px; }
+  .export-hero-icon{
+    flex-shrink:0; width:44px; height:44px; border-radius:12px;
+    background: var(--accent-soft); color: var(--accent-dark);
+    display:flex; align-items:center; justify-content:center;
+    animation: gentle-bob 2.6s ease-in-out infinite;
+  }
+  .export-hero-icon svg{ width:22px; height:22px; }
+  .export-hero-icon.ready{ background: var(--accent); color:#fff; }
+  @media (prefers-reduced-motion: reduce){ .export-hero-icon{ animation: none; } }
+  .export-stats{
+    display:grid; grid-template-columns:repeat(3, 1fr); gap:10px;
+    margin: 18px 0 4px;
+  }
+  .export-stats:empty{ display:none; }
+  .export-stat{
+    background: var(--surface-2); border-radius: 10px; padding:10px 8px;
+    text-align:center; animation: card-in .25s ease-out backwards;
+    transition: transform .18s ease, box-shadow .18s ease;
+  }
+  .export-stat:hover{ transform: translateY(-2px); box-shadow: 0 6px 14px rgba(38,36,32,.08); }
+  .export-stat .stat-num{ font-size:1.15rem; font-weight:700; color:var(--accent-dark); line-height:1.2; }
+  .export-stat .stat-label{ font-size:0.68rem; color:var(--text-dim); text-transform:uppercase; letter-spacing:.04em; margin-top:2px; }
+  .export-cats{
+    display:flex; flex-wrap:wrap; gap:6px; margin: 10px 0 0;
+  }
+  @media (prefers-reduced-motion: reduce){ .export-stat{ animation: none; } }
+  .export-panel label{ display:block; font-weight:700; font-size:0.85rem; margin: 14px 0 6px; }
+  .export-panel select, .export-panel input[type=text]{
+    width:100%; padding:10px; border-radius:8px; border:1px solid var(--border);
+    font-family:inherit; font-size:0.95rem;
+  }
+  .export-btn{
+    margin-top:20px; width:100%; background:var(--accent); color:#fff; border:none;
+    padding:12px; border-radius:8px; font-family:inherit; font-weight:700; font-size:1rem; cursor:pointer;
+    transition: background .18s ease, transform .12s ease;
+  }
+  .export-btn:hover{ background: var(--accent-dark); transform: translateY(-1px); }
+  .export-btn:active{ transform: translateY(0) scale(.98); }
+  .export-btn:disabled{ background:var(--surface-2); color:var(--text-dim); cursor:not-allowed; }
+  .export-btn.btn-loading:disabled{ background: var(--accent); cursor:not-allowed; }
+  .export-btn.success{ background: var(--accent-dark); }
+  .export-note{ font-size:0.8rem; color:var(--text-dim); margin-top:10px; }
+  .export-note.error{ color: var(--danger); }
+
+  .file-btn{
+    display:inline-flex; align-items:center; justify-content:center; gap:6px;
+    background: var(--surface-2); color: var(--text); border:1px solid var(--border);
+    padding:9px 14px; border-radius:8px; font-family:inherit; font-weight:700; font-size:0.88rem;
+    cursor:pointer; white-space:nowrap; text-align:center;
+    transition: background .15s, border-color .15s, transform .1s;
+  }
+  .file-btn:hover{ background: var(--surface); border-color: var(--accent); transform: translateY(-1px); }
+  .export-panel label.file-btn{ display:inline-flex; align-items:center; justify-content:center; margin:0; }
+
+  .import-card{
+    background: var(--surface-2); border:1px solid var(--border); border-radius:10px;
+    padding:14px; margin: 18px 0;
+    display:flex; flex-direction:column; gap:8px;
+    transition: background .15s ease, border-color .15s ease;
+  }
+  .import-card.drop-target{
+    border:1px dashed var(--border);
+  }
+  .import-card.drag-over{
+    background: var(--accent-soft); border-color: var(--accent); border-style: dashed;
+  }
+  .import-drop-hint{
+    font-size:0.78rem; color: var(--text-dim); text-align:center; margin:0;
+  }
+  .import-card-top{ display:flex; align-items:flex-start; gap:12px; }
+  .import-card-text{ flex:1; min-width:0; }
+  .import-card strong{ font-size:0.92rem; }
+  .import-card-icon{
+    flex:0 0 36px; width:36px; height:36px; border-radius:9px;
+    background: var(--accent-soft); color: var(--accent-dark);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .import-card-icon svg{ width:18px; height:18px; flex-shrink:0; }
+  .import-card .file-btn{ width:100%; }
+  .import-status{
+    display:flex; align-items:center; gap:8px; padding:10px 12px;
+    border-radius:8px; font-size:0.85rem; line-height:1.4;
+    background: var(--surface); border:1px solid var(--border); color: var(--text-dim);
+  }
+  .import-status.success{ color: var(--accent-dark); border-color: var(--accent-soft); background: var(--accent-soft); }
+  .import-status.error{ color: var(--danger-text); border-color: var(--danger-border); background: var(--danger-soft); }
+  .import-status-icon{ display:flex; flex-shrink:0; }
+  .import-status-icon svg{ width:16px; height:16px; }
+  .import-status:not(.success):not(.error) .import-status-icon svg{ animation: import-spin 0.9s linear infinite; }
+  @keyframes import-spin{ from{ transform:rotate(0deg); } to{ transform:rotate(360deg); } }
+  .import-status.pop{ animation: import-status-pop .35s cubic-bezier(.3,1.6,.4,1); }
+  @keyframes import-status-pop{ 0%{ transform: scale(.96); } 55%{ transform: scale(1.02); } 100%{ transform: scale(1); } }
+  @media (prefers-reduced-motion: reduce){
+    .import-status:not(.success):not(.error) .import-status-icon svg{ animation: none; }
+    .import-status.pop{ animation: none; }
+  }
+
+  /* --- Tab panel switch animation --- */
+  .tab-panel-enter{ animation: tab-fade-in .28s cubic-bezier(.2,.9,.3,1) both; }
+  @keyframes tab-fade-in{ from{ opacity:0; transform: translateY(6px); } to{ opacity:1; transform: translateY(0); } }
+  @media (prefers-reduced-motion: reduce){ .tab-panel-enter{ animation: none; } }
+
+  /* --- Create-tab import lock (shown while mods are still importing) --- */
+  .import-lock-overlay{
+    display:none;
+    position:relative;
+    border-radius: var(--radius);
+    opacity:0; transition: opacity .25s ease;
+  }
+  .import-lock-overlay.visible{ opacity:1; }
+  .import-lock-blur{
+    filter: blur(4px);
+    pointer-events:none;
+    -webkit-user-select:none; user-select:none;
+  }
+  .import-lock-spinner{
+    position:absolute; top:50%; left:50%; transform: translate(-50%, -50%);
+    width:36px; height:36px; border-radius:50%;
+    background: var(--surface); box-shadow: 0 4px 16px rgba(0,0,0,.18);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .import-lock-spinner::after{
+    content:""; width:20px; height:20px; border-radius:50%;
+    border:3px solid var(--border); border-top-color: var(--accent);
+    animation: import-spin 0.8s linear infinite;
+  }
+  .import-skeleton{ display:flex; flex-direction:column; gap:10px; }
+  .import-skeleton-row{
+    display:flex; align-items:center; gap:12px; padding:12px 14px;
+    border-radius:10px; background: var(--surface); border:1px solid var(--border);
+    animation: sk-row-in .3s ease-out both;
+  }
+  .import-skeleton-row:nth-child(1){ animation-delay: 0s; }
+  .import-skeleton-row:nth-child(2){ animation-delay: .04s; }
+  .import-skeleton-row:nth-child(3){ animation-delay: .08s; }
+  .import-skeleton-row:nth-child(4){ animation-delay: .12s; }
+  .import-skeleton-row:nth-child(5){ animation-delay: .16s; }
+  @keyframes sk-row-in{ from{ opacity:0; transform: translateY(4px); } to{ opacity:1; transform: translateY(0); } }
+  .sk-icon{ width:40px; height:40px; border-radius:7px; flex-shrink:0; background: var(--surface-2); position:relative; overflow:hidden; }
+  .sk-lines{ flex:1; min-width:0; display:flex; flex-direction:column; gap:8px; }
+  .sk-line{ height:10px; border-radius:5px; background: var(--surface-2); position:relative; overflow:hidden; }
+  .sk-line-title{ width:52%; height:13px; }
+  .sk-line-sub{ width:30%; }
+  .sk-icon::after, .sk-line::after{
+    content:""; position:absolute; inset:0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,.55), transparent);
+    background-size:200% 100%;
+    animation: btn-shimmer 1.3s ease-in-out infinite;
+  }
+  html[data-theme="dark"] .sk-icon::after, html[data-theme="dark"] .sk-line::after{
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,.08), transparent);
+  }
+  @media (prefers-reduced-motion: reduce){
+    .import-lock-overlay{ transition: none; }
+    .import-lock-spinner::after{ animation: none; }
+    .import-skeleton-row{ animation: none; }
+    .sk-icon::after, .sk-line::after{ animation: none; }
+  }
+
+  .logo-picker{ display:flex; align-items:center; gap:14px; }
+  .logo-preview{
+    width:64px; height:64px; border-radius:12px; overflow:hidden; flex-shrink:0;
+    background: var(--surface-2); border:1px solid var(--border);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .logo-preview img{ width:100%; height:100%; object-fit:cover; }
+  .logo-picker-actions{ display:flex; flex-direction:row; flex-wrap:wrap; gap:8px; align-items:stretch; }
+  .logo-picker-actions .file-btn, .logo-picker-actions .modal-link-btn{
+    display:inline-flex; align-items:center; justify-content:center;
+    height:36px; padding:0 14px; margin:0; box-sizing:border-box;
+  }
+
+  .empty-state .quick-action{ margin:16px auto 0; max-width:210px; }
+
+  .header-actions{ display:flex; align-items:center; gap:8px; margin-left:auto; flex-shrink:0; }
+  .header-menu-wrap{ position:relative; flex-shrink:0; }
+  .header-menu{
+    position:absolute; top:calc(100% + 10px); right:0; z-index:40;
+    background: var(--surface); border:1px solid var(--border); border-radius:16px;
+    box-shadow: 0 14px 36px rgba(0,0,0,.2), 0 2px 8px rgba(0,0,0,.08);
+    width:230px; padding:8px; overflow:hidden;
+    flex-direction:column; gap:1px;
+    transform-origin: top right;
+    animation: header-menu-in .32s cubic-bezier(.22,1,.36,1);
+  }
+  @keyframes header-menu-in{
+    0%{ opacity:0; transform: translateY(-6px) scale(.92); }
+    65%{ opacity:1; transform: translateY(1px) scale(1.012); }
+    100%{ opacity:1; transform: translateY(0) scale(1); }
+  }
+  @keyframes header-menu-out{
+    from{ opacity:1; transform: translateY(0) scale(1); }
+    to{ opacity:0; transform: translateY(-5px) scale(.95); }
+  }
+  .header-menu::before{
+    content:""; position:absolute; top:0; left:0; right:0; height:96px; z-index:0;
+    background: linear-gradient(180deg, var(--accent-soft), transparent);
+    pointer-events:none;
+  }
+  .header-menu:not([hidden]){ display:flex; }
+  .header-menu.closing{
+    pointer-events:none;
+    animation: header-menu-out .16s cubic-bezier(.4,0,.7,.2) forwards;
+  }
+  .header-menu > *{ opacity:0; animation: account-menu-row-in .26s ease forwards; }
+  .header-menu > *:nth-child(1){ animation-delay: .03s; }
+  .header-menu > *:nth-child(2){ animation-delay: .06s; }
+  .header-menu > *:nth-child(3){ animation-delay: .1s; }
+  .header-menu > *:nth-child(4){ animation-delay: .13s; }
+  .header-menu.closing > *{ animation:none; opacity:1; }
+  .header-menu-title{
+    margin:-8px -8px 0; padding:12px 14px 6px;
+    font-size:0.7rem; font-weight:800; letter-spacing:.05em; text-transform:uppercase;
+    color: var(--accent-dark);
+    position:relative; z-index:1;
+  }
+  .header-menu-divider{ height:1px; background: var(--border); margin:3px 3px; flex-shrink:0; position:relative; z-index:1; }
+  .header-menu-item{
+    width:100%; height:auto; justify-content:flex-start; gap:12px;
+    padding:6px 8px; border-radius:10px; overflow:visible;
+    background:none; border:1px solid transparent; color: var(--text);
+    font-family:inherit; font-size:0.9rem; font-weight:700; text-align:left;
+    position:relative; z-index:1;
+  }
+  .header-menu-item:hover{ background: var(--surface-2); color: var(--text); border-color: transparent; transform:none; }
+  .header-menu-item:active{ transform: scale(.985); }
+  .header-menu-group{ display:flex; flex-direction:column; }
+  .header-menu-group .header-menu-item{ padding-top:3px; padding-bottom:3px; }
+  .header-menu-icon{
+    position:relative; display:flex; align-items:center; justify-content:center;
+    width:30px; height:30px; flex-shrink:0;
+    border-radius:8px; background: var(--bg);
+    transition: background .18s ease, color .18s ease;
+  }
+  .header-menu-item:hover .header-menu-icon{ background: var(--accent-soft); color: var(--accent-dark); }
+  .header-menu-icon svg{ width:17px; height:17px; }
+  .header-menu-icon > span{
+    font-size:1.05rem; line-height:1;
+  }
+  .header-menu-label{ flex:1; }
+  @media (prefers-reduced-motion: reduce){
+    .header-menu, .header-menu.closing, .header-menu > *{ animation:none; opacity:1; transform:none; filter:none; }
+  }
+
+  /* --- Accounts: header button, avatar menu, auth modal --- */
+  .signin-btn{
+    display:flex; align-items:center; gap:6px; white-space:nowrap; flex-shrink:0;
+    background: var(--surface-2); border:1px solid var(--border); color: var(--text);
+    font-family:inherit; font-weight:700; font-size:0.88rem;
+    padding:8px 14px; border-radius:8px; cursor:pointer;
+    transition: background .18s ease, border-color .18s ease, transform .12s ease;
+  }
+  .signin-btn svg{ width:15px; height:15px; flex-shrink:0; }
+  .signin-btn:hover{ background: var(--accent-soft); border-color: var(--accent-soft); color: var(--accent-dark); transform: translateY(-1px); }
+  .signin-btn:active{ transform: translateY(0) scale(.96); }
+
+  .account-slot{ position:relative; flex-shrink:0; }
+  .account-btn{
+    display:flex; align-items:center; justify-content:center;
+    width:36px; height:36px; border-radius:50%; flex-shrink:0;
+    background: var(--accent); color:#fff; border:1px solid var(--accent-dark);
+    font-family:inherit; font-weight:700; font-size:0.95rem; cursor:pointer;
+    transition: transform .15s ease, box-shadow .15s ease;
+  }
+  .account-btn:hover{ transform: scale(1.05); box-shadow: 0 1px 4px rgba(0,0,0,.2); }
+  .account-btn:active{ transform: scale(.94); }
+  .account-btn.has-avatar{ padding:0; background:none; overflow:hidden; }
+  .account-btn img{ width:100%; height:100%; object-fit:cover; display:block; border-radius:50%; }
+  .account-menu{
+    position:absolute; top:calc(100% + 10px); right:0; z-index:40;
+    background: var(--surface); border:1px solid var(--border); border-radius:16px;
+    box-shadow: 0 14px 36px rgba(0,0,0,.2), 0 2px 8px rgba(0,0,0,.08);
+    width:312px; padding:10px; overflow:hidden;
+    transform-origin: top right;
+    animation: account-menu-in .26s cubic-bezier(.16,.84,.34,1.02);
+  }
+  .account-menu.closing{
+    pointer-events:none;
+    animation: account-menu-out .16s cubic-bezier(.4,0,.7,.2) forwards;
+  }
+  @keyframes account-menu-in{
+    from{ opacity:0; transform: translateY(-6px) scale(.96); }
+    to{ opacity:1; transform: translateY(0) scale(1); }
+  }
+  @keyframes account-menu-out{
+    from{ opacity:1; transform: translateY(0) scale(1); }
+    to{ opacity:0; transform: translateY(-4px) scale(.97); }
+  }
+  .account-menu > *{ opacity:0; animation: account-menu-row-in .28s ease forwards; }
+  .account-menu > .account-menu-header{ opacity:1; animation:none; }
+  .account-menu > *:nth-child(1){ animation-delay: .04s; }
+  .account-menu > *:nth-child(2){ animation-delay: .07s; }
+  .account-menu > *:nth-child(3){ animation-delay: .10s; }
+  .account-menu > *:nth-child(4){ animation-delay: .13s; }
+  .account-menu > *:nth-child(5){ animation-delay: .16s; }
+  .account-menu > *:nth-child(6){ animation-delay: .19s; }
+  .account-menu > *:nth-child(7){ animation-delay: .22s; }
+  .account-menu > *:nth-child(8){ animation-delay: .25s; }
+  .account-menu > *:nth-child(n+9){ animation-delay: .27s; }
+  .account-menu.closing > *{ animation:none; opacity:1; }
+  @keyframes account-menu-row-in{
+    from{ opacity:0; transform: translateY(4px); }
+    to{ opacity:1; transform: translateY(0); }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .account-menu, .account-menu.closing, .account-menu > *{ animation:none; opacity:1; transform:none; }
+  }
+  .account-menu-header{
+    display:flex; align-items:center; gap:13px;
+    margin:-10px -10px 12px; padding:18px 16px 16px;
+    background: linear-gradient(180deg, var(--accent-soft), var(--surface-2) 130%);
+  }
+  .account-menu-avatar{
+    width:50px; height:50px; border-radius:50%; flex-shrink:0; object-fit:cover;
+    display:flex; align-items:center; justify-content:center;
+    box-shadow: 0 0 0 2.5px var(--surface), 0 0 0 4px var(--accent-soft);
+  }
+  .account-menu-avatar-fallback{ background: var(--accent); color:#fff; font-weight:700; font-size:1.05rem; }
+  .account-menu-identity{ min-width:0; overflow-wrap:break-word; }
+  .account-menu-identity strong{ display:block; color: var(--text); font-size:1.02rem; margin-bottom:3px; line-height:1.25; }
+  .account-menu-identity span{ display:block; color: var(--text-dim); font-size:0.83rem; line-height:1.3; }
+  .account-sync-note{
+    display:flex; align-items:center; gap:6px; width:fit-content;
+    margin:0 5px 9px; padding:5px 11px 5px 8px; border-radius:999px;
+    background: var(--surface-2); font-size:0.77rem; font-weight:700;
+    color: var(--text-dim); letter-spacing:.01em;
+    border:none; font-family:inherit; text-align:left;
+  }
+  /* Only interactive in the error state — there's nothing to read otherwise. */
+  .account-sync-note.err{ cursor:pointer; }
+  .account-sync-note.err:hover{ filter: brightness(0.96); }
+  .account-status-row{ display:flex; align-items:center; gap:7px; flex-wrap:wrap; margin:0 5px 9px; }
+  .account-status-row .account-sync-note{ margin:0; }
+  .account-share-count{
+    display:inline-flex; align-items:center; padding:5px 10px; border-radius:999px;
+    background: var(--surface-2); font-size:0.77rem; font-weight:700;
+    color: var(--text-dim); letter-spacing:.01em; white-space:nowrap;
+  }
+  .account-sync-note.err{ background: var(--danger-soft); color: var(--danger-text); }
+  .account-sync-note .dot{ width:6px; height:6px; border-radius:50%; background: var(--accent); flex-shrink:0; }
+  .account-sync-note.err .dot{ background: var(--danger); }
+  .account-menu-divider{ height:1px; background: var(--border); margin:2px 4px 6px; }
+  .account-menu button.menu-item{
+    display:flex; align-items:center; gap:10px; width:100%; text-align:left;
+    background:none; border:none; padding:11px 11px; border-radius:10px; cursor:pointer;
+    font-family:inherit; font-size:0.92rem; color: var(--text); font-weight:700;
+    transition: background .15s ease, color .15s ease;
+  }
+  .account-menu button.menu-item svg{ width:16px; height:16px; flex-shrink:0; }
+  .account-menu button.menu-item:hover{ background: var(--surface-2); }
+  .account-menu button.menu-item.danger{ color: var(--danger-text); }
+  .account-menu button.menu-item.danger:hover{ background: var(--danger-soft); }
+
+  .export-action-row{ display:flex; gap:10px; align-items:stretch; margin-top:22px; }
+  .export-action-row .export-btn{ flex:1; margin-top:0; }
+  .export-action-row .export-btn.secondary{
+    display:flex; align-items:center; justify-content:center; gap:8px;
+    background: var(--surface-2); color: var(--text); border:1px solid var(--border);
+  }
+  .export-action-row .export-btn.secondary:hover{
+    background: var(--accent-soft); color: var(--accent-dark); border-color: var(--accent-soft);
+  }
+  .export-action-row .export-btn.secondary svg{ width:16px; height:16px; flex-shrink:0; }
+  @media (max-width: 520px){
+    .export-action-row{ flex-direction:column; }
+  }
+
+  select[data-vselect].is-loading{ opacity:.6; cursor:progress; }
+
+  .saved-packs-title{
+    font-size:0.82rem; text-transform:uppercase; letter-spacing:.07em;
+    color: var(--text-dim); margin:4px 0 12px; font-weight:800;
+  }
+  .saved-packs-sep{ border:none; border-top:1px solid var(--border); margin:22px 0 18px; }
+  .saved-packs-grid{
+    display:grid; gap:12px;
+    grid-template-columns: repeat(auto-fill, minmax(248px, 1fr));
+  }
+  .saved-pack-card{
+    display:flex; flex-direction:column; gap:10px;
+    background: var(--surface); border:1px solid var(--border);
+    border-radius:14px; padding:14px;
+    transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease;
+  }
+  .saved-pack-card:hover{
+    transform: translateY(-2px);
+    border-color: var(--accent-soft);
+    box-shadow: 0 8px 22px rgba(0,0,0,.10);
+  }
+  .saved-pack-head{ display:flex; align-items:center; gap:11px; min-width:0; }
+  .saved-pack-icon{
+    width:46px; height:46px; border-radius:11px; flex-shrink:0; object-fit:cover;
+    background: var(--surface-2); border:1px solid var(--border);
+  }
+  .saved-pack-meta{ min-width:0; flex:1; }
+  .saved-pack-name{
+    display:block; font-weight:800; font-size:0.95rem; color: var(--text);
+    line-height:1.25; overflow-wrap:break-word;
+  }
+  .saved-pack-sub{ display:block; font-size:0.78rem; color: var(--text-dim); margin-top:2px; }
+  .saved-pack-code{
+    display:flex; align-items:center; gap:6px; width:100%;
+    background: var(--surface-2); border:1px dashed var(--border); border-radius:8px;
+    padding:6px 9px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size:0.78rem; color: var(--text); cursor:pointer; text-align:left;
+  }
+  .saved-pack-code:hover{ border-color: var(--accent); color: var(--accent-dark); }
+  .saved-pack-code svg{ width:13px; height:13px; flex-shrink:0; opacity:.6; }
+  .saved-pack-code span{ overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .saved-pack-actions{ display:flex; gap:7px; }
+  .saved-pack-actions button{
+    flex:1; font-family:inherit; font-size:0.82rem; font-weight:700;
+    padding:8px 10px; border-radius:9px; cursor:pointer;
+    border:1px solid var(--border); background: var(--surface-2); color: var(--text);
+    transition: background .15s ease, color .15s ease, border-color .15s ease;
+  }
+  .saved-pack-card.is-loaded{ border-color: var(--accent); }
+  .saved-pack-actions button.loaded{
+    background: var(--accent-soft); border-color: var(--accent-soft);
+    color: var(--accent-dark); cursor:default;
+  }
+  .saved-pack-actions button.primary{ background: var(--accent); border-color: var(--accent-dark); color:#fff; }
+  .saved-pack-actions button.primary:hover{ filter: brightness(1.06); }
+  .saved-pack-actions button.danger{ flex:0 0 auto; color: var(--danger-text); }
+  .saved-pack-actions button.danger:hover{ background: var(--danger-soft); border-color: var(--danger-soft); }
+
+  .avatar-modal{ max-width:400px; }
+  .avatar-preview-wrap{ display:flex; justify-content:center; margin:0 0 18px; }
+  .avatar-preview{
+    width:108px; height:108px; border-radius:50%; overflow:hidden;
+    background: var(--surface-2); border:2px solid var(--border);
+    display:flex; align-items:center; justify-content:center;
+    font-size:2rem; font-weight:800; color: var(--text-dim);
+    transition: border-color .2s ease;
+  }
+  .avatar-preview img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .avatar-preview.is-pop{ animation: avatar-pop .34s cubic-bezier(.18,.85,.32,1.12); border-color: var(--accent); }
+  @keyframes avatar-pop{
+    0%{ transform: scale(.86); opacity:.35; }
+    60%{ transform: scale(1.04); opacity:1; }
+    100%{ transform: scale(1); opacity:1; }
+  }
+
+  .avatar-drop{
+    display:flex; flex-direction:column; align-items:center; gap:5px;
+    padding:22px 18px; border-radius:12px; cursor:pointer;
+    border:1.5px dashed var(--border); background: var(--surface-2);
+    color: var(--text-dim); text-align:center;
+    transition: border-color .18s ease, background .18s ease, transform .18s ease;
+  }
+  .avatar-drop:hover{ border-color: var(--accent); background: var(--accent-soft); color: var(--accent-dark); }
+  .avatar-drop:focus-visible{ outline:2px solid var(--accent); outline-offset:2px; }
+  .avatar-drop.is-over{
+    border-color: var(--accent); background: var(--accent-soft);
+    color: var(--accent-dark); transform: scale(1.015);
+  }
+  .avatar-drop svg{ width:26px; height:26px; opacity:.75; }
+  .avatar-drop strong{ font-size:0.92rem; color: var(--text); }
+  .avatar-drop.is-over strong, .avatar-drop:hover strong{ color: var(--accent-dark); }
+  .avatar-drop span{ font-size:0.78rem; line-height:1.4; }
+
+  .avatar-note{
+    margin:12px 0 0; padding:9px 11px; border-radius:9px;
+    font-size:0.81rem; line-height:1.45; font-weight:700;
+  }
+  .avatar-note.err{ background: var(--danger-soft); color: var(--danger-text); }
+  .avatar-note.warn{ background: var(--accent-soft); color: var(--accent-dark); }
+
+  .avatar-actions{ display:flex; gap:9px; margin-top:16px; }
+  .avatar-actions .page-btn{ height:auto; padding:12px 16px; }
+  @media (prefers-reduced-motion: reduce){
+    .avatar-preview.is-pop{ animation:none; }
+    .avatar-drop.is-over{ transform:none; }
+  }
+
+  .confirm-modal-body{
+    margin:0 0 20px; font-size:0.95rem; line-height:1.55;
+    max-height:min(52vh, 420px); overflow-y:auto;
+    padding-right:4px;
+  }
+  .confirm-modal-body::-webkit-scrollbar{ width:8px; }
+  .confirm-modal-body::-webkit-scrollbar-thumb{ background: var(--border); border-radius:99px; }
+  .confirm-modal-body ul{ animation: confirm-list-in .4s cubic-bezier(.2,.85,.3,1) backwards .06s; }
+  @keyframes confirm-list-in{
+    from{ opacity:0; transform: translateY(6px); }
+    to{ opacity:1; transform: translateY(0); }
+  }
+  .modal-backdrop.closing .confirm-modal{ animation: modal-pop-out .18s cubic-bezier(.4,0,.7,.2) forwards; }
+  @media (prefers-reduced-motion: reduce){
+    .confirm-modal-body ul{ animation:none; }
+    .modal-backdrop.closing .confirm-modal{ animation:none; }
+  }
+
+  .import-summary[hidden]{ display:none !important; }
+  .import-summary{
+    display:flex; align-items:flex-start; gap:11px;
+    padding:12px 14px; margin:0 0 14px;
+    border-radius:12px; border:1px solid var(--border); background: var(--surface-2);
+    animation: import-summary-in .34s cubic-bezier(.2,.85,.3,1);
+    transform-origin: left center;
+    transition: opacity .38s cubic-bezier(.22,1,.36,1), transform .38s cubic-bezier(.22,1,.36,1), filter .38s cubic-bezier(.22,1,.36,1);
+  }
+  .import-summary.import-summary-clear-out{ opacity:0; transform: scale(.94) translateX(-10px); filter: blur(3px); pointer-events:none; }
+  @keyframes import-summary-in{
+    from{ opacity:0; transform: translateY(-7px); }
+    to{ opacity:1; transform: translateY(0); }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .import-summary{ transition: none; }
+  }
+  .import-summary svg{ width:17px; height:17px; flex-shrink:0; margin-top:2px; color: var(--accent-dark); }
+  .import-summary-body{ flex:1; min-width:0; font-size:0.85rem; line-height:1.5; }
+  .import-summary-body strong{ color: var(--text); }
+  .import-summary-body span{ color: var(--text-dim); }
+  .import-summary-close{
+    background:none; border:none; cursor:pointer; color: var(--text-dim);
+    padding:3px 5px; border-radius:7px; font-size:0.85rem; line-height:1;
+    transition: background .15s ease, color .15s ease;
+  }
+  .import-summary-close:hover{ background: var(--surface); color: var(--text); }
+
+  .auth-modal{ max-width:380px; }
+  .auth-modal-title{ display:flex; align-items:center; gap:10px; }
+  .auth-modal-badge{
+    width:34px; height:34px; border-radius:50%; flex-shrink:0;
+    background: var(--accent-soft); color: var(--accent-dark);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .auth-modal-badge svg{ width:18px; height:18px; }
+  .auth-modal-body{
+    overflow:hidden;
+    transition: height .32s cubic-bezier(.22,.61,.36,1),
+                opacity .2s ease .08s,
+                transform .26s cubic-bezier(.22,.61,.36,1) .06s;
+  }
+  .auth-modal-body.fading{
+    opacity:0; transform: translateY(-5px);
+    transition: opacity .13s ease, transform .13s ease;
+  }
+  .auth-modal .modal-head{ transition: margin-bottom .32s cubic-bezier(.22,.61,.36,1); }
+  @media (prefers-reduced-motion: reduce){
+    .auth-modal-body{ transition: height .22s cubic-bezier(.2,.8,.2,1); }
+    .auth-modal-body.fading{ opacity:1; transform:none; }
+    .auth-modal .modal-head{ transition:none; }
+  }
+  .auth-body-first-open > *{ opacity:0; animation: intro-step-in .34s ease forwards; }
+  .auth-body-first-open > *:nth-child(1){ animation-delay: .02s; }
+  .auth-body-first-open > *:nth-child(2){ animation-delay: .07s; }
+  .auth-body-first-open > *:nth-child(3){ animation-delay: .12s; }
+  .auth-body-first-open > *:nth-child(4){ animation-delay: .17s; }
+  .auth-body-first-open > *:nth-child(5){ animation-delay: .22s; }
+  .auth-body-first-open > *:nth-child(6){ animation-delay: .27s; }
+  @media (prefers-reduced-motion: reduce){ .auth-body-first-open > *{ opacity:1; animation:none; } }
+  .auth-tabs{ display:flex; gap:4px; background: var(--surface-2); border-radius:9px; padding:3px; margin-bottom:18px; }
+  .auth-tabs button{
+    flex:1; font-family:inherit; font-size:0.88rem; font-weight:700; color: var(--text-dim);
+    background:none; border:none; padding:8px; border-radius:7px; cursor:pointer;
+    transition: background .15s ease, color .15s ease;
+  }
+  .auth-tabs button.active{ background: var(--surface); color: var(--text); box-shadow: 0 1px 3px rgba(0,0,0,.1); }
+  .auth-field{ margin-bottom:14px; }
+  .auth-field label{ display:block; font-weight:700; font-size:0.85rem; margin-bottom:6px; }
+  .auth-field input{
+    width:100%; padding:10px 12px; border-radius:8px; border:1px solid var(--border);
+    font-family:inherit; font-size:0.95rem; background: var(--surface); color: var(--text);
+  }
+  .auth-field input{ transition: box-shadow .15s ease; }
+  .auth-field input:focus{ outline:none; box-shadow: inset 0 0 0 2px var(--accent); }
+  .auth-field-input-wrap{ position:relative; }
+  .auth-field-input-wrap svg{
+    position:absolute; left:11px; top:50%; transform:translateY(-50%);
+    width:16px; height:16px; color: var(--text-dim); pointer-events:none;
+  }
+  .auth-field-input-wrap input{ padding-left:36px; }
+  .pw-reveal-input{ color: transparent !important; caret-color: transparent !important; padding-right:36px !important; }
+  .pw-reveal-input::-ms-reveal, .pw-reveal-input::-ms-clear{ display:none; }
+  .pw-reveal-input:-webkit-autofill,
+  .pw-reveal-input:-webkit-autofill:hover,
+  .pw-reveal-input:-webkit-autofill:focus{
+    -webkit-text-fill-color: transparent !important;
+    transition: background-color 9999s ease-in-out 0s;
+  }
+  .pw-reveal-overlay{
+    position:absolute; inset:0;
+    display:flex; align-items:center;
+    padding-left:36px; padding-right:36px;
+    font-family:inherit; font-size:0.95rem; color: var(--text);
+    white-space:pre; overflow:hidden;
+    pointer-events:none;
+  }
+  .pw-reveal-toggle{
+    position:absolute; top:0; bottom:0; right:7px; margin:auto 0;
+    width:26px; height:26px; display:flex; align-items:center; justify-content:center;
+    background:none; border:none; padding:0; cursor:pointer;
+    color: var(--text-dim); border-radius:6px; line-height:0;
+    transition: background .15s ease, color .15s ease;
+  }
+  .pw-reveal-toggle:hover{ background: var(--accent-soft); color: var(--accent-dark); }
+  .pw-reveal-toggle:active{ transform: scale(.9); }
+  .pw-reveal-toggle svg{
+    position:static; top:auto; left:auto; transform:none; /* cancel .auth-field-input-wrap svg's absolute positioning + translateY below — this icon shares that ancestor */
+    width:18px; height:18px; display:block; pointer-events:none;
+  }
+  .pw-reveal-toggle:focus-visible{ outline:2px solid var(--accent); outline-offset:1px; }
+  .pw-fake-caret{
+    position:absolute; top:50%; width:1px; height:1.05em;
+    background: var(--text); transform: translateY(-50%);
+    pointer-events:none; opacity:0;
+  }
+  .pw-fake-caret.active{ opacity:1; animation: pw-caret-blink 1.05s steps(1) infinite; }
+  @keyframes pw-caret-blink{ 0%,50%{ opacity:1; } 50.01%,100%{ opacity:0; } }
+  @media (prefers-reduced-motion: reduce){
+    .pw-fake-caret.active{ animation:none; opacity:1; }
+  }
+  .pw-strength{ margin:8px 0 22px; }
+  .pw-strength-bar{ display:flex; gap:4px; margin-bottom:7px; }
+  .pw-strength-seg{ height:4px; flex:1; border-radius:2px; background: var(--border); transition: background .2s ease; }
+  .pw-strength-seg.filled-weak{ background: var(--danger); }
+  .pw-strength-seg.filled-fair{ background: var(--warn); }
+  .pw-strength-seg.filled-good{ background: var(--accent); }
+  .pw-strength-seg.filled-strong{ background: var(--accent-dark); }
+  .pw-strength-label{ font-size:0.78rem; font-weight:700; min-height:1.1em; }
+  .pw-strength-label.weak{ color: var(--danger); }
+  .pw-strength-label.fair{ color: var(--warn); }
+  .pw-strength-label.good{ color: var(--accent); }
+  .pw-strength-label.strong{ color: var(--accent-dark); }
+  .pw-requirements{ list-style:none; display:grid; grid-template-columns:1fr 1fr; gap:5px 12px; margin:8px 0 0; padding:0; }
+  .pw-requirements li{
+    font-size:0.78rem; color: var(--text-dim); display:flex; align-items:flex-start; gap:6px;
+    transition: color .15s ease; line-height:1.3;
+  }
+  .pw-req-icon{ width:14px; height:14px; flex-shrink:0; margin-top:1px; display:flex; align-items:center; justify-content:center; color: var(--text-dim); transition: color .15s ease; }
+  .pw-req-icon svg{ width:100%; height:100%; display:block; }
+  .pw-requirements li.met{ color: var(--text); }
+  .pw-requirements li.met .pw-req-icon{ color: var(--accent); }
+  .auth-error{
+    display:flex; gap:8px; align-items:flex-start; background: var(--danger-soft); color: var(--danger-text);
+    border:1px solid var(--danger-border); border-radius:8px; padding:9px 11px; font-size:0.84rem;
+    margin-bottom:14px; text-wrap:pretty;
+  }
+  .auth-note{ font-size:0.82rem; color: var(--text-dim); margin-top:14px; text-align:center; text-wrap:pretty; }
+  .linklike{
+    background:none; border:none; padding:0; font:inherit; font-weight:700; color: var(--accent-dark);
+    cursor:pointer; text-decoration:underline;
+  }
+  .auth-forgot{ text-align:right; margin-bottom:14px; font-size:0.82rem; }
+  .auth-divider{ display:flex; align-items:center; gap:10px; margin:16px 0; color: var(--text-dim); font-size:0.78rem; }
+  .auth-divider::before, .auth-divider::after{ content:""; flex:1; height:1px; background: var(--border); }
+  .oauth-row{ display:flex; flex-direction:row; gap:8px; }
+  .oauth-btn{
+    display:flex; align-items:center; justify-content:center; gap:8px; width:100%; flex:1; min-width:0;
+    background: var(--surface); color: var(--text); border:1px solid var(--border);
+    padding:10px 8px; border-radius:8px; font-family:inherit; font-weight:700; font-size:0.86rem;
+    cursor:pointer; transition: background .15s ease, transform .12s ease;
+    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  }
+  .oauth-btn:hover{ background: var(--surface-2); transform: translateY(-1px); }
+  .oauth-btn:active{ transform: translateY(0) scale(.97); }
+  .oauth-btn svg, .oauth-btn img{ width:18px; height:18px; flex-shrink:0; }
+
+  .intro-backdrop{
+    background: rgba(15,13,10,0.62);
+    animation: intro-backdrop-in .28s ease-out forwards;
+  }
+  @keyframes intro-backdrop-in{
+    from{ opacity:0; backdrop-filter: blur(0px); -webkit-backdrop-filter: blur(0px); }
+    to{ opacity:1; backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px); }
+  }
+  .intro-backdrop.closing{
+    animation: intro-backdrop-out .18s ease-in forwards;
+  }
+  @keyframes intro-backdrop-out{
+    from{ opacity:1; backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px); }
+    to{ opacity:0; backdrop-filter: blur(0px); -webkit-backdrop-filter: blur(0px); }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .intro-backdrop{ animation:none; backdrop-filter: blur(7px); -webkit-backdrop-filter: blur(7px); }
+    .intro-backdrop.closing{ animation:none; }
+  }
+
+  .intro-modal{ max-width:600px; }
+  .intro-modal .modal-head{ align-items:flex-start; }
+  .intro-logo{
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+    width:56px; height:56px; border-radius:12px; overflow:hidden;
+    background:var(--surface-2); box-sizing:border-box; padding:8px;
+  }
+  .intro-logo img{ width:100%; height:100%; object-fit:contain; image-rendering:pixelated; }
+  .modal-head .intro-logo img{ width:100%; height:100%; }
+  .intro-head-text{ flex:1; min-width:0; }
+  .intro-head-text p{ text-wrap: pretty; }
+  .intro-steps{ display:flex; flex-direction:column; gap:14px; margin:18px 0 0; }
+  .intro-step{
+    display:flex; gap:12px; align-items:flex-start;
+    opacity:0; animation: intro-step-in .38s ease forwards;
+  }
+  .intro-step:nth-child(1){ animation-delay: .03s; }
+  .intro-step:nth-child(2){ animation-delay: .09s; }
+  .intro-step:nth-child(3){ animation-delay: .15s; }
+  .intro-step:nth-child(4){ animation-delay: .21s; }
+  .intro-step:nth-child(5){ animation-delay: .27s; }
+  @keyframes intro-step-in{
+    from{ opacity:0; transform: translateY(6px); }
+    to{ opacity:1; transform: translateY(0); }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .intro-step{ opacity:1; animation:none; }
+  }
+  .intro-step strong{ color: var(--text); }
+  .intro-step-icon{
+    flex-shrink:0; width:38px; height:38px; border-radius:10px;
+    background: var(--accent-soft); color: var(--accent-dark);
+    display:flex; align-items:center; justify-content:center; font-size:1.05rem;
+  }
+  .intro-step h4{ margin:0 0 3px; font-size:0.95rem; color: var(--accent-dark); font-weight:800; }
+  .intro-step p{ margin:0; font-size:0.85rem; color: var(--text-dim); line-height:1.5; text-wrap: pretty; }
+  .intro-step p kbd{
+    font-family:inherit; font-size:0.78rem; font-weight:700;
+    color: var(--text); background: var(--surface-2); border:1px solid var(--border);
+    border-radius:5px; padding:1px 6px; line-height:1.5;
+  }
+  .intro-footnote{ font-size:0.8rem; color:var(--text); margin:14px 0 0; text-align:center; text-wrap: pretty; }
+  @media (max-width: 480px){
+    .modal{ padding: 18px; }
+    .intro-logo{ width:44px; height:44px; padding:6px; }
+    .intro-modal .modal-head .name{ font-size:1.1rem; }
+  }
+  @media (min-width: 641px){
+    .intro-modal{ max-width:680px; }
+    .intro-modal.modal{ padding:32px; }
+    .intro-logo{ width:64px; height:64px; padding:10px; }
+  }
+
+  .modal-backdrop{
+    position: fixed; inset:0; background: rgba(15,13,10,0.72);
+    display:flex; align-items:center; justify-content:center;
+    padding: 30px 16px; overflow-y:auto; z-index: 50;
+    animation: modal-fade-in .18s ease-out;
+  }
+  .modal{
+    background: var(--surface); border-radius: 14px; max-width: 760px; width:100%;
+    padding: 24px; margin: auto;
+    animation: modal-pop-in .22s cubic-bezier(.2,.9,.3,1.2);
+  }
+  @keyframes modal-fade-in{
+    from{ opacity:0; }
+    to{ opacity:1; }
+  }
+  @keyframes modal-pop-in{
+    from{ opacity:0; transform: translateY(14px) scale(.97); }
+    to{ opacity:1; transform: translateY(0) scale(1); }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .modal-backdrop, .modal{ animation: none; }
+  }
+  .modal-backdrop.closing{ animation: modal-fade-out .18s ease-in forwards; }
+  .intro-modal.closing{ animation: modal-pop-out .16s ease-in forwards; }
+  .modal-backdrop.closing .auth-modal{ animation: modal-pop-out .18s cubic-bezier(.4,0,.7,.2) forwards; }
+  @media (prefers-reduced-motion: reduce){
+    .modal-backdrop.closing .auth-modal{ animation:none; }
+  }
+  @keyframes modal-fade-out{
+    from{ opacity:1; }
+    to{ opacity:0; }
+  }
+  @keyframes modal-pop-out{
+    from{ opacity:1; transform: translateY(0) scale(1); }
+    to{ opacity:0; transform: translateY(10px) scale(.96); }
+  }
+  @media (prefers-reduced-motion: reduce){
+    .modal-backdrop.closing, .intro-modal.closing{ animation: none; }
+  }
+  #introCloseBtn, #exportBtn{ position:relative; overflow:hidden; z-index:0; }
+  #introCloseBtn:hover, #exportBtn:not(:disabled):hover{ background: var(--accent); }
+  #introCloseBtn::after, #exportBtn::after{
+    content:""; position:absolute; top:0; left:-75%; width:35%; height:100%;
+    background: linear-gradient(115deg, transparent 0%, rgba(255,255,255,.85) 50%, transparent 100%);
+    transform: skewX(-20deg); pointer-events:none; opacity:0; mix-blend-mode:overlay; z-index:1;
+  }
+  #introCloseBtn:hover::after, #exportBtn:not(:disabled):hover::after{ animation: intro-btn-shimmer .85s ease; }
+  @keyframes intro-btn-shimmer{
+    0%{ left:-75%; opacity:0; }
+    15%{ opacity:1; }
+    85%{ opacity:1; }
+    100%{ left:125%; opacity:0; }
+  }
+  @media (prefers-reduced-motion: reduce){
+    #introCloseBtn:hover::after, #exportBtn:hover::after{ animation:none; }
+  }
+  .modal-head{ display:flex; gap:14px; align-items:center; }
+  .modal-head img{ width:72px; height:72px; border-radius:12px; object-fit:cover; flex-shrink:0; }
+  .modal-head .name{ font-size:1.3rem; font-weight:700; }
+  .modal-close{
+    margin-left:auto; background:none; border:none; font-size:1.4rem; cursor:pointer; color: var(--text-dim);
+    transition: color .15s, transform .15s; border-radius:6px;
+    display:inline-flex; align-items:center; justify-content:center;
+    line-height:1; padding:4px; min-width:28px; min-height:28px; flex-shrink:0;
+  }
+  .modal-close:hover{ color: var(--text); transform: rotate(90deg); }
+  .modal-actions{ display:flex; gap:10px; margin-top:14px; }
+  .modal-actions .export-btn{ margin-top:0; }
+  .modal-link-btn{
+    display:flex; align-items:center; justify-content:center; gap:6px;
+    background: var(--surface-2); color: var(--text); border:1px solid var(--border);
+    padding:12px 16px; border-radius:8px; font-family:inherit; font-weight:700; font-size:0.95rem;
+    text-decoration:none; white-space:nowrap; cursor:pointer;
+    transition: background .15s, border-color .15s, transform .1s;
+  }
+  .modal-link-btn:hover{ background: var(--surface); border-color: var(--accent); transform: translateY(-1px); }
+  .modlist-toggle{
+    display:inline; background:none; border:none; padding:0; margin-left:2px;
+    color: var(--accent-dark); font-weight:700; font-size:inherit; text-decoration:underline;
+    cursor:pointer; white-space:nowrap;
+  }
+  .modlist-toggle:hover{ background:none; border:none; transform:none; color: var(--accent); }
+  .modlist-rest:not([hidden]){ display:contents; }
+  .modlist-toggle-chip{
+    background: var(--surface-2); border:1px dashed var(--border); cursor:pointer;
+    font-family:inherit; font-weight:700; color: var(--accent-dark);
+  }
+  .modlist-toggle-chip:hover{ border-color: var(--accent); color: var(--accent); }
+  .compat-mod-chip.modlist-toggle-chip{ padding:3px 10px; justify-content:center; }
+  .modal-desc-full{ font-size:0.92rem; color: var(--text); line-height:1.6; }
+  .modal-desc-full h1, .modal-desc-full h2, .modal-desc-full h3{ font-size:1rem; margin:16px 0 6px; }
+  .modal-desc-full p{ margin:0 0 10px; }
+  .modal-desc-full ul, .modal-desc-full ol{ margin:0 0 10px; padding-left:22px; }
+  .modal-desc-full img{ max-width:100%; border-radius:8px; margin:8px 0; }
+  .modal-desc-full a{ color: var(--accent-dark); }
+  .modal-desc-full code{ background: var(--surface-2); padding:1px 5px; border-radius:4px; font-size:0.88em; }
+  .modal-desc-full table{ border-collapse:collapse; width:100%; margin:0 0 12px; font-size:0.88em; display:block; overflow-x:auto; }
+  .modal-desc-full th, .modal-desc-full td{ border:1px solid var(--border); padding:6px 10px; text-align:left; }
+  .modal-desc-full th{ background: var(--surface-2); font-weight:700; }
+  .modal-gallery{ display:flex; gap:10px; overflow-x:auto; margin: 14px 0; }
+  .modal-gallery img{ height:130px; width:auto; border-radius:8px; flex-shrink:0; transition: transform .15s; }
+  .modal-gallery img:hover{ transform: scale(1.03); }
+  @media (min-width: 861px){
+    .modal-gallery img{ height:190px; }
+  }
+  .modal-desc{ font-size:0.92rem; color: var(--text); margin: 10px 0 16px; }
+  .modal-versions{ max-height:320px; overflow-y:auto; border:1px solid var(--border); border-radius:8px; }
+  .version-row{
+    display:flex; align-items:center; gap:10px; padding:9px 12px; font-size:0.85rem;
+    border-bottom:1px solid var(--border); cursor:pointer;
+    transition: background .15s ease;
+  }
+  .version-row:last-child{ border-bottom:none; }
+  .version-row:hover{ background: var(--surface-2); }
+  .version-row .vname{ font-weight:700; }
+  .version-row .vmeta{ color:var(--text-dim); margin-left:auto; font-size:0.78rem; }
+  .version-loaders{ display:flex; gap:4px; flex-shrink:0; }
+  .version-loaders .loader-icon{ width:16px; height:16px; }
+  .latest-dot{
+    width:8px; height:8px; border-radius:50%; flex-shrink:0;
+    background: #3fb950; box-shadow: 0 0 0 2px var(--accent-soft);
+  }
+  .modpack-unstable-toggle{
+    display:flex; align-items:center; gap:8px; margin-top:12px;
+    font-size:0.82rem; color:var(--text-dim); cursor:pointer; user-select:none;
+  }
+  .modpack-unstable-toggle input{ margin:0; cursor:pointer; }
+
+  .status-msg{ text-align:center; padding:40px; color: var(--text-dim); animation: fade-in .25s ease-out; }
+  @keyframes fade-in{
+    from{ opacity:0; }
+    to{ opacity:1; }
+  }
+  main > section{ animation: fade-in .2s ease-out; }
+  @media (prefers-reduced-motion: reduce){
+    .status-msg, main > section{ animation: none; }
+  }
+  .visually-hidden{ position:absolute; width:1px; height:1px; overflow:hidden; clip:rect(0 0 0 0); }
+
+  :focus-visible{ outline: 2px solid var(--accent); outline-offset: 2px; }
+
+  footer{ text-align:center; padding: 30px 20px; color: var(--text-dim); font-size:0.82rem; }
+
+  .pagination{ display:flex; align-items:center; justify-content:center; gap:6px; margin-top:22px; flex-wrap:wrap; }
+  .page-btn{
+    min-width:34px; height:34px; padding:0 8px; border-radius:7px; border:1px solid var(--border);
+    background: var(--surface); color:var(--text); font-family:inherit; font-weight:700; font-size:0.88rem; cursor:pointer;
+    text-align:center; display:inline-flex; align-items:center; justify-content:center; line-height:1.25;
+    transition: border-color .15s, transform .1s;
+  }
+  .page-btn:hover:not(:disabled){ border-color: var(--accent); transform: translateY(-1px); }
+  .page-btn.active{ background: var(--accent); color:#fff; border-color: var(--accent); animation: page-pop .2s ease-out; }
+  @keyframes page-pop{
+    from{ transform: scale(.85); }
+    to{ transform: scale(1); }
+  }
+  #favSortBtn{
+    display:flex; align-items:center; justify-content:center;
+    height:auto; min-height:34px; padding:8px 12px; line-height:1.25;
+  }
+  .page-btn:disabled{ opacity:0.4; cursor:not-allowed; }
+  .page-ellipsis{ color: var(--text-dim); padding:0 2px; }
+
+  .modal-gallery img{ cursor: zoom-in; }
+
+  .lightbox-backdrop{
+    position: fixed; inset:0; background: rgba(20,18,14,0.88);
+    display:flex; align-items:center; justify-content:center;
+    z-index: 80; padding: 40px 16px;
+  }
+  .lightbox-img-wrap{ position:relative; z-index:1; max-width: 90vw; max-height: 85vh; display:flex; flex-direction:column; align-items:center; gap:10px; }
+  .lightbox-img-wrap img{
+    max-width: 90vw; max-height: 74vh; width:auto; height:auto; border-radius: 8px; box-shadow: 0 8px 30px rgba(0,0,0,.4);
+  }
+  @media (min-width: 641px){
+    .lightbox-img-wrap img{ min-width: min(60vw, 640px); min-height: min(45vh, 420px); object-fit: contain; }
+  }
+  .lightbox-counter{ color:#fff; font-size:0.85rem; opacity:.85; }
+  .lightbox-close{
+    position:absolute; top:-40px; right:0; background:none; border:none; color:#fff;
+    font-size:1.6rem; cursor:pointer; line-height:1;
+  }
+  .lightbox-nav{
+    position:fixed; top:50%; transform:translateY(-50%);
+    background: rgba(255,255,255,.14); border:1px solid rgba(255,255,255,.25); color:#fff;
+    width:44px; height:44px; border-radius:50%; font-size:1.5rem; font-family:inherit; font-weight:700;
+    cursor:pointer; padding:0; line-height:1;
+    display:flex; align-items:center; justify-content:center;
+    z-index:2;
+  }
+  .lightbox-nav{ transition: background .15s, transform .15s; }
+  .lightbox-nav:hover{ background: rgba(255,255,255,.26); transform: translateY(-50%) scale(1.08); }
+  .lightbox-nav.prev{ left:16px; }
+  .lightbox-nav.next{ right:16px; }
+
+  .compat-summary{
+    display:flex; align-items:center; gap:12px;
+    padding:14px; border-radius:10px; margin-bottom:16px;
+  }
+  .compat-summary.ok{ background: var(--accent-soft); }
+  .compat-summary.bad{ background: var(--danger-soft); }
+  .compat-summary .icon{
+    width:38px; height:38px; border-radius:50%; flex-shrink:0;
+    display:flex; align-items:center; justify-content:center;
+    color:#fff;
+  }
+  .compat-summary.ok .icon{ background: var(--accent); }
+  .compat-summary.bad .icon{ background: var(--danger); }
+  .compat-summary .icon svg{ width:20px; height:20px; }
+  .compat-summary .headline{ font-weight:700; font-size:0.98rem; }
+  .compat-summary .subline{ font-size:0.82rem; color: var(--text-dim); }
+  .compat-summary .ignore-btn{ margin-left:auto; flex-shrink:0; }
+  @media (max-width: 560px){
+    .compat-summary{ flex-wrap:wrap; }
+    .compat-summary .ignore-btn{
+      margin-left:0; margin-top:8px;
+      flex:1 1 100%; width:100%; box-sizing:border-box;
+      text-align:center; display:flex;
+    }
+  }
+
+  /* --- Undo/redo history --- */
+  .history-controls{
+    position:relative; display:flex; align-items:center; gap:6px;
+    padding-right:12px; margin-right:2px; border-right:1px solid var(--border);
+  }
+  .history-controls .page-btn{ display:flex; align-items:center; justify-content:center; }
+  .history-controls .page-btn svg{ width:16px; height:16px; }
+  .history-controls .page-btn#historyListToggleBtn svg{ width:14px; height:14px; transition: transform .15s ease; }
+  .history-controls .page-btn#historyListToggleBtn[aria-expanded="true"] svg{ transform: rotate(180deg); }
+  .history-popover{
+    position:absolute; top:calc(100% + 10px); left:0; z-index:40;
+    width:300px; max-width:82vw;
+    background: var(--surface); border:1px solid var(--border); border-radius:12px;
+    box-shadow: 0 12px 32px rgba(0,0,0,.18);
+    padding:6px; max-height:320px; overflow-y:auto;
+    opacity:0; transform: translateY(-4px) scale(.98);
+    animation: history-pop-in .16s cubic-bezier(.2,.8,.3,1) forwards;
+  }
+  @keyframes history-pop-in{ to{ opacity:1; transform: translateY(0) scale(1); } }
+  html[data-theme="dark"] .history-popover{ box-shadow: 0 12px 32px rgba(0,0,0,.45); }
+  .history-popover-title{
+    display:flex; align-items:center; gap:6px;
+    font-weight:800; font-size:0.72rem; text-transform:uppercase; letter-spacing:.06em; color: var(--text-dim);
+    padding:8px 10px 6px; margin-bottom:2px; border-bottom:1px solid var(--border);
+  }
+  .history-empty{ font-size:0.86rem; color: var(--text-dim); padding:22px 8px; text-align:center; }
+  .history-item{
+    display:flex; align-items:center; gap:10px;
+    width:100%; background:none; border:none; border-radius:8px;
+    padding:9px 8px; margin-top:2px; font-family:inherit; font-size:0.86rem; color:var(--text); text-align:left; cursor:pointer;
+    transition: background .12s ease;
+  }
+  .history-item:first-child{ margin-top:0; }
+  .history-item:hover{ background: var(--accent-soft); }
+  .history-item:hover .history-item-undo{ color: var(--accent-dark); }
+  .history-item-dot{
+    flex-shrink:0; width:7px; height:7px; border-radius:50%; background: var(--border);
+  }
+  .history-item.is-latest .history-item-dot{ background: var(--accent); }
+  .history-item-label{ flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .history-item-undo{
+    flex-shrink:0; font-weight:700; font-size:0.74rem; color: var(--text-dim);
+    padding:3px 8px; border-radius:6px; background: var(--surface-2);
+    transition: color .12s ease;
+  }
+  .compat-issue{
+    border:1px solid var(--danger-border); background: var(--danger-soft);
+    border-radius:10px; padding:12px 14px; margin-bottom:10px;
+    transition: background .2s ease, border-color .2s ease;
+  }
+  .compat-issue:last-child{ margin-bottom:0; }
+  .compat-issue .issue-title{ font-weight:700; font-size:0.88rem; color: var(--danger-text); display:flex; align-items:center; gap:7px; margin-bottom:4px; }
+  .compat-issue .issue-title svg{ width:15px; height:15px; flex-shrink:0; }
+  .compat-issue .issue-detail{ font-size:0.85rem; color: var(--text); line-height:1.5; }
+  .compat-issue .issue-mods{ display:flex; gap:6px; flex-wrap:wrap; margin-top:8px; }
+  .compat-issue.update-done{
+    border-color: var(--accent); background: var(--accent-soft);
+    animation: update-done-in .25s ease-out;
+  }
+  .compat-issue.update-done .issue-detail{
+    display:flex; align-items:center; gap:8px; color: var(--accent-dark);
+  }
+  .compat-issue.update-done .issue-detail strong{ font-weight:800; }
+  .compat-issue.update-done .update-done-check{
+    display:inline-flex; align-items:center; justify-content:center; flex-shrink:0;
+    width:18px; height:18px; border-radius:50%; background: var(--accent); color:#fff;
+  }
+  .compat-issue.update-done .update-done-check svg{ width:11px; height:11px; }
+  @keyframes update-done-in{
+    from{ opacity:0; transform: translateY(-3px); }
+    to{ opacity:1; transform: translateY(0); }
+  }
+  .update-mod-btn{ display:inline-flex; align-items:center; gap:6px; }
+  .update-mod-btn svg{ width:13px; height:13px; flex-shrink:0; }
+  .compat-mod-chip{
+    display:inline-flex; align-items:center; gap:5px;
+    background: var(--surface); border:1px solid var(--danger-border);
+    padding:3px 9px 3px 3px; border-radius:999px; font-size:0.78rem; font-weight:700;
+  }
+  .compat-mod-chip img{ width:18px; height:18px; border-radius:50%; object-fit:cover; }
+  .compat-mod-chip.clickable{ cursor:pointer; transition: background .15s ease, border-color .15s ease, transform .15s ease; border:1px solid transparent; }
+  .compat-mod-chip.clickable:hover{ background: var(--surface-2); border-color: var(--accent); transform: translateY(-1px); }
+  .compat-mod-chip.clickable:active{ transform: translateY(0) scale(.97); }
+  @keyframes pack-row-jump-flash{
+    0%{ background: var(--accent-soft); border-color: var(--accent); }
+    100%{ background: transparent; border-color: var(--border); }
+  }
+  .pack-row.jump-flash{ animation: pack-row-jump-flash 1.6s ease-out; }
+  .compat-skipped{ font-size:0.8rem; color: var(--text-dim); margin-top:14px; padding-top:12px; border-top:1px solid var(--border); }
+  /* --- Button loading state (shimmer + spinner) --- */
+  .btn-loading{
+    position:relative; color:transparent !important; pointer-events:none;
+    overflow:hidden;
+  }
+  .btn-loading::before{
+    content:""; position:absolute; inset:0;
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,.35), transparent);
+    background-size: 200% 100%;
+    animation: btn-shimmer 1.15s ease-in-out infinite;
+  }
+  .page-btn.btn-loading::before{
+    background: linear-gradient(90deg, transparent, rgba(0,0,0,.08), transparent);
+  }
+  html[data-theme="dark"] .page-btn.btn-loading::before{
+    background: linear-gradient(90deg, transparent, rgba(255,255,255,.12), transparent);
+  }
+  @keyframes btn-shimmer{
+    0%{ background-position: 150% 0; }
+    100%{ background-position: -50% 0; }
+  }
+  .btn-loading::after{
+    content:""; position:absolute; top:50%; left:50%;
+    width:15px; height:15px; transform: translate(-50%, -50%);
+    border-radius:50%;
+    border:2px solid rgba(255,255,255,.45);
+    border-top-color:#fff;
+    animation: btn-spin .7s linear infinite;
+  }
+  .page-btn.btn-loading::after{
+    border:2px solid rgba(38,36,32,.25);
+    border-top-color: var(--text);
+  }
+  html[data-theme="dark"] .page-btn.btn-loading::after{
+    border:2px solid rgba(236,233,225,.25);
+    border-top-color: var(--text);
+  }
+  @keyframes btn-spin{ to{ transform: translate(-50%, -50%) rotate(360deg); } }
+
+  /* --- Toasts --- */
+  #toastStack{
+    position:fixed; left:50%; bottom:64px; transform:translateX(-50%);
+    display:flex; flex-direction:column; gap:8px; align-items:center;
+    z-index:9999; pointer-events:none;
+    width:min(92vw, 460px);
+  }
+  .toast{
+    pointer-events:auto;
+    display:flex; align-items:center; gap:12px;
+    background: var(--text); color: var(--bg);
+    border-radius:10px; padding:14px 16px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.22);
+    font-size:0.95rem; line-height:1.4;
+    width:100%;
+    opacity:0; transform: translateY(12px) scale(.98);
+    animation: toast-in .22s cubic-bezier(.2,.9,.3,1.2) forwards;
+  }
+  html[data-theme="dark"] .toast{ background: var(--surface-2); color: var(--text); border:1px solid var(--border); }
+  .toast.leaving{ animation: toast-out .18s ease forwards; }
+  @keyframes toast-in{ from{ opacity:0; transform: translateY(12px) scale(.98); } to{ opacity:1; transform: translateY(0) scale(1); } }
+  @keyframes toast-out{ from{ opacity:1; transform: translateY(0) scale(1); } to{ opacity:0; transform: translateY(8px) scale(.98); } }
+  .toast-msg{ flex:1; }
+  .toast-msg strong{ font-weight:800; }
+  .toast-action{
+    background:none; border:none; color:#8fd6ac;
+    font-weight:700; font-family:inherit; font-size:0.9rem; cursor:pointer;
+    padding:2px 4px; white-space:nowrap; text-decoration:underline;
+  }
+  html[data-theme="dark"] .toast-action{ color: var(--accent-dark); }
+  .toast-close{
+    background:none; border:none; color:inherit; opacity:.6; cursor:pointer;
+    padding:2px; display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  }
+  .toast-close:hover{ opacity:1; }
+  @media (max-width: 640px){
+    #toastStack{ bottom:50px; width:94vw; }
+  }
+</style>
+</head>
+<body>
+<div id="toastStack" aria-live="polite" aria-atomic="true"></div>
+
+<header class="site">
+  <div class="header-inner">
+    <div class="brand">
+      <span class="mark"><img src="icons/logo.webp" alt="ModBench logo"></span>
+      <span class="brand-text">
+        <span class="brand-name">ModBench</span>
+      </span>
+    </div>
+    <nav class="tabs" role="tablist" aria-label="Sections">
+      <button class="active" data-tab="browse" role="tab" aria-selected="true" data-i18n="navBrowse">Browse</button>
+      <button data-tab="pack" role="tab" aria-selected="false"><span data-i18n="navCreate">Create</span> <span class="pack-count" id="packCount">0</span></button>
+      <button data-tab="modpacks" role="tab" aria-selected="false" data-i18n="navModpacks">Modpacks</button>
+      <button data-tab="favorites" role="tab" aria-selected="false" data-i18n="navFavorites">Saved</button>
+      <button data-tab="export" role="tab" aria-selected="false" data-i18n="navExport">Export</button>
+    </nav>
+    <div class="header-actions">
+      <div class="header-menu-wrap">
+        <button class="theme-toggle" id="headerMenuBtn" type="button" aria-haspopup="true" aria-expanded="false" aria-label="Menu" title="Menu" data-i18n-attr="aria-label:menuToggleLabel,title:menuToggleLabel">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+        </button>
+        <div class="header-menu" id="headerMenu" hidden>
+          <div class="header-menu-title" data-i18n="menuTitle">Settings</div>
+          <button class="theme-toggle help-toggle header-menu-item" id="helpToggle" type="button" data-i18n-attr="aria-label:helpToggleLabel,title:helpToggleLabel" aria-label="Getting started guide" title="Getting started guide">
+            <span class="header-menu-icon"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M9.09 9a3 3 0 0 1 5.83 1c0 2-3 3-3 3"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg></span>
+            <span class="header-menu-label" data-i18n="menuGuide">Getting started</span>
+          </button>
+          <div class="header-menu-divider"></div>
+          <div class="header-menu-group">
+          <button class="theme-toggle header-menu-item" id="langToggle" type="button" data-i18n-attr="aria-label:langToggleLabel,title:langToggleLabel" aria-label="Switch language" title="Switch language">
+            <span class="header-menu-icon"><span id="langToggleLabel" aria-hidden="true">🇬🇧</span></span>
+            <span class="header-menu-label" data-i18n="menuLanguage">Language</span>
+          </button>
+          <button class="theme-toggle header-menu-item" id="themeToggle" type="button" data-i18n-attr="aria-label:themeToggleLabel,title:themeToggleLabel" aria-label="Toggle dark mode" title="Toggle dark mode">
+            <span class="header-menu-icon">
+              <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"></path></svg>
+              <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path></svg>
+            </span>
+            <span class="header-menu-label" data-i18n="menuTheme">Theme</span>
+          </button>
+          </div>
+        </div>
+      </div>
+      <div class="account-slot" id="accountSlot"></div>
+    </div>
+  </div>
+</header>
+
+<main>
+
+  <section id="tab-browse">
+    <div class="layout">
+      <aside class="filters">
+        <div class="filter-group">
+          <h3 data-i18n="browseContentType">Content type</h3>
+          <div class="type-toggle" id="browseTypeToggle" role="tablist" aria-label="Content type">
+            <button type="button" class="type-btn active" data-type="mod" role="tab" aria-selected="true">
+              <svg class="type-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/><path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/><path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/><path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/></svg>
+              <span data-i18n="browseTypeMods">Mods</span>
+            </button>
+            <button type="button" class="type-btn" data-type="shader" role="tab" aria-selected="false">
+              <svg class="type-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/></svg>
+              <span data-i18n="browseTypeShaders">Shaders</span>
+            </button>
+            <button type="button" class="type-btn" data-type="resourcepack" role="tab" aria-selected="false">
+              <svg class="type-btn-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+              <span data-i18n="browseTypeResourcePacks">Resource Packs</span>
+            </button>
+          </div>
+        </div>
+        <div class="filter-group">
+          <h3 data-i18n="browseMcVersion">Minecraft version</h3>
+          <select id="mcVersion"><option value="" data-i18n="browseAnyVersion">Any version</option></select>
+        </div>
+        <div class="filter-group" id="loaderFilterGroup">
+          <h3 data-i18n="browseModloader">Modloader</h3>
+          <label><input type="checkbox" value="fabric" class="loaderCheck"> <img class="loader-icon" src="icons/fabric.png" alt="Fabric" loading="lazy"> <span data-i18n="loaderFabric">Fabric</span></label>
+          <label><input type="checkbox" value="forge" class="loaderCheck"> <img class="loader-icon" src="icons/forge.png" alt="Forge" loading="lazy"> <span data-i18n="loaderForge">Forge</span></label>
+          <label><input type="checkbox" value="quilt" class="loaderCheck"> <img class="loader-icon" src="icons/quilt.png" alt="Quilt" loading="lazy"> <span data-i18n="loaderQuilt">Quilt</span></label>
+          <label><input type="checkbox" value="neoforge" class="loaderCheck"> <img class="loader-icon" src="icons/neoforge.png" alt="NeoForge" loading="lazy"> <span data-i18n="loaderNeoForge">NeoForge</span></label>
+        </div>
+        <hr class="filter-sep">
+        <div class="filter-group">
+          <button type="button" class="cat-toggle" id="catToggleBrowse" aria-expanded="false">
+            <h3 style="margin:0;" data-i18n="browseCategory">Category</h3>
+            <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="cat-body" id="catBodyBrowse">
+           <div class="cat-body-inner scrollable">
+            <label><input type="checkbox" value="adventure" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg> <span data-i18n="catAdventure">Adventure</span></label>
+            <label><input type="checkbox" value="cursed" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="7.5" width="10" height="14" rx="5"/><polyline points="2 12.5 4 14.5 7 14.5"/><polyline points="22 12.5 20 14.5 17 14.5"/><polyline points="3 21.5 5 18.5 7 17.5"/><polyline points="21 21.5 19 18.5 17 17.5"/><polyline points="3 8.5 5 10.5 7 11.5"/><polyline points="21 8.5 19 10.5 17 11.5"/><line x1="12" y1="7.5" x2="12" y2="21.5"/><path d="M15.38,8.82A3,3,0,0,0,16,7h0a3,3,0,0,0-3-3H11A3,3,0,0,0,8,7H8a3,3,0,0,0,.61,1.82"/><line x1="9" y1="4.5" x2="8" y2="2.5"/><line x1="15" y1="4.5" x2="16" y2="2.5"/></svg> <span data-i18n="catCursed">Cursed</span></label>
+            <label><input type="checkbox" value="decoration" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.06 11.9l8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08"/><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 0 0-3-3.02z"/></svg> <span data-i18n="catDecoration">Decoration</span></label>
+            <label><input type="checkbox" value="economy" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> <span data-i18n="catEconomy">Economy</span></label>
+            <label><input type="checkbox" value="equipment" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.573 20.038L3.849 7.913 2.753 2.755 7.838 4.06 19.47 18.206l-1.898 1.832z"/><path d="M7.45 14.455l-3.043 3.661 1.887 1.843 3.717-3.25"/><path d="M16.75 10.82l3.333-2.913 1.123-5.152-5.091 1.28-2.483 2.985"/><path d="M21.131 16.602l-5.187 5.01 2.596-2.508 2.667 2.761"/><path d="M2.828 16.602l5.188 5.01-2.597-2.508-2.667 2.761"/></svg> <span data-i18n="catEquipment">Equipment</span></label>
+            <label><input type="checkbox" value="food" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.27 21.7s9.87-3.5 12.73-6.36a4.5 4.5 0 0 0-6.36-6.37C5.77 11.84 2.27 21.7 2.27 21.7zM8.64 14l-2.05-2.04M15.34 15l-2.46-2.46"/><path d="M22 9s-1.33-2-3.5-2C16.86 7 15 9 15 9s1.33 2 3.5 2S22 9 22 9z"/><path d="M15 2s-2 1.33-2 3.5S15 9 15 9s2-1.84 2-3.5C17 3.33 15 2 15 2z"/></svg> <span data-i18n="catFood">Food</span></label>
+            <label><input type="checkbox" value="game-mechanics" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg> <span data-i18n="catGameMechanics">Game Mechanics</span></label>
+            <label><input type="checkbox" value="library" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg> <span data-i18n="catLibrary">Library</span></label>
+            <label><input type="checkbox" value="magic" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.9L19 9l-5.1 1.9L12 16l-1.9-5.1L5 9l5.1-1.1L12 3z"/><path d="M19 17l.9 2.1L22 20l-2.1.9L19 23l-.9-2.1L16 20l2.1-.9L19 17z"/></svg> <span data-i18n="catMagic">Magic</span></label>
+            <label><input type="checkbox" value="management" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg> <span data-i18n="catManagement">Management</span></label>
+            <label><input type="checkbox" value="minigame" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></svg> <span data-i18n="catMinigame">Minigame</span></label>
+            <label><input type="checkbox" value="mobs" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18"/><path d="M6 6h4v4H6zm8 0h4v4h-4zm-4 4h4v2h2v6h-2v-2h-4v2H8v-6h2v-2Z" fill="currentColor" stroke="none"/></svg> <span data-i18n="catMobs">Mobs</span></label>
+            <label><input type="checkbox" value="optimization" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> <span data-i18n="catOptimization">Optimization</span></label>
+            <label><input type="checkbox" value="social" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg> <span data-i18n="catSocial">Social</span></label>
+            <label><input type="checkbox" value="storage" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg> <span data-i18n="catStorage">Storage</span></label>
+            <label><input type="checkbox" value="technology" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.6V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.6 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.6 1z"/></svg> <span data-i18n="catTechnology">Technology</span></label>
+            <label><input type="checkbox" value="transportation" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg> <span data-i18n="catTransportation">Transportation</span></label>
+            <label><input type="checkbox" value="utility" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg> <span data-i18n="catUtility">Utility</span></label>
+            <label><input type="checkbox" value="worldgen" class="catCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> <span data-i18n="catWorldGeneration">World Generation</span></label>
+           </div>
+          </div>
+        </div>
+        <hr class="filter-sep" id="envSepBrowse">
+        <div class="filter-group" id="envFilterGroup">
+          <button type="button" class="cat-toggle" id="catToggleEnv" aria-expanded="false">
+            <h3 style="margin:0;" data-i18n="browseEnvironment">Environment</h3>
+            <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="cat-body" id="catBodyEnv">
+           <div class="cat-body-inner">
+            <label><input type="checkbox" value="client" class="envCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2" ry="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg> <span data-i18n="sideClient">Client-side</span></label>
+            <label><input type="checkbox" value="server" class="envCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg> <span data-i18n="sideServer">Server-side</span></label>
+           </div>
+          </div>
+        </div>
+      </aside>
+
+      <div>
+        <div class="toolbar">
+          <div class="search-box">
+            <span aria-hidden="true">🔍</span>
+            <input type="text" id="searchInput" placeholder="Search mods on Modrinth…" aria-label="Search mods" data-i18n-attr="placeholder:browseSearchPlaceholder,aria-label:browseSearchLabel">
+            <kbd class="kbd-hint" aria-hidden="true">/</kbd>
+          </div>
+          <select id="sortSelect">
+            <option value="relevance" data-i18n="sortRelevance">Relevance</option>
+            <option value="downloads" data-i18n="sortMostDownloads">Most downloads</option>
+            <option value="downloads_asc" data-i18n="sortFewestDownloads">Fewest downloads</option>
+            <option value="follows" data-i18n="sortMostFollowed">Most followed</option>
+            <option value="newest" data-i18n="sortNewest">Newest</option>
+            <option value="oldest" data-i18n="sortOldest">Oldest</option>
+            <option value="updated" data-i18n="sortUpdated">Recently updated</option>
+          </select>
+          <div class="view-toggle">
+            <button id="gridBtn" class="active" aria-label="Grid view" title="Grid view" data-i18n-attr="aria-label:viewGrid,title:viewGrid">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/></svg>
+            </button>
+            <button id="listBtn" aria-label="List view" title="List view" data-i18n-attr="aria-label:viewList,title:viewList">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
+            </button>
+          </div>
+        </div>
+
+        <div id="results" class="grid" data-nosnippet></div>
+        <div id="statusMsg" class="status-msg" style="display:none;"></div>
+        <div id="pagination" class="pagination"></div>
+      </div>
+    </div>
+  </section>
+
+  <section id="tab-favorites" style="display:none;">
+    <div class="toolbar">
+      <div class="search-box">
+        <span aria-hidden="true">🔍</span>
+        <input type="text" id="favSearchInput" placeholder="Search your saved mods…" aria-label="Search saved mods" data-i18n-attr="placeholder:favSearchPlaceholder,aria-label:favSearchLabel">
+        <kbd class="kbd-hint" aria-hidden="true">/</kbd>
+      </div>
+      <button class="page-btn" id="favSortBtn" style="display:none;" data-i18n="favSortAZ">Sort A→Z</button>
+      <div class="view-toggle">
+        <button id="favGridBtn" class="active" aria-label="Grid view" title="Grid view" data-i18n-attr="aria-label:viewGrid,title:viewGrid">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/></svg>
+        </button>
+        <button id="favListBtn" aria-label="List view" title="List view" data-i18n-attr="aria-label:viewList,title:viewList">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
+        </button>
+      </div>
+    </div>
+    <div id="savedPacksSection" style="display:none;">
+      <h3 class="saved-packs-title" data-i18n="savedPacksTitle">Your modpacks</h3>
+      <div id="savedPacksList" class="saved-packs-grid"></div>
+      <hr class="saved-packs-sep">
+      <h3 class="saved-packs-title" data-i18n="savedModsTitle">Saved mods</h3>
+    </div>
+    <div id="favResults" class="grid"></div>
+    <div id="favEmpty" class="empty-state" style="display:none;">
+      <div class="big">⭐</div>
+      <p data-i18n="favEmptyText">Nothing saved yet. Tap the heart on any mod in <strong>Browse</strong> or <strong>Modpacks</strong>, or save a modpack you built in <strong>Export</strong>.</p>
+    </div>
+  </section>
+
+  <section id="tab-modpacks" style="display:none;">
+    <div class="layout">
+      <aside class="filters">
+        <div class="filter-group">
+          <h3 data-i18n="browseMcVersion">Minecraft version</h3>
+          <select id="modpackMcVersion"><option value="" data-i18n="browseAnyVersion">Any version</option></select>
+        </div>
+        <div class="filter-group">
+          <h3 data-i18n="browseModloader">Modloader</h3>
+          <label><input type="checkbox" value="fabric" class="modpackLoaderCheck"> <img class="loader-icon" src="icons/fabric.png" alt="Fabric" loading="lazy"> <span data-i18n="loaderFabric">Fabric</span></label>
+          <label><input type="checkbox" value="forge" class="modpackLoaderCheck"> <img class="loader-icon" src="icons/forge.png" alt="Forge" loading="lazy"> <span data-i18n="loaderForge">Forge</span></label>
+          <label><input type="checkbox" value="quilt" class="modpackLoaderCheck"> <img class="loader-icon" src="icons/quilt.png" alt="Quilt" loading="lazy"> <span data-i18n="loaderQuilt">Quilt</span></label>
+          <label><input type="checkbox" value="neoforge" class="modpackLoaderCheck"> <img class="loader-icon" src="icons/neoforge.png" alt="NeoForge" loading="lazy"> <span data-i18n="loaderNeoForge">NeoForge</span></label>
+        </div>
+        <hr class="filter-sep">
+        <div class="filter-group">
+          <button type="button" class="cat-toggle" id="catToggleModpacks" aria-expanded="false">
+            <h3 style="margin:0;" data-i18n="browseCategory">Category</h3>
+            <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+          </button>
+          <div class="cat-body" id="catBodyModpacks">
+           <div class="cat-body-inner scrollable">
+            <label><input type="checkbox" value="adventure" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg> <span data-i18n="catAdventure">Adventure</span></label>
+            <label><input type="checkbox" value="cursed" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="7.5" width="10" height="14" rx="5"/><polyline points="2 12.5 4 14.5 7 14.5"/><polyline points="22 12.5 20 14.5 17 14.5"/><polyline points="3 21.5 5 18.5 7 17.5"/><polyline points="21 21.5 19 18.5 17 17.5"/><polyline points="3 8.5 5 10.5 7 11.5"/><polyline points="21 8.5 19 10.5 17 11.5"/><line x1="12" y1="7.5" x2="12" y2="21.5"/><path d="M15.38,8.82A3,3,0,0,0,16,7h0a3,3,0,0,0-3-3H11A3,3,0,0,0,8,7H8a3,3,0,0,0,.61,1.82"/><line x1="9" y1="4.5" x2="8" y2="2.5"/><line x1="15" y1="4.5" x2="16" y2="2.5"/></svg> <span data-i18n="catCursed">Cursed</span></label>
+            <label><input type="checkbox" value="decoration" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9.06 11.9l8.07-8.06a2.85 2.85 0 1 1 4.03 4.03l-8.06 8.08"/><path d="M7.07 14.94c-1.66 0-3 1.35-3 3.02 0 1.33-2.5 1.52-2 2.02 1.08 1.1 2.49 2.02 4 2.02 2.2 0 4-1.8 4-4.04a3.01 3.01 0 0 0-3-3.02z"/></svg> <span data-i18n="catDecoration">Decoration</span></label>
+            <label><input type="checkbox" value="economy" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg> <span data-i18n="catEconomy">Economy</span></label>
+            <label><input type="checkbox" value="equipment" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17.573 20.038L3.849 7.913 2.753 2.755 7.838 4.06 19.47 18.206l-1.898 1.832z"/><path d="M7.45 14.455l-3.043 3.661 1.887 1.843 3.717-3.25"/><path d="M16.75 10.82l3.333-2.913 1.123-5.152-5.091 1.28-2.483 2.985"/><path d="M21.131 16.602l-5.187 5.01 2.596-2.508 2.667 2.761"/><path d="M2.828 16.602l5.188 5.01-2.597-2.508-2.667 2.761"/></svg> <span data-i18n="catEquipment">Equipment</span></label>
+            <label><input type="checkbox" value="food" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2.27 21.7s9.87-3.5 12.73-6.36a4.5 4.5 0 0 0-6.36-6.37C5.77 11.84 2.27 21.7 2.27 21.7zM8.64 14l-2.05-2.04M15.34 15l-2.46-2.46"/><path d="M22 9s-1.33-2-3.5-2C16.86 7 15 9 15 9s1.33 2 3.5 2S22 9 22 9z"/><path d="M15 2s-2 1.33-2 3.5S15 9 15 9s2-1.84 2-3.5C17 3.33 15 2 15 2z"/></svg> <span data-i18n="catFood">Food</span></label>
+            <label><input type="checkbox" value="game-mechanics" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg> <span data-i18n="catGameMechanics">Game Mechanics</span></label>
+            <label><input type="checkbox" value="library" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 19.5A2.5 2.5 0 0 1 6.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 0 1 4 19.5v-15A2.5 2.5 0 0 1 6.5 2z"/></svg> <span data-i18n="catLibrary">Library</span></label>
+            <label><input type="checkbox" value="magic" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l1.9 4.9L19 9l-5.1 1.9L12 16l-1.9-5.1L5 9l5.1-1.1L12 3z"/><path d="M19 17l.9 2.1L22 20l-2.1.9L19 23l-.9-2.1L16 20l2.1-.9L19 17z"/></svg> <span data-i18n="catMagic">Magic</span></label>
+            <label><input type="checkbox" value="management" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="2" width="20" height="8" rx="2" ry="2"/><rect x="2" y="14" width="20" height="8" rx="2" ry="2"/><line x1="6" y1="6" x2="6.01" y2="6"/><line x1="6" y1="18" x2="6.01" y2="18"/></svg> <span data-i18n="catManagement">Management</span></label>
+            <label><input type="checkbox" value="minigame" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="7"/><polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88"/></svg> <span data-i18n="catMinigame">Minigame</span></label>
+            <label><input type="checkbox" value="mobs" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18"/><path d="M6 6h4v4H6zm8 0h4v4h-4zm-4 4h4v2h2v6h-2v-2h-4v2H8v-6h2v-2Z" fill="currentColor" stroke="none"/></svg> <span data-i18n="catMobs">Mobs</span></label>
+            <label><input type="checkbox" value="optimization" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg> <span data-i18n="catOptimization">Optimization</span></label>
+            <label><input type="checkbox" value="social" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"/></svg> <span data-i18n="catSocial">Social</span></label>
+            <label><input type="checkbox" value="storage" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="21 8 21 21 3 21 3 8"/><rect x="1" y="3" width="22" height="5"/><line x1="10" y1="12" x2="14" y2="12"/></svg> <span data-i18n="catStorage">Storage</span></label>
+            <label><input type="checkbox" value="technology" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.9l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.9-.3 1.7 1.7 0 0 0-1 1.6V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1-1.6 1.7 1.7 0 0 0-1.9.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.9 1.7 1.7 0 0 0-1.6-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.6-1 1.7 1.7 0 0 0-.3-1.9l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.9.3H9a1.7 1.7 0 0 0 1-1.6V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.6 1.7 1.7 0 0 0 1.9-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.9V9a1.7 1.7 0 0 0 1.6 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.6 1z"/></svg> <span data-i18n="catTechnology">Technology</span></label>
+            <label><input type="checkbox" value="transportation" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="3" width="15" height="13"/><polygon points="16 8 20 8 23 11 23 16 16 16 16 8"/><circle cx="5.5" cy="18.5" r="2.5"/><circle cx="18.5" cy="18.5" r="2.5"/></svg> <span data-i18n="catTransportation">Transportation</span></label>
+            <label><input type="checkbox" value="utility" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg> <span data-i18n="catUtility">Utility</span></label>
+            <label><input type="checkbox" value="worldgen" class="modpackCatCheck"> <svg class="filter-icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg> <span data-i18n="catWorldGeneration">World Generation</span></label>
+           </div>
+          </div>
+        </div>
+      </aside>
+
+      <div>
+        <div class="toolbar">
+          <div class="search-box">
+            <span aria-hidden="true">🔍</span>
+            <input type="text" id="modpackSearchInput" placeholder="Search modpacks on Modrinth…" aria-label="Search modpacks" data-i18n-attr="placeholder:modpackSearchPlaceholder,aria-label:modpackSearchLabel">
+            <kbd class="kbd-hint" aria-hidden="true">/</kbd>
+          </div>
+          <select id="modpackSortSelect">
+            <option value="relevance" data-i18n="sortRelevance">Relevance</option>
+            <option value="downloads" data-i18n="sortMostDownloads">Most downloads</option>
+            <option value="downloads_asc" data-i18n="sortFewestDownloads">Fewest downloads</option>
+            <option value="follows" data-i18n="sortMostFollowed">Most followed</option>
+            <option value="newest" data-i18n="sortNewest">Newest</option>
+            <option value="oldest" data-i18n="sortOldest">Oldest</option>
+            <option value="updated" data-i18n="sortUpdated">Recently updated</option>
+          </select>
+          <div class="view-toggle">
+            <button id="modpackGridBtn" class="active" aria-label="Grid view" title="Grid view" data-i18n-attr="aria-label:viewGrid,title:viewGrid">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="8" height="8" rx="1.5"/><rect x="13" y="3" width="8" height="8" rx="1.5"/><rect x="3" y="13" width="8" height="8" rx="1.5"/><rect x="13" y="13" width="8" height="8" rx="1.5"/></svg>
+            </button>
+            <button id="modpackListBtn" aria-label="List view" title="List view" data-i18n-attr="aria-label:viewList,title:viewList">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="20" y2="18"/></svg>
+            </button>
+          </div>
+        </div>
+        <div id="modpackResults" class="grid"></div>
+        <div id="modpackStatusMsg" class="status-msg" style="display:none;"></div>
+        <div id="modpackPagination" class="pagination"></div>
+      </div>
+    </div>
+  </section>
+
+  <button id="packToTop" type="button" aria-label="Go to top" title="Go to top" data-i18n-attr="aria-label:createGoToTop,title:createGoToTop" style="position:fixed; right:24px; bottom:24px; z-index:60; width:44px; height:44px; border-radius:50%; border:1px solid var(--border); background:var(--surface-2); color:var(--text); cursor:pointer; box-shadow:0 4px 12px rgba(0,0,0,0.25); align-items:center; justify-content:center; opacity:0; visibility:hidden; transform:translateY(8px); transition:opacity .2s ease, transform .2s ease; display:flex;">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>
+  </button>
+  <section id="tab-pack" class="tab-pack-section" style="display:none;">
+    <div class="import-lock-overlay" id="packImportLock" aria-live="polite" aria-label="Importing mods">
+      <div class="import-lock-blur" aria-hidden="true">
+        <div class="search-box" style="margin-bottom:12px;">
+          <span aria-hidden="true">🔍</span>
+          <input type="text" placeholder="Search your pack…" disabled tabindex="-1">
+          <kbd class="kbd-hint" aria-hidden="true">/</kbd>
+        </div>
+        <div class="toolbar" style="justify-content:flex-end; align-items:center; flex-wrap:wrap; gap:10px;">
+          <div class="history-controls">
+            <button type="button" class="page-btn" disabled tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg></button>
+            <button type="button" class="page-btn" disabled tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg></button>
+            <button type="button" class="page-btn" disabled tabindex="-1"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg></button>
+          </div>
+          <label class="auto-compat-toggle">
+            <span class="switch"><input type="checkbox" disabled tabindex="-1"><span class="switch-track"><span class="switch-thumb"></span></span></span>
+            <span class="switch-label">Auto-flag incompatibilities</span>
+          </label>
+          <button class="page-btn" disabled tabindex="-1">Sort A→Z</button>
+          <button class="page-btn" disabled tabindex="-1">Check for updates</button>
+          <button class="page-btn" disabled tabindex="-1">Check compatibility</button>
+          <button class="page-btn" disabled tabindex="-1" style="color:var(--danger); border-color:var(--danger-border);">Remove all contents</button>
+        </div>
+        <div class="import-skeleton">
+          <div class="import-skeleton-row"><div class="sk-icon"></div><div class="sk-lines"><div class="sk-line sk-line-title"></div><div class="sk-line sk-line-sub"></div></div></div>
+          <div class="import-skeleton-row"><div class="sk-icon"></div><div class="sk-lines"><div class="sk-line sk-line-title"></div><div class="sk-line sk-line-sub"></div></div></div>
+          <div class="import-skeleton-row"><div class="sk-icon"></div><div class="sk-lines"><div class="sk-line sk-line-title"></div><div class="sk-line sk-line-sub"></div></div></div>
+          <div class="import-skeleton-row"><div class="sk-icon"></div><div class="sk-lines"><div class="sk-line sk-line-title"></div><div class="sk-line sk-line-sub"></div></div></div>
+          <div class="import-skeleton-row"><div class="sk-icon"></div><div class="sk-lines"><div class="sk-line sk-line-title"></div><div class="sk-line sk-line-sub"></div></div></div>
+        </div>
+      </div>
+      <div class="import-lock-spinner" aria-hidden="true"></div>
+    </div>
+    <div id="packRealContent">
+    <div class="search-box" id="packSearchBar" style="display:none; margin-bottom:12px;">
+      <span aria-hidden="true">🔍</span>
+      <input type="text" id="packSearchInput" placeholder="Search your pack…" aria-label="Search your pack" data-i18n-attr="placeholder:createSearchPlaceholder,aria-label:createSearchLabel">
+      <kbd class="kbd-hint" aria-hidden="true">/</kbd>
+    </div>
+    <div class="toolbar" id="createToolbar" style="display:none;">
+      <div class="history-controls" id="historyControls">
+        <button type="button" class="page-btn" id="historyUndoBtn" title="Undo" aria-label="Undo" data-i18n-attr="title:historyUndo,aria-label:historyUndo" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 14 4 9l5-5"/><path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11"/></svg>
+        </button>
+        <button type="button" class="page-btn" id="historyRedoBtn" title="Redo" aria-label="Redo" data-i18n-attr="title:historyRedo,aria-label:historyRedo" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 14 5-5-5-5"/><path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13"/></svg>
+        </button>
+        <button type="button" class="page-btn" id="historyListToggleBtn" title="Recent actions" aria-label="Recent actions" data-i18n-attr="title:historyRecentActions,aria-label:historyRecentActions" aria-haspopup="true" aria-expanded="false" disabled>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="6 9 12 15 18 9"/></svg>
+        </button>
+        <div class="history-popover" id="historyPopover" hidden>
+          <div class="history-popover-title">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v5h5"/><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"/></svg>
+            <span data-i18n="historyRecentActions">Recent actions</span>
+          </div>
+          <div id="historyList"></div>
+        </div>
+      </div>
+      <label class="auto-compat-toggle" id="autoCompatToggleWrap" title="Automatically scan for compatibility issues as you edit your pack" data-i18n-attr="title:createAutoFlagTitle">
+        <span class="switch">
+          <input type="checkbox" id="autoCompatToggle">
+          <span class="switch-track"><span class="switch-thumb"></span></span>
+        </span>
+        <span class="switch-label" data-i18n="createAutoFlag">Auto-flag incompatibilities</span>
+      </label>
+      <button class="page-btn" id="sortAlphaBtn" data-i18n="createSortAZ">Sort A→Z</button>
+      <button class="page-btn" id="checkUpdatesBtn" data-i18n="createCheckUpdates">Check for updates</button>
+      <button class="page-btn" id="checkCompatBtn" data-i18n="createCheckCompat">Check compatibility</button>
+      <button class="page-btn" id="removeAllBtn" style="color:var(--danger); border-color:var(--danger-border);" data-i18n="createRemoveAll">Remove all contents</button>
+    </div>
+    <div id="packIssueBanner" class="compat-summary bad" style="display:none;"></div>
+    <div id="importSummary" class="import-summary" hidden></div>
+    <div id="packList"></div>
+    <div id="packEmpty" class="empty-state" style="display:none;">
+      <div class="big">🧰</div>
+      <p data-i18n="createEmptyText">Your pack is empty. Head to <strong>Browse</strong> or <strong>Modpacks</strong> to add mods.</p>
+      <button type="button" class="export-btn quick-action" id="packEmptyBrowseBtn" data-i18n="createEmptyBrowseBtn">Browse mods</button>
+    </div>
+    </div>
+  </section>
+
+  <section id="tab-export" style="display:none;">
+    <div class="export-panel">
+      <div class="export-hero">
+        <div class="export-hero-icon" id="exportHeroIcon">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/><polyline points="3.27 6.96 12 12.01 20.73 6.96"/><line x1="12" y1="22.08" x2="12" y2="12"/></svg>
+        </div>
+        <div>
+          <h2 style="margin:0;" data-i18n="exportTitle">Export your pack</h2>
+          <p style="color:var(--text-dim); font-size:0.9rem; margin:4px 0 0;" data-i18n="exportSubtitle">Generates a <code>.mrpack</code> file, importable straight into the Modrinth App, Prism Launcher, or ATLauncher.</p>
+        </div>
+      </div>
+
+      <div class="export-stats" id="exportStats"></div>
+
+      <div class="import-card drop-target" id="mrpackDropZone">
+        <div class="import-card-top">
+          <div class="import-card-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          </div>
+          <div class="import-card-text">
+            <strong data-i18n="exportImportMrpack">Import a .mrpack</strong>
+            <p style="margin:2px 0 0; color:var(--text-dim); font-size:0.82rem;" data-i18n="exportImportMrpackDesc">Load an existing modpack file. Its mods are resolved on Modrinth and added to <strong>Create</strong>.</p>
+          </div>
+        </div>
+        <div class="import-status" id="mrpackImportStatus" style="display:none;">
+          <span class="import-status-icon" id="mrpackImportStatusIcon"></span>
+          <span id="mrpackImportStatusText"></span>
+        </div>
+        <label class="file-btn" for="mrpackFileInput" data-i18n="exportChooseFile">Choose file</label>
+        <input type="file" id="mrpackFileInput" accept=".mrpack" style="display:none;">
+        <p class="import-drop-hint" data-i18n="exportDropHint">or drag and drop a .mrpack file here</p>
+      </div>
+
+      <div class="import-card">
+        <div class="import-card-top">
+          <div class="import-card-icon">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+          </div>
+          <div class="import-card-text">
+            <strong data-i18n="exportImportShareCode">Import a share code</strong>
+            <p style="margin:2px 0 0; color:var(--text-dim); font-size:0.82rem;" data-i18n="exportImportShareCodeDesc">Paste a code someone shared from their ModBench pack.</p>
+          </div>
+        </div>
+        <div class="import-status" id="shareImportStatus" style="display:none;">
+          <span class="import-status-icon" id="shareImportStatusIcon"></span>
+          <span id="shareImportStatusText"></span>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <input type="text" id="shareImportInput" maxlength="8000" placeholder="Paste share code" style="flex:1; min-width:0;" data-i18n-attr="placeholder:exportPasteShareCode">
+          <button type="button" class="export-btn" id="shareImportBtn" style="width:auto; margin-top:0; padding:0 16px; white-space:nowrap;" data-i18n="exportImportBtn">Import</button>
+        </div>
+      </div>
+
+      <label for="packName" data-i18n="exportPackName">Pack name</label>
+      <input type="text" id="packName" maxlength="100" placeholder="My Modpack" value="My Modpack (via ModBench)" data-i18n-attr="placeholder:exportPackNamePlaceholder">
+
+      <label for="packVersion" data-i18n="exportPackVersion">Pack version</label>
+      <input type="text" id="packVersion" maxlength="50" placeholder="1.0.0" value="1.0.0">
+
+      <label data-i18n="exportModpackIcon">Modpack icon</label>
+      <div class="logo-picker">
+        <div class="logo-preview" id="logoPreview">
+          <img id="logoPreviewImg" src="icons/logo.webp" alt="Modpack icon preview">
+        </div>
+        <div class="logo-picker-actions">
+          <label class="file-btn" for="logoFileInput" data-i18n="exportChangeLogo">Change logo</label>
+          <input type="file" id="logoFileInput" accept="image/png,image/jpeg,image/webp" style="display:none;">
+          <button type="button" class="modal-link-btn" id="logoResetBtn" style="display:none;" data-i18n="exportResetLogo">Reset to default</button>
+        </div>
+      </div>
+      <p style="color:var(--text-dim); font-size:0.8rem; margin:6px 0 0;" data-i18n="exportLogoHint">Square image recommended, max 2 MB. Bundled into the <code>.mrpack</code> as its icon.</p>
+
+      <label for="expMcVersion" data-i18n="browseMcVersion">Minecraft version</label>
+      <select id="expMcVersion"><option value="" data-i18n="exportSelectVersion">Select a version</option></select>
+
+      <label for="expLoader" data-i18n="browseModloader">Modloader</label>
+      <select id="expLoader">
+        <option value="" data-i18n="exportSelectLoader">Select a loader</option>
+        <option value="fabric" data-i18n="loaderFabric">Fabric</option>
+        <option value="forge" data-i18n="loaderForge">Forge</option>
+        <option value="quilt" data-i18n="loaderQuilt">Quilt</option>
+        <option value="neoforge" data-i18n="loaderNeoForge">NeoForge</option>
+      </select>
+      <p style="color:var(--text-dim); font-size:0.8rem; margin:8px 0 0;" data-i18n="exportTargetHint">This is the target your pack declares to launchers, separate from the file you picked per mod in Create. If you already filtered by version/loader while browsing, it's pre-filled here.</p>
+
+      <div class="export-action-row">
+        <button type="button" class="export-btn secondary" id="savePackBtn">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          <span data-i18n="exportSavePackBtn">Save modpack</span>
+        </button>
+        <button class="export-btn" id="exportBtn" data-i18n="exportDownloadBtn">Download .mrpack</button>
+      </div>
+      <p class="export-note" id="exportNote" data-i18n="exportNoteDefault">Add mods to your pack first, then choose a version and loader.</p>
+      <p style="color:var(--text-dim); font-size:0.8rem; margin:8px 0 0; display:none;" id="exportImportTip" data-i18n="exportImportTip">Downloaded. If <strong>Modrinth</strong> is installed, just double-click the <code>.mrpack</code> file (or open it from your browser's downloads list) and it'll launch straight into creating an instance from it.</p>
+
+      <button type="button" class="modal-link-btn" id="copyShareCodeBtn2" style="width:100%; margin-top:10px; justify-content:center;">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="width:16px; height:16px;"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+        <span data-i18n="exportCopyPackCode">Copy pack code</span>
+      </button>
+      <p id="shareSignInNote" style="display:none; color:var(--text-dim); font-weight:700; font-size:0.82rem; margin:8px 0 0; text-align:center;" data-i18n="exportShareNeedsAccount">Sign in to generate share codes and links.</p>
+      <p style="color:var(--text-dim); font-size:0.8rem; margin:6px 0 0;" data-i18n="exportShareCodeHint">Copies a short code with your mod list. Others paste it straight into <strong>Import a share code</strong> above to get the same mods. <button type="button" id="shareLinkBtn" style="background:none; border:none; padding:0; color:var(--accent-dark); text-decoration:underline; cursor:pointer; font:inherit;">Prefer a link?</button></p>
+    </div>
+  </section>
+
+</main>
+
+<footer>
+  <span data-i18n="footerText">ModBench pulls live data from the <a href="https://modrinth.com" target="_blank" rel="noopener">Modrinth</a> API. Not affiliated with Modrinth or Mojang.</span>
+  <div style="margin-top:6px; display:flex; align-items:center; justify-content:center; gap:10px; flex-wrap:wrap;">
+    <span data-i18n="footerCredit" style="opacity:0.6;">ModBench, 2026 - Made with ❤️ by Vik</span>
+    <span id="footerCreditSep" style="width:1px; height:12px; background:var(--border);" aria-hidden="true"></span>
+    <span id="footerLegalLinks" data-i18n="footerLegalLinks">
+      <a href="privacy.html">Privacy Policy</a> · <a href="terms.html">Terms of Service</a>
+    </span>
+  </div>
+</footer>
+
+<script src="script.js" defer></script>
+</body>
+</html>
