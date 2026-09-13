@@ -1,4 +1,3 @@
-
 const API = "https://api.modrinth.com/v2";
 let unresolvableDeps = [];
 let importedPackNotes = [];
@@ -4551,7 +4550,7 @@ return state.pack.length > 0 && packSignature(sp.mods) === packSignature(state.p
 function savedPackCardHtml(sp){
 const count = (sp.mods || []).length;
 const loaded = isSavedPackLoaded(sp);
-const icon = sp.icon || "icons/logo.png";
+const icon = sp.icon || "icons/logo.webp";
 const sub = sp.version
 ? tPlural(count,'savedPackModsOne','{n} mod','savedPackModsOther','{n} mods') + " · v" + escapeHtml(sp.version)
 : tPlural(count,'savedPackModsOne','{n} mod','savedPackModsOther','{n} mods');
@@ -4581,7 +4580,7 @@ if(!state.savedPacks.length){ section.style.display = "none"; list.innerHTML = "
 section.style.display = "";
 list.innerHTML = state.savedPacks.map(savedPackCardHtml).join("");
 list.querySelectorAll(".saved-pack-icon").forEach(img=>{
-img.addEventListener("error", ()=>{ img.src = "icons/logo.png"; }, { once: true });
+img.addEventListener("error", ()=>{ img.src = "icons/logo.webp"; }, { once: true });
 });
 list.querySelectorAll("[data-open-sp]").forEach(b=>{
 b.addEventListener("click", ()=>openSavedPackInCreate(b.dataset.openSp));
@@ -5470,7 +5469,7 @@ if(state.packIcon){
 img.src = state.packIcon;
 resetBtn.style.display = "inline-flex";
 } else {
-img.src = "icons/logo.png";
+img.src = "icons/logo.webp";
 resetBtn.style.display = "none";
 }
 }
@@ -6160,7 +6159,7 @@ backdrop.className = "modal-backdrop intro-backdrop";
 backdrop.innerHTML = `
     <div class="modal intro-modal">
       <div class="modal-head">
-        <span class="intro-logo"><img src="icons/logo.png" alt="ModBench logo"></span>
+        <span class="intro-logo"><img src="icons/logo.webp" alt="ModBench logo"></span>
         <div class="intro-head-text">
           <div class="name">${t('introWelcomeTitle','Welcome to ModBench')}</div>
           <p style="margin:2px 0 0; color:var(--text-dim); font-size:0.86rem;">${t('introWelcomeSubtitle','Here is a quick tour before you start building a pack.')}</p>
