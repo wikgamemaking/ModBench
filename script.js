@@ -6380,6 +6380,201 @@ exportBtn.classList.remove("success");
 exportBtn.textContent = originalLabel;
 }, 1800);
 });
+const EXPORT_PACK_FOLDER = { mod: "mods", shader: "shaderpacks", resourcepack: "resourcepacks" };
+function exportFolderForType(type){ return EXPORT_PACK_FOLDER[type] || "mods"; }
+function mdEscape(str){
+return String(str == null ? "" : str).replace(/([\\`*_\[\]|])/g, "\\$1");
+}
+const CATEGORY_I18N_KEYS = {
+"adventure": "catAdventure", "cursed": "catCursed", "decoration": "catDecoration",
+"economy": "catEconomy", "equipment": "catEquipment", "food": "catFood",
+"game-mechanics": "catGameMechanics", "library": "catLibrary", "magic": "catMagic",
+"management": "catManagement", "minigame": "catMinigame", "mobs": "catMobs",
+"optimization": "catOptimization", "social": "catSocial", "storage": "catStorage",
+"technology": "catTechnology", "transportation": "catTransportation",
+"utility": "catUtility", "worldgen": "catWorldGeneration"
+};
+function translateCategory(cat){
+const key = CATEGORY_I18N_KEYS[cat];
+return key ? t(key, formatCategoryName(cat)) : formatCategoryName(cat);
+}
+const ENV_VALUE_I18N_KEYS = {
+required: ["exportMdEnvRequired", "required"],
+optional: ["exportMdEnvOptional", "optional"],
+unsupported: ["exportMdEnvUnsupported", "unsupported"]
+};
+function translateEnvValue(value){
+const entry = ENV_VALUE_I18N_KEYS[value];
+return entry ? t(entry[0], entry[1]) : value;
+}
+async function buildModlistMarkdown(packName, packVersion){
+const mcVersion = document.getElementById("expMcVersion").value;
+const loader = document.getElementById("expLoader").value;
+const TYPE_ORDER = ["mod", "shader", "resourcepack"];
+const TYPE_LABEL_KEYS = {
+mod: ["exportMdSectionMods", "Mods"],
+shader: ["exportMdSectionShaders", "Shaders"],
+resourcepack: ["exportMdSectionResourcepacks", "Resource Packs"]
+};
+const PROJECT_URL_PART = { mod: "mod", shader: "shader", resourcepack: "resourcepack" };
+const byType = {};
+state.pack.forEach(mod=>{
+const type = mod.projectType || "mod";
+(byType[type] = byType[type] || []).push(mod);
+});
+const lines = [];
+lines.push(`# ${mdEscape(packName)}`);
+const metaBits = [];
+if(mcVersion) metaBits.push(`Minecraft ${mcVersion}`);
+if(loader) metaBits.push(formatLoaderName(loader));
+metaBits.push(tPlural(state.pack.length, "exportMdModCountOne", "{n} mod", "exportMdModCountOther", "{n} mods"));
+lines.push(metaBits.join(" • "));
+TYPE_ORDER.filter(type=>byType[type] && byType[type].length).forEach(type=>{
+const mods = [...byType[type]].sort((a,b)=>a.title.localeCompare(b.title));
+const [labelKey, labelFallback] = TYPE_LABEL_KEYS[type];
+lines.push(`## ${t(labelKey, labelFallback)} (${mods.length})`);
+mods.forEach(mod=>{
+const link = `https://modrinth.com/${PROJECT_URL_PART[mod.projectType] || "mod"}/${mod.id}`;
+const version = mod.selectedVersionNumber ? ` — \`${mod.selectedVersionNumber}\`` : "";
+const genre = (mod.categories && mod.categories[0]) ? mdEscape(translateCategory(mod.categories[0])) : "";
+const clientLabel = t("exportMdClientLabel", "Client");
+const serverLabel = t("exportMdServerLabel", "Server");
+const sides = [];
+if(mod.clientSide) sides.push(`**${clientLabel}:** ${translateEnvValue(mod.clientSide)}`);
+if(mod.serverSide) sides.push(`**${serverLabel}:** ${translateEnvValue(mod.serverSide)}`);
+const sideLine = sides.join(" · ");
+const titleBits = [version, genre ? `— ${genre}` : ""].filter(Boolean).join(" ");
+// Two trailing spaces force a hard line break within the list item -
+// a single "\n" here would otherwise get collapsed by most renderers
+// (GitHub, Discord, etc.), merging the title and meta line together.
+lines.push(`- **[${mdEscape(mod.title)}](${link})**${titleBits ? ` ${titleBits}` : ""}${sideLine ? "  " : ""}`);
+if(sideLine) lines.push(`  ${sideLine}`);
+});
+});
+const versionSuffix = packVersion
+? tf("exportMdPackVersionSuffix", " — pack version {version}", { version: mdEscape(packVersion) })
+: "";
+lines.push(`*${tf("exportMdGeneratedWith", "Generated with [ModBench](https://modbench.net){versionSuffix}", { versionSuffix })}*`);
+return lines.join("\n");
+}
+async function generateModlistMarkdown(){
+if(!state.pack.length){
+showToast(t('alertExportEmpty',"There is nothing in Create to export yet."));
+return null;
+}
+const packName = (document.getElementById("packName").value || "My Modpack").trim() || "My Modpack";
+const packVersion = (document.getElementById("packVersion").value || "1.0.0").trim();
+return buildModlistMarkdown(packName, packVersion);
+}
+document.getElementById("exportZipBtn").addEventListener("click", async ()=>{
+if(!state.pack.length){
+showToast(t('alertExportEmpty',"There is nothing in Create to export yet."));
+return;
+}
+const packName = (document.getElementById("packName").value || "My Modpack").trim() || "My Modpack";
+const packVersion = (document.getElementById("packVersion").value || "1.0.0").trim();
+const btn = document.getElementById("exportZipBtn");
+const labelEl = btn.querySelector("span");
+const originalLabel = labelEl.textContent;
+btn.disabled = true;
+try{
+const zip = new JSZip();
+const targets = state.pack.filter(m=>m.selectedFile && m.selectedFile.url && m.selectedFile.filename);
+const skipped = state.pack.filter(m=>!(m.selectedFile && m.selectedFile.url && m.selectedFile.filename));
+let done = 0;
+const CONCURRENCY = 6;
+let idx = 0;
+labelEl.textContent = t('exportZipStarting','Downloading mods…');
+async function worker(){
+while(idx < targets.length){
+const mod = targets[idx++];
+try{
+const res = await fetchWithTimeout(mod.selectedFile.url, {}, 30000);
+if(!res.ok) throw new Error(`bad status ${res.status}`);
+const blob = await res.blob();
+zip.file(`${exportFolderForType(mod.projectType)}/${mod.selectedFile.filename}`, blob);
+}catch(e){
+console.warn(`Couldn't download ${mod.title}`, e);
+skipped.push(mod);
+}
+done++;
+labelEl.textContent = tf('exportZipProgress','Downloading {done}/{total}…', { done, total: targets.length });
+}
+}
+await Promise.all(Array.from({ length: Math.min(CONCURRENCY, targets.length) || 1 }, worker));
+importedOverrides.forEach(o=>{ zip.file(o.path, o.data); });
+try{
+const md = await buildModlistMarkdown(packName, packVersion);
+zip.file("modlist.md", md);
+}catch(e){ console.warn("Couldn't attach modlist.md to the .zip", e); }
+labelEl.textContent = t('exportZipZipping','Zipping…');
+const blob = await zip.generateAsync({ type: "blob", mimeType: "application/octet-stream" });
+const url = URL.createObjectURL(blob);
+const a = document.createElement("a");
+a.href = url;
+a.download = `${packName.replace(/[^a-z0-9\-_ ]/gi,"")}.zip`;
+document.body.appendChild(a);
+a.click();
+a.remove();
+URL.revokeObjectURL(url);
+if(skipped.length){
+const names = skipped.map(m=>m.title).slice(0, 8).join(", ");
+showToast(tf('exportZipSomeSkipped',"Downloaded, but {n} mod(s) couldn't be fetched and were left out: {names}", { n: skipped.length, names }), { duration: 10000 });
+}else{
+fireConfetti(btn);
+}
+}catch(e){
+console.error(e);
+showToast(t('alertExportZipFailed',"Couldn't build the .zip. Check your connection and try again."));
+}finally{
+btn.disabled = false;
+labelEl.textContent = originalLabel;
+}
+});
+document.getElementById("exportMdBtn").addEventListener("click", async ()=>{
+const btn = document.getElementById("exportMdBtn");
+const labelEl = btn.querySelector("span");
+const originalLabel = labelEl.textContent;
+btn.disabled = true;
+labelEl.textContent = t('exportMdBuilding','Building…');
+try{
+const md = await generateModlistMarkdown();
+if(md == null) return;
+const packName = (document.getElementById("packName").value || "My Modpack").trim() || "My Modpack";
+const blob = new Blob([md], { type: "text/markdown;charset=utf-8" });
+const url = URL.createObjectURL(blob);
+const a = document.createElement("a");
+a.href = url;
+a.download = `${packName.replace(/[^a-z0-9\-_ ]/gi,"")}-modlist.md`;
+document.body.appendChild(a);
+a.click();
+a.remove();
+URL.revokeObjectURL(url);
+}catch(e){
+console.error(e);
+showToast(t('alertExportMdFailed',"Couldn't build the mod list. Try again."));
+}finally{
+btn.disabled = false;
+labelEl.textContent = originalLabel;
+}
+});
+document.getElementById("exportMdCopyBtn").addEventListener("click", async ()=>{
+const btn = document.getElementById("exportMdCopyBtn");
+if(!state.pack.length){
+showToast(t('alertExportEmpty',"There is nothing in Create to export yet."));
+return;
+}
+btn.disabled = true;
+try{
+const md = await generateModlistMarkdown();
+if(md) copyTextToClipboard(md, btn);
+}catch(e){
+console.error(e);
+showToast(t('alertExportMdFailed',"Couldn't build the mod list. Try again."));
+}finally{
+btn.disabled = false;
+}
+});
 document.getElementById("searchInput").addEventListener("input", (e)=>{
 state.query = e.target.value; state.page = 1; scheduleSearch();
 });
