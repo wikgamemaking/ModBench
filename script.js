@@ -3572,7 +3572,7 @@ async function openModal(projectId, hitLookup){
   const hit = hitLookup ? hitLookup(projectId) : findHitAnywhere(projectId);
   let backdrop = document.createElement("div");
   backdrop.className = "modal-backdrop";
-  backdrop.innerHTML = `<div class="modal"><div class="status-msg">Loading details…</div></div>`;
+  backdrop.innerHTML = `<div class="modal"><div class="status-msg"><div class="modal-loading-spinner"></div>Loading details…</div></div>`;
   document.body.appendChild(backdrop);
   backdrop.addEventListener("click", (e)=>{ if(e.target === backdrop) dismissModalBackdrop(backdrop); });
 
