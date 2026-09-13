@@ -4492,6 +4492,10 @@ applyLanguage(state.lang, false);
 updateFooterSeparator();
 
 const TAB_IDS = ["browse","favorites","modpacks","pack","export"];
+const TAB_URL_NAMES = { favorites: "saved" }; // internal id -> URL-facing name, where they differ
+const TAB_URL_TO_INTERNAL = Object.fromEntries(
+  TAB_IDS.map(id => [TAB_URL_NAMES[id] || id, id])
+);
 
 function activateTab(tab, opts){
   opts = opts || {};
@@ -4526,9 +4530,10 @@ function activateTab(tab, opts){
   const footerLegalLinks = document.getElementById("footerLegalLinks");
   if(footerLegalLinks) footerLegalLinks.style.display = (state.tab === "browse") ? "" : "none";
   if(push){
+    const urlName = TAB_URL_NAMES[state.tab] || state.tab;
     const url = (state.tab === "browse")
       ? location.pathname + location.hash
-      : `?tab=${state.tab}${location.hash}`;
+      : `?tab=${urlName}${location.hash}`;
     history.pushState({tab: state.tab}, "", url);
   }
 }
@@ -4539,7 +4544,8 @@ document.querySelectorAll("nav.tabs button").forEach(btn=>{
 
 window.addEventListener("popstate", ()=>{
   const params = new URLSearchParams(location.search);
-  const tab = params.get("tab") || "browse";
+  const urlTab = params.get("tab") || "browse";
+  const tab = TAB_URL_TO_INTERNAL[urlTab] || urlTab;
   if(TAB_IDS.includes(tab)) activateTab(tab, {push:false});
 });
 
@@ -9096,7 +9102,8 @@ runSearch();
 
 (function applyInitialTabFromUrl(){
   const params = new URLSearchParams(location.search);
-  const tab = params.get("tab");
+  const urlTab = params.get("tab");
+  const tab = TAB_URL_TO_INTERNAL[urlTab] || urlTab;
   if(tab && tab !== "browse" && TAB_IDS.includes(tab)) activateTab(tab, {push:false});
 })();
 
