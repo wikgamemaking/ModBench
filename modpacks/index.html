@@ -11,14 +11,14 @@
 <meta property="og:description" content="Search and import existing Minecraft modpacks from Modrinth, then edit them in your browser with ModBench.">
 <meta property="og:image" content="https://modbench.net/icons/logo.png">
 <meta property="og:url" content="https://modbench.net/modpacks/">
-<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-Ei3Yw99jCnwg+SOMIXwZYjgcOSkyeIQA8ZmW4DuE1B8=' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://cdn.modrinth.com https://www.gravatar.com https://nwshmuzkphmozilcpdti.supabase.co https://raw.githubusercontent.com https://lh3.googleusercontent.com; connect-src 'self' https://api.modrinth.com https://nwshmuzkphmozilcpdti.supabase.co https://meta.fabricmc.net https://meta.quiltmc.org https://maven.neoforged.net https://files.minecraftforge.net; object-src 'none'; base-uri 'self'; form-action 'self';">
+<meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self' 'sha256-Ei3Yw99jCnwg+SOMIXwZYjgcOSkyeIQA8ZmW4DuE1B8=' https://cdnjs.cloudflare.com https://cdn.jsdelivr.net; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src https://fonts.gstatic.com; img-src 'self' data: https://cdn.modrinth.com https://www.gravatar.com https://nwshmuzkphmozilcpdti.supabase.co https://raw.githubusercontent.com https://lh3.googleusercontent.com; connect-src 'self' https://api.modrinth.com https://cdn.modrinth.com https://nwshmuzkphmozilcpdti.supabase.co https://meta.fabricmc.net https://meta.quiltmc.org https://maven.neoforged.net https://files.minecraftforge.net; object-src 'none'; base-uri 'self'; form-action 'self';">
 <meta name="theme-color" content="#4e9a52">
 <link rel="canonical" href="https://modbench.net/modpacks/">
 <link rel="alternate" hreflang="en" href="https://modbench.net/modpacks/">
 <link rel="alternate" hreflang="fr" href="https://modbench.net/modpacks/?lang=fr">
 <link rel="alternate" hreflang="x-default" href="https://modbench.net/modpacks/">
 <link rel="sitemap" type="application/xml" href="/sitemap.xml">
-<link rel="icon" type="image/png" href="icons/logo.png">
+<link rel="icon" type="image/png" href="/icons/logo.png">
 <script type="application/ld+json">
 {
   "@context": "https://schema.org",
@@ -41,7 +41,7 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.min.js"></script>
 <!-- i18n: add a script tag per language file here -->
-<script src="i18n/fr.js"></script>
+<script src="/i18n/fr.js"></script>
 <script>
   (function(){
     let saved = null;
@@ -893,6 +893,25 @@
     border:3px solid var(--border); border-top-color: var(--accent);
     animation: import-spin 0.8s linear infinite;
   }
+  .mod-drag-overlay{
+    position:absolute; inset:0; z-index:40;
+    display:flex; align-items:center; justify-content:center;
+    background: rgba(246,245,241,0.72);
+    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    opacity:0; visibility:hidden; pointer-events:none;
+    transition: opacity .15s ease;
+    border-radius: var(--radius);
+  }
+  [data-theme="dark"] .mod-drag-overlay{ background: rgba(20,20,18,0.72); }
+  .mod-drag-overlay.visible{ opacity:1; visibility:visible; }
+  .mod-drag-overlay-card{
+    display:flex; flex-direction:column; align-items:center; text-align:center; gap:8px;
+    background: var(--surface); border:1.5px dashed var(--accent);
+    border-radius: 16px; padding: 28px 32px; max-width:320px;
+    color: var(--accent);
+  }
+  .mod-drag-overlay-card strong{ font-size:1.02rem; color:var(--text); }
+  .mod-drag-overlay-card p{ margin:0; font-size:0.85rem; color:var(--text-dim); }
   .import-skeleton{ display:flex; flex-direction:column; gap:10px; }
   .import-skeleton-row{
     display:flex; align-items:center; gap:12px; padding:12px 14px;
@@ -1895,7 +1914,7 @@
 <header class="site">
   <div class="header-inner">
     <div class="brand">
-      <span class="mark"><img src="icons/logo.webp" alt="ModBench logo"></span>
+      <span class="mark"><img src="/icons/logo.webp" alt="ModBench logo"></span>
       <span class="brand-text">
         <span class="brand-name">ModBench</span>
       </span>
@@ -1967,10 +1986,10 @@
         </div>
         <div class="filter-group" id="loaderFilterGroup">
           <h3 data-i18n="browseModloader">Modloader</h3>
-          <label><input type="checkbox" value="fabric" class="loaderCheck"> <img class="loader-icon" src="icons/fabric.png" alt="Fabric" loading="lazy"> <span data-i18n="loaderFabric">Fabric</span></label>
-          <label><input type="checkbox" value="forge" class="loaderCheck"> <img class="loader-icon" src="icons/forge.png" alt="Forge" loading="lazy"> <span data-i18n="loaderForge">Forge</span></label>
-          <label><input type="checkbox" value="quilt" class="loaderCheck"> <img class="loader-icon" src="icons/quilt.png" alt="Quilt" loading="lazy"> <span data-i18n="loaderQuilt">Quilt</span></label>
-          <label><input type="checkbox" value="neoforge" class="loaderCheck"> <img class="loader-icon" src="icons/neoforge.png" alt="NeoForge" loading="lazy"> <span data-i18n="loaderNeoForge">NeoForge</span></label>
+          <label><input type="checkbox" value="fabric" class="loaderCheck"> <img class="loader-icon" src="/icons/fabric.png" alt="Fabric" loading="lazy"> <span data-i18n="loaderFabric">Fabric</span></label>
+          <label><input type="checkbox" value="forge" class="loaderCheck"> <img class="loader-icon" src="/icons/forge.png" alt="Forge" loading="lazy"> <span data-i18n="loaderForge">Forge</span></label>
+          <label><input type="checkbox" value="quilt" class="loaderCheck"> <img class="loader-icon" src="/icons/quilt.png" alt="Quilt" loading="lazy"> <span data-i18n="loaderQuilt">Quilt</span></label>
+          <label><input type="checkbox" value="neoforge" class="loaderCheck"> <img class="loader-icon" src="/icons/neoforge.png" alt="NeoForge" loading="lazy"> <span data-i18n="loaderNeoForge">NeoForge</span></label>
         </div>
         <hr class="filter-sep">
         <div class="filter-group">
@@ -2089,10 +2108,10 @@
         </div>
         <div class="filter-group">
           <h3 data-i18n="browseModloader">Modloader</h3>
-          <label><input type="checkbox" value="fabric" class="modpackLoaderCheck"> <img class="loader-icon" src="icons/fabric.png" alt="Fabric" loading="lazy"> <span data-i18n="loaderFabric">Fabric</span></label>
-          <label><input type="checkbox" value="forge" class="modpackLoaderCheck"> <img class="loader-icon" src="icons/forge.png" alt="Forge" loading="lazy"> <span data-i18n="loaderForge">Forge</span></label>
-          <label><input type="checkbox" value="quilt" class="modpackLoaderCheck"> <img class="loader-icon" src="icons/quilt.png" alt="Quilt" loading="lazy"> <span data-i18n="loaderQuilt">Quilt</span></label>
-          <label><input type="checkbox" value="neoforge" class="modpackLoaderCheck"> <img class="loader-icon" src="icons/neoforge.png" alt="NeoForge" loading="lazy"> <span data-i18n="loaderNeoForge">NeoForge</span></label>
+          <label><input type="checkbox" value="fabric" class="modpackLoaderCheck"> <img class="loader-icon" src="/icons/fabric.png" alt="Fabric" loading="lazy"> <span data-i18n="loaderFabric">Fabric</span></label>
+          <label><input type="checkbox" value="forge" class="modpackLoaderCheck"> <img class="loader-icon" src="/icons/forge.png" alt="Forge" loading="lazy"> <span data-i18n="loaderForge">Forge</span></label>
+          <label><input type="checkbox" value="quilt" class="modpackLoaderCheck"> <img class="loader-icon" src="/icons/quilt.png" alt="Quilt" loading="lazy"> <span data-i18n="loaderQuilt">Quilt</span></label>
+          <label><input type="checkbox" value="neoforge" class="modpackLoaderCheck"> <img class="loader-icon" src="/icons/neoforge.png" alt="NeoForge" loading="lazy"> <span data-i18n="loaderNeoForge">NeoForge</span></label>
         </div>
         <hr class="filter-sep">
         <div class="filter-group">
@@ -2161,7 +2180,14 @@
   <button id="packToTop" type="button" aria-label="Go to top" title="Go to top" data-i18n-attr="aria-label:createGoToTop,title:createGoToTop" style="position:fixed; right:24px; bottom:24px; z-index:60; width:44px; height:44px; border-radius:50%; border:1px solid var(--border); background:var(--surface-2); color:var(--text); cursor:pointer; box-shadow:0 4px 12px rgba(0,0,0,0.25); align-items:center; justify-content:center; opacity:0; visibility:hidden; transform:translateY(8px); transition:opacity .2s ease, transform .2s ease; display:flex;">
     <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M18 15l-6-6-6 6"/></svg>
   </button>
-  <section id="tab-pack" class="tab-pack-section" style="display:none;">
+  <section id="tab-pack" class="tab-pack-section" style="display:none; position:relative;">
+    <div class="mod-drag-overlay" id="modFileDragOverlay">
+      <div class="mod-drag-overlay-card">
+        <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <strong data-i18n="modFileDropOverlayTitle">Drop your mod files</strong>
+        <p data-i18n="modFileDropOverlayDesc">We'll check each one against Modrinth and add the ones that match (up to 10 at once).</p>
+      </div>
+    </div>
     <div class="import-lock-overlay" id="packImportLock" aria-live="polite" aria-label="Importing mods">
       <div class="import-lock-blur" aria-hidden="true">
         <div class="search-box" style="margin-bottom:12px;">
@@ -2233,6 +2259,18 @@
     </div>
     <div id="packIssueBanner" class="compat-summary bad" style="display:none;"></div>
     <div id="importSummary" class="import-summary" hidden></div>
+    <div style="display:flex; align-items:center; gap:10px; margin-bottom:12px; flex-wrap:wrap;">
+      <label class="page-btn" for="modFileInput" style="display:inline-flex; align-items:center; gap:6px; cursor:pointer;">
+        <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+        <span data-i18n="createImportModJar">Add mod files</span>
+      </label>
+      <input type="file" id="modFileInput" accept=".jar" multiple style="display:none;">
+      <span style="font-size:0.82rem; color:var(--text-dim);" data-i18n="createImportModJarHint">or drag .jar files anywhere in here (up to 10 at once)</span>
+    </div>
+    <div class="import-status" id="modFileImportStatus" style="display:none; margin-bottom:12px;">
+      <span class="import-status-icon" id="modFileImportStatusIcon"></span>
+      <span id="modFileImportStatusText"></span>
+    </div>
     <div id="packList"></div>
     <div id="packEmpty" class="empty-state" style="display:none;">
       <div class="big">🧰</div>
@@ -2304,7 +2342,7 @@
       <label data-i18n="exportModpackIcon">Modpack icon</label>
       <div class="logo-picker">
         <div class="logo-preview" id="logoPreview">
-          <img id="logoPreviewImg" src="icons/logo.webp" alt="Modpack icon preview">
+          <img id="logoPreviewImg" src="/icons/logo.webp" alt="Modpack icon preview">
         </div>
         <div class="logo-picker-actions">
           <label class="file-btn" for="logoFileInput" data-i18n="exportChangeLogo">Change logo</label>
@@ -2354,11 +2392,11 @@
     <span data-i18n="footerCredit" style="opacity:0.6;">ModBench, 2026 - Made with ❤️ by Vik</span>
     <span id="footerCreditSep" style="width:1px; height:12px; background:var(--border);" aria-hidden="true"></span>
     <span id="footerLegalLinks" data-i18n="footerLegalLinks">
-      <a href="privacy.html">Privacy Policy</a> · <a href="terms.html">Terms of Service</a>
+      <a href="/privacy.html">Privacy Policy</a> · <a href="/terms.html">Terms of Service</a>
     </span>
   </div>
 </footer>
 
-<script src="script.js" defer></script>
+<script src="/script.js" defer></script>
 </body>
 </html>
