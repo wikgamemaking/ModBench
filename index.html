@@ -895,22 +895,22 @@
   .mod-drag-overlay{
     position:absolute; inset:0; z-index:40;
     display:flex; align-items:center; justify-content:center;
-    background: rgba(246,245,241,0.72);
-    backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+    background: rgba(246,245,241,0.85);
+    backdrop-filter: blur(14px) saturate(1.1); -webkit-backdrop-filter: blur(14px) saturate(1.1);
     opacity:0; visibility:hidden; pointer-events:none;
     transition: opacity .15s ease;
     border-radius: var(--radius);
+    border: 2.5px dashed var(--accent);
+    margin: 8px;
   }
-  [data-theme="dark"] .mod-drag-overlay{ background: rgba(20,20,18,0.72); }
+  [data-theme="dark"] .mod-drag-overlay{ background: rgba(18,18,16,0.85); }
   .mod-drag-overlay.visible{ opacity:1; visibility:visible; }
   .mod-drag-overlay-card{
     display:flex; flex-direction:column; align-items:center; text-align:center; gap:8px;
-    background: var(--surface); border:1.5px dashed var(--accent);
-    border-radius: 16px; padding: 28px 32px; max-width:320px;
     color: var(--accent);
   }
-  .mod-drag-overlay-card strong{ font-size:1.02rem; color:var(--text); }
-  .mod-drag-overlay-card p{ margin:0; font-size:0.85rem; color:var(--text-dim); }
+  .mod-drag-overlay-card strong{ font-size:1.15rem; color:var(--text); }
+  .mod-drag-overlay-card p{ margin:0; font-size:0.85rem; color:var(--text-dim); max-width:280px; }
   .tab-pack-section{ min-height: 65vh; }
   .import-skeleton{ display:flex; flex-direction:column; gap:10px; }
   .import-skeleton-row{
@@ -2185,7 +2185,7 @@
       <div class="mod-drag-overlay-card">
         <svg viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
         <strong data-i18n="modFileDropOverlayTitle">Drop your mod files</strong>
-        <p data-i18n="modFileDropOverlayDesc">We'll check each one against Modrinth and add the ones that match (up to 10 at once).</p>
+        <p data-i18n="modFileDropOverlayDesc">We'll check each one against Modrinth and add the ones that match (up to 20 at once).</p>
       </div>
     </div>
     <div class="import-lock-overlay" id="packImportLock" aria-live="polite" aria-label="Importing mods">
