@@ -260,7 +260,7 @@ el.style.paddingBottom = "0px";
 let done = false;
 const finish = ()=>{ if(done) return; done = true; el.remove(); };
 el.addEventListener("transitionend", (e)=>{ if(e.propertyName === "height") finish(); });
-setTimeout(finish, 320);
+setTimeout(finish, 160);
 }
 function dismissToastEl(el){
 collapseAndRemoveToast(el);
@@ -3118,7 +3118,7 @@ function wireCardEvents(container, hitLookup, onAdd){
           let done = false;
           const finish = ()=>{ if(done) return; done = true; renderFavorites(); };
           card.addEventListener("transitionend", finish, {once:true});
-          setTimeout(finish, 320);
+          setTimeout(finish, 160);
         }else{
           renderFavorites();
         }
@@ -3574,7 +3574,7 @@ async function openModal(projectId, hitLookup){
   backdrop.className = "modal-backdrop";
   backdrop.innerHTML = `<div class="modal"><div class="status-msg">Loading details…</div></div>`;
   document.body.appendChild(backdrop);
-  backdrop.addEventListener("click", (e)=>{ if(e.target === backdrop) backdrop.remove(); });
+  backdrop.addEventListener("click", (e)=>{ if(e.target === backdrop) dismissModalBackdrop(backdrop); });
 
   try{
     await gameVersionRankReady;
@@ -3685,13 +3685,13 @@ async function openModal(projectId, hitLookup){
       });
     });
 
-    backdrop.querySelector(".modal-close").addEventListener("click", ()=>backdrop.remove());
+    backdrop.querySelector(".modal-close").addEventListener("click", ()=>dismissModalBackdrop(backdrop));
     backdrop.querySelector("#modalAddBtn").addEventListener("click", async ()=>{
       if(!chosenVersion){ showToast(t('alertPickVersionFirst',"Pick a version first.")); return; }
       if(isModpack){
         const addBtn = backdrop.querySelector("#modalAddBtn");
         const ok = await importModpackVersion(projectId, chosenVersion, addBtn, { fallbackName: projRes.title, fallbackIcon: hit.icon_url || projRes.icon_url });
-        if(ok) backdrop.remove();
+        if(ok) dismissModalBackdrop(backdrop);
         return;
       }
       const existingIdx = state.pack.findIndex(p=>p.id === projectId);
@@ -3716,7 +3716,7 @@ async function openModal(projectId, hitLookup){
       savePack();
       updateCardButtonsEverywhere(projectId);
       if(state.tab === "pack") renderPack();
-      backdrop.remove();
+      dismissModalBackdrop(backdrop);
       await autoAddDependencies(chosenVersion, new Set([projectId]), projectType);
       await ensureLoaderApis(chosenVersion.game_versions, chosenVersion.loaders);
       savePack();
@@ -3725,7 +3725,7 @@ async function openModal(projectId, hitLookup){
   }catch(e){
     console.error(e);
     backdrop.querySelector(".modal").innerHTML = `<div class="status-msg">${t('couldntLoadMod',"Couldn't load this mod.")} <button class="modal-close">${t('close','Close')}</button></div>`;
-    backdrop.querySelector(".modal-close").addEventListener("click", ()=>backdrop.remove());
+    backdrop.querySelector(".modal-close").addEventListener("click", ()=>dismissModalBackdrop(backdrop));
   }
 }
 
