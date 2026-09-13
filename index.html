@@ -4491,35 +4491,56 @@ document.getElementById("langToggle").addEventListener("click", ()=>{
 applyLanguage(state.lang, false);
 updateFooterSeparator();
 
-document.querySelectorAll("nav.tabs button").forEach(btn=>{
-  btn.addEventListener("click", ()=>{
-    document.querySelectorAll("nav.tabs button").forEach(b=>{b.classList.remove("active"); b.setAttribute("aria-selected","false");});
-    btn.classList.add("active"); btn.setAttribute("aria-selected","true");
-    const leavingPack = state.tab === "pack";
-    state.tab = btn.dataset.tab;
-    if(leavingPack && state.tab !== "pack" && lastImportReport) lastImportReport = null;
-    updateFooterSeparator();
-    ["browse","favorites","modpacks","pack","export"].forEach(t=>{
-      const sec = document.getElementById("tab-"+t);
-      if(t === state.tab){
-        sec.style.display = "";
-        sec.classList.remove("tab-panel-enter");
-        void sec.offsetWidth; // restart animation
-        sec.classList.add("tab-panel-enter");
-      } else {
-        sec.style.display = "none";
-      }
-    });
-    if(state.tab === "pack"){
-      renderPack();
-      if(state.importingCount > 0) showPackImportLock(); else hidePackImportLock();
-    }
-    if(state.tab === "export") renderExport();
-    if(state.tab === "favorites") renderFavorites();
-    if(state.tab === "modpacks" && state.modpackResults.length === 0 && !state.modpackSearched) runModpackSearch();
-    const footerLegalLinks = document.getElementById("footerLegalLinks");
-    if(footerLegalLinks) footerLegalLinks.style.display = (state.tab === "browse") ? "" : "none";
+const TAB_IDS = ["browse","favorites","modpacks","pack","export"];
+
+function activateTab(tab, opts){
+  opts = opts || {};
+  const push = opts.push !== false;
+  document.querySelectorAll("nav.tabs button").forEach(b=>{
+    const isActive = b.dataset.tab === tab;
+    b.classList.toggle("active", isActive);
+    b.setAttribute("aria-selected", isActive ? "true" : "false");
   });
+  const leavingPack = state.tab === "pack";
+  state.tab = tab;
+  if(leavingPack && state.tab !== "pack" && lastImportReport) lastImportReport = null;
+  updateFooterSeparator();
+  TAB_IDS.forEach(t=>{
+    const sec = document.getElementById("tab-"+t);
+    if(t === state.tab){
+      sec.style.display = "";
+      sec.classList.remove("tab-panel-enter");
+      void sec.offsetWidth; // restart animation
+      sec.classList.add("tab-panel-enter");
+    } else {
+      sec.style.display = "none";
+    }
+  });
+  if(state.tab === "pack"){
+    renderPack();
+    if(state.importingCount > 0) showPackImportLock(); else hidePackImportLock();
+  }
+  if(state.tab === "export") renderExport();
+  if(state.tab === "favorites") renderFavorites();
+  if(state.tab === "modpacks" && state.modpackResults.length === 0 && !state.modpackSearched) runModpackSearch();
+  const footerLegalLinks = document.getElementById("footerLegalLinks");
+  if(footerLegalLinks) footerLegalLinks.style.display = (state.tab === "browse") ? "" : "none";
+  if(push){
+    const url = (state.tab === "browse")
+      ? location.pathname + location.hash
+      : `?tab=${state.tab}${location.hash}`;
+    history.pushState({tab: state.tab}, "", url);
+  }
+}
+
+document.querySelectorAll("nav.tabs button").forEach(btn=>{
+  btn.addEventListener("click", ()=> activateTab(btn.dataset.tab));
+});
+
+window.addEventListener("popstate", ()=>{
+  const params = new URLSearchParams(location.search);
+  const tab = params.get("tab") || "browse";
+  if(TAB_IDS.includes(tab)) activateTab(tab, {push:false});
 });
 
 (function(){
@@ -9072,6 +9093,12 @@ const gameVersionRankReady = loadGameVersions().then(()=>{
   if(state.tab === "pack") renderPack();
 });
 runSearch();
+
+(function applyInitialTabFromUrl(){
+  const params = new URLSearchParams(location.search);
+  const tab = params.get("tab");
+  if(tab && tab !== "browse" && TAB_IDS.includes(tab)) activateTab(tab, {push:false});
+})();
 
 initAuth().finally(()=>{
   if(location.hash.includes("import=")){
