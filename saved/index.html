@@ -858,6 +858,7 @@
   .import-status:not(.success):not(.error) .import-status-icon svg{ animation: import-spin 0.9s linear infinite; }
   @keyframes import-spin{ from{ transform:rotate(0deg); } to{ transform:rotate(360deg); } }
   .import-status.pop{ animation: import-status-pop .35s cubic-bezier(.3,1.6,.4,1); }
+  .import-status-compact{ display:inline-flex; max-width: 100%; width: fit-content; }
   @keyframes import-status-pop{ 0%{ transform: scale(.96); } 55%{ transform: scale(1.02); } 100%{ transform: scale(1); } }
   @media (prefers-reduced-motion: reduce){
     .import-status:not(.success):not(.error) .import-status-icon svg{ animation: none; }
@@ -2261,7 +2262,7 @@
     <div id="packIssueBanner" class="compat-summary bad" style="display:none;"></div>
     <div id="importSummary" class="import-summary" hidden></div>
     <input type="file" id="modFileInput" accept=".jar" multiple style="display:none;">
-    <div class="import-status" id="modFileImportStatus" style="display:none; margin-bottom:12px;">
+    <div class="import-status import-status-compact" id="modFileImportStatus" style="display:none; margin-bottom:12px;">
       <span class="import-status-icon" id="modFileImportStatusIcon"></span>
       <span id="modFileImportStatusText"></span>
     </div>
