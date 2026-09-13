@@ -2225,10 +2225,18 @@ applyLanguage(state.lang, false);
 updateFooterSeparator();
 
 const TAB_IDS = ["browse","favorites","modpacks","pack","export"];
-const TAB_URL_NAMES = { favorites: "saved" };
+const TAB_URL_NAMES = { favorites: "saved", pack: "create" };
 const TAB_URL_TO_INTERNAL = Object.fromEntries(
   TAB_IDS.map(id => [TAB_URL_NAMES[id] || id, id])
 );
+const TAB_URL_PATH = Object.fromEntries(
+  TAB_IDS.map(id => [id, id === "browse" ? "/" : "/" + (TAB_URL_NAMES[id] || id) + "/"])
+);
+function tabFromPath(pathname){
+  const seg = pathname.replace(/^\/|\/$/g, "");
+  if(!seg) return "browse";
+  return TAB_URL_TO_INTERNAL[seg] || null;
+}
 
 function activateTab(tab, opts){
   opts = opts || {};
@@ -2263,11 +2271,10 @@ function activateTab(tab, opts){
   const footerLegalLinks = document.getElementById("footerLegalLinks");
   if(footerLegalLinks) footerLegalLinks.style.display = (state.tab === "browse") ? "" : "none";
   if(push){
-    const urlName = TAB_URL_NAMES[state.tab] || state.tab;
     const params = new URLSearchParams(location.search);
-    if(state.tab === "browse") params.delete("tab"); else params.set("tab", urlName);
+    params.delete("tab");
     const qs = params.toString();
-    const url = location.pathname + (qs ? "?"+qs : "") + location.hash;
+    const url = TAB_URL_PATH[state.tab] + (qs ? "?"+qs : "") + location.hash;
     history.pushState({tab: state.tab}, "", url);
   }
 }
@@ -2278,8 +2285,11 @@ document.querySelectorAll("nav.tabs button").forEach(btn=>{
 
 window.addEventListener("popstate", ()=>{
   const params = new URLSearchParams(location.search);
-  const urlTab = params.get("tab") || "browse";
-  const tab = TAB_URL_TO_INTERNAL[urlTab] || urlTab;
+  let tab = tabFromPath(location.pathname);
+  if(!tab){
+    const urlTab = params.get("tab") || "browse";
+    tab = TAB_URL_TO_INTERNAL[urlTab] || urlTab;
+  }
   if(TAB_IDS.includes(tab)) activateTab(tab, {push:false});
   const urlLang = params.get("lang") || "en";
   if(LANGUAGES.includes(urlLang) && urlLang !== state.lang) applyLanguage(urlLang, false);
@@ -6692,9 +6702,17 @@ if(state.tab === "pack") renderPack();
 runSearch();
 (function applyInitialTabFromUrl(){
 const params = new URLSearchParams(location.search);
-const urlTab = params.get("tab");
-const tab = TAB_URL_TO_INTERNAL[urlTab] || urlTab;
+const legacyUrlTab = params.get("tab");
+const pathTab = tabFromPath(location.pathname);
+const tab = pathTab || TAB_URL_TO_INTERNAL[legacyUrlTab] || legacyUrlTab;
 if(tab && tab !== "browse" && TAB_IDS.includes(tab)) activateTab(tab, {push:false});
+if(legacyUrlTab){
+  // Clean up old ?tab= links into the new path-based URL without a reload.
+  params.delete("tab");
+  const qs = params.toString();
+  const url = (TAB_URL_PATH[tab] || "/") + (qs ? "?"+qs : "") + location.hash;
+  history.replaceState({tab: tab}, "", url);
+}
 })();
 initAuth();
 if(location.hash.includes("import=")){
